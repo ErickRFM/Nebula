@@ -39,11 +39,11 @@ test('local audio import survives reload in IndexedDB', async ({page}) => {
   pcm.writeUInt16LE(1,22); pcm.writeUInt32LE(44100,24); pcm.writeUInt32LE(88200,28);
   pcm.writeUInt16LE(2,32); pcm.writeUInt16LE(16,34); pcm.write('data',36); pcm.writeUInt32LE(pcm.length-44,40);
   await page.locator('input[type=file]').setInputFiles({name:'mi-cancion.wav',mimeType:'audio/wav',buffer:pcm});
-  await expect(page.getByText('mi-cancion',{exact:true})).toBeVisible();
+  await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'mi-cancion'}).first()).toBeVisible();
   await expect(page.getByRole('status')).toContainText('guardadas');
   await page.reload();
   await navigate(page,'Biblioteca');
-  await expect(page.getByText('mi-cancion',{exact:true})).toBeVisible();
+  await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'mi-cancion'}).first()).toBeVisible();
 });
 
 test('web manifest is served for installation', async ({request}) => {
