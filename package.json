@@ -1,0 +1,27 @@
+{
+  "name": "nebula",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @nebula/web",
+    "build": "npm run build -w @nebula/web",
+    "typecheck": "npm run typecheck -w @nebula/web",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run test && npm run build",
+    "mobile:sync": "npm run build && npx cap sync"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.15.0",
+    "@capacitor/cli": "^7.4.3"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}
