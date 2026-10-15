@@ -7,7 +7,7 @@ Next.js + React + TypeScript foundation for a future cross-platform personal mus
 Requires Node.js 20.11+ and npm 10+.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -47,9 +47,13 @@ Imported audio is saved to IndexedDB if permitted. Maximum supported import size
 Run PostgreSQL, set DATABASE_URL and API_JWT_SECRET (32+ characters) using apps/api/README.md, then:
 
 ```bash
-npm install
+npm ci
 npm run db:migrate
 npm run api:dev
 ```
 
 The API provides registration/login and playlist CRUD, but it is **not yet wired to the browser login screens**. API bearer tokens expire after 15 minutes and there is no refresh/revocation yet. Never put tokens in localStorage or commit secrets. The local browser library continues working without the API.
+
+## Development database
+
+Docker Compose and Windows PowerShell setup: [Local development](docs/local-development.md). The default database credentials in compose.yaml are **for localhost only** and must never be reused in production.
