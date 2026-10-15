@@ -15,10 +15,10 @@ test('playlist creation persists after reloading', async ({page}) => {
   await page.getByRole('button',{name:'Playlists',exact:true}).click();
   await page.getByPlaceholder('Nombre de nueva playlist').fill('Para estudiar');
   await page.getByRole('button',{name:'Crear playlist'}).click();
-  await expect(page.getByRole('button',{name:/Para estudiar/})).toBeVisible();
+  await expect(page.locator('.playlist-entry-main').filter({hasText:'Para estudiar'})).toBeVisible();
   await page.reload();
   await page.getByRole('button',{name:'Playlists',exact:true}).click();
-  await expect(page.getByRole('button',{name:/Para estudiar/})).toBeVisible();
+  await expect(page.locator('.playlist-entry-main').filter({hasText:'Para estudiar'})).toBeVisible();
 });
 
 test('local audio import survives reload in IndexedDB', async ({page}) => {
