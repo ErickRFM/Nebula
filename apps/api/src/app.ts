@@ -109,8 +109,9 @@ export async function buildApp({pool,secret,origin}:Options) {
 
   app.setErrorHandler((error,request,reply)=>{
     request.log.error(error);
-    if(error.statusCode===429) return reply.code(429).send(fail('rate_limited'));
-    return reply.code(error.statusCode&&error.statusCode<500?error.statusCode:500).send(fail('server_error'));
+    const status = typeof error === 'object' && error !== null && 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : 500;
+    if(status===429) return reply.code(429).send(fail('rate_limited'));
+    return reply.code(status>=400 && status<500 ? status : 500).send(fail('server_error'));
   });
   return app;
 }
