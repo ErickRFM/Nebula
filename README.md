@@ -11,13 +11,13 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. To verify: `npm run check`.
+Open `http://localhost:3000`. To verify: `npm run check`. Browser smoke tests: `npx playwright install chromium` then `npm run test:e2e`.
 
 ## What works in F01
 
 - Responsive Cosmic Glass navigation: Inicio, Buscar, Biblioteca, Playlists, Salas, Ajustes, and full-screen player.
-- Real audio playback **only** after choosing your own local music files, with progress/seek/volume/next/previous, shuffle and repeat.
-- User-local favorites and preferences; examples in the catalogue are fictional preview data and **are not playable**.
+- Real audio playback **only** after choosing your own local music files, with progress/seek/volume/next/previous, shuffle and repeat; selected files are now persisted in IndexedDB (subject to browser quota).
+- Editable local playlists plus user-local favorites and preferences; examples in the catalogue are fictional preview data and **are not playable**.
 - Pure TypeScript playback queue helpers with automated tests.
 - Static export for web hosting and preparation for Capacitor builds.
 
@@ -34,6 +34,10 @@ Authentication, PostgreSQL, cloud upload, streaming catalog, sync, realtime room
 
 ## Licensing and privacy
 
-Only import files you own or are authorized to play. Files selected through the browser remain on the device; NÉBULA F01 does not upload them. Object URLs are revoked on teardown. This is an engineering foundation, not a licensed streaming service.
+Only import files you own or are authorized to play. Files selected through the browser remain on the device; NÉBULA does not upload them. Imported blobs are stored in IndexedDB when permitted. Browser data clearing or storage eviction will remove the files. Object URLs are revoked on teardown. This is an engineering foundation, not a licensed streaming service.
 
 See [ADR-001](docs/architecture/ADR-001-web-first.md) and [roadmap](docs/roadmap.md).
+
+## Library persistence (F02 local)
+
+Imported audio is saved to IndexedDB if permitted. Maximum supported import size is 100 MB per track and up to 50 files per selection. This is a per-file safety cap, **not** a promise about browser storage quota. Users can delete tracks in the Biblioteca view. Playlists are stored as metadata in localStorage and are not synchronized between browsers. Browser storage can be cleared, evicted, or blocked. No cloud account or remote backup yet.
