@@ -41,3 +41,15 @@ See [ADR-001](docs/architecture/ADR-001-web-first.md) and [roadmap](docs/roadmap
 ## Library persistence (F02 local)
 
 Imported audio is saved to IndexedDB if permitted. Maximum supported import size is 100 MB per track and up to 50 files per selection. This is a per-file safety cap, **not** a promise about browser storage quota. Users can delete tracks in the Biblioteca view. Playlists are stored as metadata in localStorage and are not synchronized between browsers. Browser storage can be cleared, evicted, or blocked. No cloud account or remote backup yet.
+
+## Optional server API (F03)
+
+Run PostgreSQL, set DATABASE_URL and API_JWT_SECRET (32+ characters) using apps/api/README.md, then:
+
+```bash
+npm install
+npm run db:migrate
+npm run api:dev
+```
+
+The API provides registration/login and playlist CRUD, but it is **not yet wired to the browser login screens**. API bearer tokens expire after 15 minutes and there is no refresh/revocation yet. Never put tokens in localStorage or commit secrets. The local browser library continues working without the API.

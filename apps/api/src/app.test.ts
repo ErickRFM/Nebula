@@ -1,0 +1,63 @@
+import {afterAll,beforeAll,describe,expect,it} from 'vitest';
+import {Pool} from 'pg';
+import type {FastifyInstance} from 'fastify';
+import {buildApp} from './app';
+
+const url=process.env.NEBULA_TEST_DATABASE_URL;
+describe.skipIf(!url)('authenticated API backed by PostgreSQL',()=>{
+  let pool:Pool;
+  let app:FastifyInstance;
+  beforeAll(async()=>{
+    pool=new Pool({connectionString:url});
+    app=await buildApp({pool,secret:'integration-test-not-for-production-000000001',origin:'http://localhost:3000'});
+    await app.ready();
+  });
+  afterAll(async()=>{if(app)await app.close();if(pool)await pool.end();});
+
+  async function register(prefix:string){
+    const email=prefix+Date.now()+Math.random().toString(36).slice(2)+'@example.test';
+    const result=await app.inject({method:'POST',url:'/v1/auth/register',payload:{email,password:'SecureTestPassword123!'}});
+    expect(result.statusCode).toBe(201);
+    return {email,token:result.json().accessToken as string};
+  }
+
+  it('health reports database connectivity',async()=>{
+    const response=await app.inject({method:'GET',url:'/v1/health'});
+    expect(response.statusCode).toBe(200);
+    expect(response.json().status).toBe('ok');
+  });
+
+  it('registers and signs in using an unguessable bearer token',async()=>{
+    const {email,token}=await register('account');
+    expect(token.split('.').length).toBe(3);
+    const profile=await app.inject({method:'GET',url:'/v1/me',headers:{authorization:'Bearer '+token}});
+    expect(profile.statusCode).toBe(200);
+    expect(profile.json().user.email).toBe(email);
+    const bad=await app.inject({method:'GET',url:'/v1/me'});
+    expect(bad.statusCode).toBe(401);
+    const login=await app.inject({method:'POST',url:'/v1/auth/login',payload:{email,password:'SecureTestPassword123!'}});
+    expect(login.statusCode).toBe(200);
+    const invalid=await app.inject({method:'POST',url:'/v1/auth/login',payload:{email,password:'NotThePassword123'}});
+    expect(invalid.statusCode).toBe(401);
+  });
+
+  it('enforces ownership on playlist list, rename and delete',async()=>{
+    const a=await register('owner');
+    const b=await register('viewer');
+    const created=await app.inject({method:'POST',url:'/v1/playlists',headers:{authorization:'Bearer '+a.token},payload:{name:'  Mi música  '}});
+    expect(created.statusCode).toBe(201);
+    const id=created.json().playlist.id as string;
+    const visible=await app.inject({method:'GET',url:'/v1/playlists',headers:{authorization:'Bearer '+a.token}});
+    expect(visible.json().items.some((p:{id:string})=>p.id===id)).toBe(true);
+    const hidden=await app.inject({method:'GET',url:'/v1/playlists',headers:{authorization:'Bearer '+b.token}});
+    expect(hidden.json().items.some((p:{id:string})=>p.id===id)).toBe(false);
+    const blocked=await app.inject({method:'PATCH',url:'/v1/playlists/'+id,headers:{authorization:'Bearer '+b.token},payload:{name:'intruder'}});
+    expect(blocked.statusCode).toBe(404);
+    const deleted=await app.inject({method:'DELETE',url:'/v1/playlists/'+id,headers:{authorization:'Bearer '+b.token}});
+    expect(deleted.statusCode).toBe(404);
+    const renamed=await app.inject({method:'PATCH',url:'/v1/playlists/'+id,headers:{authorization:'Bearer '+a.token},payload:{name:'Renombrada'}});
+    expect(renamed.statusCode).toBe(200);
+    const removed=await app.inject({method:'DELETE',url:'/v1/playlists/'+id,headers:{authorization:'Bearer '+a.token}});
+    expect(removed.statusCode).toBe(204);
+  });
+});
