@@ -1,0 +1,27 @@
+name: Temporary lockfile bootstrap
+on:
+  push:
+    branches: [chore/reproducible-lockfile]
+permissions:
+  contents: write
+jobs:
+  lock:
+    if: "!contains(github.event.head_commit.message, 'chore(lockfile):')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate npm lockfile without lifecycle scripts
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit lockfile to the scoped feature branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(lockfile): pin resolved npm dependencies"
+            git push origin HEAD:chore/reproducible-lockfile
+          fi
