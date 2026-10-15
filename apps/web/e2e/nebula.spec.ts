@@ -1,9 +1,17 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function navigate(page: Page, name: string) {
+  const desktop = page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
+  const mobile = page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name,exact:true});
+  if (await desktop.isVisible()) await desktop.click();
+  else await mobile.click();
+}
+
 
 test('navigation and search work', async ({page}) => {
   await page.goto('/');
   await expect(page.getByText('La música se siente', {exact:false})).toBeVisible();
-  await page.getByRole('button',{name:'Buscar',exact:true}).click();
+  await navigate(page,'Buscar');
   await expect(page.getByRole('heading',{name:'¿Qué quieres escuchar?'})).toBeVisible();
   await page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'}).fill('Frecuencia');
   await expect(page.getByText('Frecuencia azul')).toBeVisible();
@@ -12,18 +20,18 @@ test('navigation and search work', async ({page}) => {
 
 test('playlist creation persists after reloading', async ({page}) => {
   await page.goto('/');
-  await page.getByRole('button',{name:'Playlists',exact:true}).click();
+  await navigate(page,'Playlists');
   await page.getByPlaceholder('Nombre de nueva playlist').fill('Para estudiar');
   await page.getByRole('button',{name:'Crear playlist'}).click();
   await expect(page.locator('.playlist-entry-main').filter({hasText:'Para estudiar'})).toBeVisible();
   await page.reload();
-  await page.getByRole('button',{name:'Playlists',exact:true}).click();
+  await navigate(page,'Playlists');
   await expect(page.locator('.playlist-entry-main').filter({hasText:'Para estudiar'})).toBeVisible();
 });
 
 test('local audio import survives reload in IndexedDB', async ({page}) => {
   await page.goto('/');
-  await page.getByRole('button',{name:'Biblioteca',exact:true}).click();
+  await navigate(page,'Biblioteca');
   // WAV header for a 0.1-second PCM mono sample
   const pcm = Buffer.alloc(44 + 8820);
   pcm.write('RIFF',0); pcm.writeUInt32LE(pcm.length-8,4); pcm.write('WAVE',8);
@@ -34,7 +42,7 @@ test('local audio import survives reload in IndexedDB', async ({page}) => {
   await expect(page.getByText('mi-cancion',{exact:true})).toBeVisible();
   await expect(page.getByRole('status')).toContainText('guardadas');
   await page.reload();
-  await page.getByRole('button',{name:'Biblioteca',exact:true}).click();
+  await navigate(page,'Biblioteca');
   await expect(page.getByText('mi-cancion',{exact:true})).toBeVisible();
 });
 
