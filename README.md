@@ -7,7 +7,7 @@ Next.js + React + TypeScript foundation for a future cross-platform personal mus
 Requires Node.js 20.11+ and npm 10+.
 
 ```bash
-npm ci
+npm install
 npm run dev
 ```
 
