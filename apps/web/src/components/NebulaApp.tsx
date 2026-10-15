@@ -14,8 +14,10 @@ import { artwork, demoTracks, mixes, type Track } from '../lib/catalog';
 import { Cover, TrackCover } from './Cover';
 import { useLocalAudio } from '../hooks/useLocalAudio';
 import { usePlaylists } from '../hooks/usePlaylists';
+import { useAccount } from '../hooks/useAccount';
+import { AccountPanel } from './AccountPanel';
 
-type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'reproductor';
+type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'reproductor';
 const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'inicio', label: 'Inicio', icon: Home },
   { id: 'buscar', label: 'Buscar', icon: Search },
@@ -23,6 +25,7 @@ const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'playlists', label: 'Playlists', icon: ListMusic },
   { id: 'salas', label: 'Salas', icon: Waves },
   { id: 'ajustes', label: 'Ajustes', icon: Settings2 },
+  { id: 'cuenta', label: 'Cuenta', icon: CircleUserRound },
 ];
 const genres = ['Todos', 'Electrónica', 'Chill', 'Pop', 'Ambient', 'Indie'];
 type PlayerApi = ReturnType<typeof useLocalAudio>;
@@ -111,6 +114,7 @@ export function NebulaApp() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const player = useLocalAudio();
   const playlistStore = usePlaylists();
+  const account = useAccount();
   const [playlistTitle, setPlaylistTitle] = useState('');
   const [activePlaylist, setActivePlaylist] = useState<string | null>(null);
 
@@ -166,7 +170,7 @@ export function NebulaApp() {
         <div className="topbar-actions">
           <button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>
           <button className="icon-button glass-chip desktop-only" title="Notificaciones: próximamente" aria-label="Notificaciones no disponibles" type="button" disabled><Bell size={19}/></button>
-          <button className="icon-button glass-chip" title="Configuración" aria-label="Configuración" type="button" onClick={()=>navigate('ajustes')}><CircleUserRound size={20}/></button>
+          <button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>
         </div>
       </header>
       <main className={'main-area ' + (screen === 'reproductor' ? 'main-player' : '')}>
@@ -222,10 +226,11 @@ export function NebulaApp() {
           <section className="settings-panel glass"><h2>Apariencia y accesibilidad</h2><div className="setting-row"><div><strong>Reducir animaciones</strong><p>Disminuir movimiento decorativo en la interfaz.</p></div><button className={'toggle ' + (reducedMotion ? 'on' : '')} type="button" role="switch" aria-checked={reducedMotion} aria-label="Reducir animaciones" onClick={()=>setReducedMotion((v)=>!v)}><span/></button></div><div className="setting-row"><div><strong>Estilo visual</strong><p>Cosmic Glass · Oscuro nocturno.</p></div><span className="setting-value">Cósmico oscuro</span></div></section>
           <div className="disclosure">Versión F01 · Sin cuenta, servicio remoto ni sincronización de preferencias.</div>
         </>}
+        {screen === 'cuenta' && <AccountPanel account={account}/>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
-      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>item.id !== 'ajustes').map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
+      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>item.id !== 'ajustes' && item.id !== 'cuenta').map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
     </div>
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;

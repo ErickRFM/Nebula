@@ -51,3 +51,22 @@ test('web manifest is served for installation', async ({request}) => {
   expect(r.ok()).toBe(true);
   expect((await r.json()).name).toBe('NÉBULA Music');
 });
+
+test('account UI registers and manages server-side playlists', async ({page}) => {
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'API not configured for browser integration');
+  await page.goto('/');
+  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await expect(page.getByRole('heading',{name:'Cuenta NÉBULA'})).toBeVisible();
+  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
+  const email='nebula-e2e-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
+  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
+  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
+  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await page.getByRole('textbox',{name:'Nombre de playlist en nube'}).fill('Colección E2E');
+  await page.getByRole('button',{name:'Crear en cuenta'}).click();
+  await expect(page.locator('.account-remote-list').getByText('Colección E2E')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await expect(page.getByRole('heading',{name:'Iniciar sesión'})).toBeVisible();
+});
