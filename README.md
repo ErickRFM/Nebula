@@ -57,3 +57,7 @@ The API provides registration/login and playlist CRUD, but it is **not yet wired
 ## Development database
 
 Docker Compose and Windows PowerShell setup: [Local development](docs/local-development.md). The default database credentials in compose.yaml are **for localhost only** and must never be reused in production.
+
+## Portal de cuenta (F04)
+
+La pestaña **Cuenta** registra/inicia sesión contra `NEXT_PUBLIC_API_URL` cuando la API está disponible. Los tokens JWT solo permanecen en estado React y se pierden al actualizar la página. **No existe todavía refresh ni revocación**: el sistema no ofrece sesiones persistentes de producción. Las playlists remotas almacenan únicamente su nombre y propietario; los archivos musicales y las playlists locales permanecen en tu dispositivo. Para probar registro en navegador, configura `NEXT_PUBLIC_API_URL=http://127.0.0.1:4000` en el entorno Next.js y `API_CORS_ORIGIN=http://127.0.0.1:3000` en la API.

@@ -10,10 +10,10 @@ export default defineConfig({
     {name:'desktop-chromium',use:{...devices['Desktop Chrome']}},
     {name:'mobile-chromium',use:{...devices['Pixel 7']}},
   ],
-  webServer:{
-    command:'npm run dev',
-    url:'http://127.0.0.1:3000',
-    timeout:120_000,
-    reuseExistingServer:!process.env.CI,
-  },
+  webServer: process.env.NEXT_PUBLIC_API_URL && process.env.DATABASE_URL && process.env.API_JWT_SECRET
+    ? [
+      {command:'npm run api:dev',url:'http://127.0.0.1:4000/v1/health',timeout:120_000,reuseExistingServer:!process.env.CI},
+      {command:'npm run dev',url:'http://127.0.0.1:3000',timeout:120_000,reuseExistingServer:!process.env.CI},
+    ]
+    : {command:'npm run dev',url:'http://127.0.0.1:3000',timeout:120_000,reuseExistingServer:!process.env.CI},
 });
