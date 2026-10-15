@@ -1,4 +1,4 @@
-name: Web foundation CI
+name: NÉBULA CI
 on:
   push:
     branches: [main]
@@ -9,14 +9,31 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nebula
+          POSTGRES_PASSWORD: nebula_test_password
+          POSTGRES_DB: nebula_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebula -d nebula_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://nebula:nebula_test_password@127.0.0.1:5432/nebula_test
+      NEBULA_TEST_DATABASE_URL: postgresql://nebula:nebula_test_password@127.0.0.1:5432/nebula_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # Until issue #3 locks dependencies, install and validate dynamically.
       - run: npm install --no-audit --no-fund
+      - run: npm run db:migrate
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

@@ -9,12 +9,15 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @nebula/web",
-    "build": "npm run build -w @nebula/web",
-    "typecheck": "npm run typecheck -w @nebula/web",
+    "build": "npm run build -w @nebula/web && npm run build -w @nebula/api",
+    "typecheck": "npm run typecheck -w @nebula/web && npm run typecheck -w @nebula/api",
     "test": "vitest run",
     "check": "npm run typecheck && npm run test && npm run build",
     "mobile:sync": "npm run build && npx cap sync",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "api:dev": "npm run dev -w @nebula/api",
+    "api:build": "npm run build -w @nebula/api",
+    "db:migrate": "npm run db:migrate -w @nebula/api"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
