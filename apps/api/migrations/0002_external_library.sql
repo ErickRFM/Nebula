@@ -1,4 +1,3 @@
-BEGIN;
 CREATE TABLE IF NOT EXISTS external_library_items (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -14,4 +13,3 @@ CREATE TABLE IF NOT EXISTS external_library_items (
 );
 CREATE INDEX IF NOT EXISTS external_library_user_created_idx
  ON external_library_items(user_id,created_at DESC);
-COMMIT;

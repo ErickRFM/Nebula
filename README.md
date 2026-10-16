@@ -42,22 +42,23 @@ See [ADR-001](docs/architecture/ADR-001-web-first.md) and [roadmap](docs/roadmap
 
 Imported audio is saved to IndexedDB if permitted. Maximum supported import size is 100 MB per track and up to 50 files per selection. This is a per-file safety cap, **not** a promise about browser storage quota. Users can delete tracks in the Biblioteca view. Playlists are stored as metadata in localStorage and are not synchronized between browsers. Browser storage can be cleared, evicted, or blocked. No cloud account or remote backup yet.
 
-## Optional server API (F03)
+## Optional server API (F03/F05)
 
 Run PostgreSQL, set DATABASE_URL and API_JWT_SECRET (32+ characters) using apps/api/README.md, then:
 
 ```bash
 npm ci
 npm run db:migrate
+OWNER_EMAIL=owner@example.com OWNER_PASSWORD='a-strong-password' npm run owner:bootstrap
 npm run api:dev
 ```
 
-The API provides registration/login and playlist CRUD, but it is **not yet wired to the browser login screens**. API bearer tokens expire after 15 minutes and there is no refresh/revocation yet. Never put tokens in localStorage or commit secrets. The local browser library continues working without the API.
+The API now implements a **private, invitation-only** account model: public registration is disabled by default, the first OWNER is created with the bootstrap CLI, and additional accounts are created through owner-managed invitations. Sessions use a 15-minute access token (kept in memory) plus an HttpOnly refresh cookie with rotation and revocation. See [AUTH_SECURITY](docs/architecture/AUTH_SECURITY.md) and [API_CONTRACTS](docs/api/API_CONTRACTS.md). The local browser library continues working without the API.
 
 ## Development database
 
 Docker Compose and Windows PowerShell setup: [Local development](docs/local-development.md). The default database credentials in compose.yaml are **for localhost only** and must never be reused in production.
 
-## Portal de cuenta (F04)
+## Portal de cuenta (F04/F05)
 
-La pestaña **Cuenta** registra/inicia sesión contra `NEXT_PUBLIC_API_URL` cuando la API está disponible. Los tokens JWT solo permanecen en estado React y se pierden al actualizar la página. **No existe todavía refresh ni revocación**: el sistema no ofrece sesiones persistentes de producción. Las playlists remotas almacenan únicamente su nombre y propietario; los archivos musicales y las playlists locales permanecen en tu dispositivo. Para probar registro en navegador, configura `NEXT_PUBLIC_API_URL=http://127.0.0.1:4000` en el entorno Next.js y `API_CORS_ORIGIN=http://127.0.0.1:3000` en la API.
+La pestaña **Cuenta** inicia sesión contra `NEXT_PUBLIC_API_URL` cuando la API está disponible. Es una **biblioteca privada**: el registro público está desactivado y solo acceden las cuentas autorizadas por el propietario (bootstrap del OWNER + invitaciones). La sesión es persistente mediante una cookie de refresco HttpOnly con rotación y revocación; el token de acceso vive únicamente en memoria. La pestaña permite listar y cerrar dispositivos/sesiones. Las playlists remotas aún almacenan únicamente su nombre y propietario; los archivos musicales siguen en tu dispositivo. Para probar en navegador, configura `NEXT_PUBLIC_API_URL=http://127.0.0.1:4000` en Next.js y `API_CORS_ORIGIN=http://127.0.0.1:3000` en la API.
