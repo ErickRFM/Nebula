@@ -14,6 +14,7 @@ import { DiscoveryService } from './discovery/service.js';
 import { MusicBrainzMetadata } from './metadata/musicbrainz.js';
 import { loadConfig } from './config.js';
 import { createGuards, registerAdminRoutes, registerAuthRoutes } from './modules/auth.js';
+import { registerCloudRoutes } from './modules/cloud.js';
 import './types.js';
 
 type Options = { pool: Pool; secret: string; origin: string; registrationEnabled?: boolean };
@@ -60,7 +61,8 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
           to_regclass('public.external_library_items') IS NOT NULL AND
           to_regclass('public.sessions') IS NOT NULL AND
           to_regclass('public.invites') IS NOT NULL AND
-          to_regclass('public.audit_events') IS NOT NULL
+          to_regclass('public.audit_events') IS NOT NULL AND
+          to_regclass('public.cloud_tracks') IS NOT NULL
         ) AS ready
       `);
       if (!result.rows[0]?.ready) {
@@ -76,6 +78,7 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
 
   registerAuthRoutes(app, { db, config });
   registerAdminRoutes(app, { db });
+  registerCloudRoutes(app, db);
 
   app.get('/v1/me', { preHandler: requireAuth }, async (request, reply) => {
     const [user] = await db

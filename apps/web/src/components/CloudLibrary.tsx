@@ -1,0 +1,161 @@
+'use client';
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
+import { Cloud, CloudOff, CloudUpload, Play, Trash2 } from 'lucide-react';
+import type { AccountApi } from '../hooks/useAccount';
+import type { Track } from '../lib/catalog';
+import { artwork } from '../lib/catalog';
+
+type CloudTrack = {
+  id: string; title: string; artist: string; mimeType: string;
+  byteSize: number; createdAt: string;
+};
+type CloudList = { items: CloudTrack[]; configured: boolean };
+type UploadTicket = { id: string; uploadUrl: string; contentType: string; expiresInSeconds: number };
+
+const MAX_BYTES = 100 * 1024 * 1024;
+const supported = /\.(mp3|m4a|wav|ogg|opus|flac|aac)$/i;
+
+export function CloudLibrary({
+  account, onPlay,
+}: {
+  account: AccountApi;
+  onPlay: (track: Track) => void;
+}) {
+  const [items, setItems] = useState<CloudTrack[]>([]);
+  const [configured, setConfigured] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const refresh = useCallback(async () => {
+    if (!account.user) { setItems([]); setConfigured(false); return; }
+    setLoading(true);
+    try {
+      const result = await account.cloudRequest<CloudList>('/v1/library/cloud');
+      setItems(result.items);
+      setConfigured(result.configured);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'No se pudo consultar tu biblioteca en la nube.');
+    } finally { setLoading(false); }
+  }, [account.user?.id, account.cloudRequest]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  async function upload(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!files.length) return;
+    if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return; }
+    setBusy(true); setError(''); setMessage('');
+    let uploaded = 0;
+    try {
+      for (const file of files.slice(0, 20)) {
+        if (!supported.test(file.name) || file.size < 1 || file.size > MAX_BYTES) {
+          throw new Error('Archivo no compatible: ' + file.name + '. Usa MP3, M4A, WAV, OGG, OPUS, FLAC o AAC, máximo 100 MB.');
+        }
+        setMessage('Subiendo ' + (uploaded + 1) + ' de ' + Math.min(files.length, 20) + ': ' + file.name);
+        const ticket = await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads', {
+          method: 'POST',
+          body: JSON.stringify({ filename: file.name, size: file.size }),
+        });
+        let response: Response;
+        try {
+          response = await fetch(ticket.uploadUrl, {
+            method: 'PUT',
+            body: file,
+            headers: { 'Content-Type': ticket.contentType },
+          });
+        } catch {
+          throw new Error('Cloudflare bloqueó la subida. Revisa la política CORS del bucket R2.');
+        }
+        if (!response.ok) throw new Error('R2 rechazó la subida de ' + file.name + ' (HTTP ' + response.status + ').');
+        await account.cloudRequest('/v1/library/cloud/' + encodeURIComponent(ticket.id) + '/complete', {
+          method: 'POST', body: '{}',
+        });
+        uploaded++;
+      }
+      setMessage(uploaded + ' canción(es) guardadas en tu nube privada.');
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Error al subir canciones.');
+      if (uploaded) setMessage(uploaded + ' canción(es) se guardaron correctamente.');
+    } finally {
+      await refresh();
+      setBusy(false);
+    }
+  }
+
+  async function play(item: CloudTrack) {
+    setError('');
+    try {
+      const result = await account.cloudRequest<{ url: string }>('/v1/library/cloud/' + encodeURIComponent(item.id) + '/play');
+      onPlay({
+        id: 'cloud-' + item.id,
+        title: item.title,
+        artist: item.artist,
+        album: 'NÉBULA Cloud',
+        genre: 'Mi música',
+        cover: artwork[0],
+        duration: '--:--',
+        audioUrl: result.url,
+        source: 'external',
+      });
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'No se pudo reproducir la canción.');
+    }
+  }
+
+  async function remove(item: CloudTrack) {
+    if (!window.confirm('¿Eliminar ' + item.title + ' de tu nube privada?')) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await account.cloudRequest('/v1/library/cloud/' + encodeURIComponent(item.id), { method: 'DELETE' });
+      await refresh();
+      setMessage('Canción eliminada de tu nube.');
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'No se pudo eliminar la canción.');
+    } finally { setBusy(false); }
+  }
+
+  return <section className="content-section cloud-library">
+    <div className="section-heading">
+      <h2><Cloud size={21}/> Mi música en la nube</h2>
+      <span className="server-pill">{items.length} canciones · Cloudflare R2</span>
+    </div>
+    {!account.configured || !account.user ? <div className="disclosure">
+      <CloudOff size={18}/> Inicia sesión en Cuenta para guardar y escuchar tus canciones desde cualquier dispositivo.
+    </div> : <>
+      <div className="cloud-actions glass">
+        <div>
+          <strong>Biblioteca privada</strong>
+          <p>Sube tus propios archivos de audio. Solo tu cuenta puede acceder a ellos.</p>
+        </div>
+        <label className={'button primary small' + (busy || !configured ? ' cloud-disabled' : '')}>
+          <CloudUpload size={17}/> {busy ? 'Subiendo…' : 'Subir a la nube'}
+          <input className="file-input" type="file" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac"
+            disabled={busy || !configured} onChange={(event) => { void upload(event); }}
+            aria-label="Subir canciones privadas a Cloudflare R2"/>
+        </label>
+      </div>
+      {!configured && !loading && <p className="disclosure">El almacenamiento R2 todavía no está disponible en la API.</p>}
+      {loading && <p className="disclosure">Sincronizando tu biblioteca privada…</p>}
+      {message && <p className="disclosure" role="status">{message}</p>}
+      {error && <p className="account-error" role="alert">{error}</p>}
+      <div className="track-list glass">
+        {!items.length ? <p className="empty-note">Tu nube todavía no tiene canciones. Sube un MP3 o FLAC para empezar.</p> :
+          items.map((item) => <div className="track-row" key={item.id}>
+            <button type="button" className="track-main" disabled={busy} onClick={() => { void play(item); }}>
+              <span className="cloud-track-icon"><Play size={17}/></span>
+              <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {(item.byteSize / 1048576).toFixed(1)} MB</small></span>
+            </button>
+            <span className="track-album">NÉBULA Cloud</span>
+            <button type="button" className="icon-button" disabled={busy} title="Eliminar de R2"
+              aria-label={'Eliminar ' + item.title + ' de la nube'} onClick={() => { void remove(item); }}>
+              <Trash2 size={17}/>
+            </button>
+          </div>)}
+      </div>
+      <p className="disclosure">La música se almacena en un bucket privado. Los enlaces de reproducción expiran automáticamente.</p>
+    </>}
+  </section>;
+}

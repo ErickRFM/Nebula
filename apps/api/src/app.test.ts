@@ -182,6 +182,57 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(sessions.json().items.some((item: { current: boolean }) => item.current)).toBe(true);
   });
 
+  it('isolates private R2 tracks and issues signed URLs only to their owner', async () => {
+    const previous = {
+      R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+      R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+      R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+      R2_BUCKET: process.env.R2_BUCKET,
+    };
+    Object.assign(process.env, {
+      R2_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
+      R2_ACCESS_KEY_ID: 'testAccessKey',
+      R2_SECRET_ACCESS_KEY: 'testSecretKey',
+      R2_BUCKET: 'nebula-music-private',
+    });
+    try {
+      const a = { token: ownerToken };
+      const b = { token: memberToken };
+      const headers = (token: string) => ({ authorization: 'Bearer ' + token });
+      const denied = await app.inject({ method: 'GET', url: '/v1/library/cloud' });
+      expect(denied.statusCode).toBe(401);
+      const config = await app.inject({ method: 'GET', url: '/v1/library/cloud/config', headers: headers(a.token) });
+      expect(config.json().configured).toBe(true);
+      const invalid = await app.inject({ method: 'POST', url: '/v1/library/cloud/uploads', headers: headers(a.token), payload: { filename: 'song.exe', size: 100 } });
+      expect(invalid.statusCode).toBe(400);
+      const ticket = await app.inject({
+        method: 'POST', url: '/v1/library/cloud/uploads', headers: headers(a.token),
+        payload: { filename: 'My Song.mp3', size: 1024, title: 'My Song' },
+      });
+      expect(ticket.statusCode).toBe(201);
+      const id = ticket.json().id as string;
+      expect(new URL(ticket.json().uploadUrl).searchParams.get('X-Amz-SignedHeaders')).toBe('content-type;host');
+      const strangerList = await app.inject({ method: 'GET', url: '/v1/library/cloud', headers: headers(b.token) });
+      expect(strangerList.json().items).toEqual([]);
+      await pool.query("UPDATE cloud_tracks SET status='ready' WHERE id=$1", [id]);
+      const mine = await app.inject({ method: 'GET', url: '/v1/library/cloud', headers: headers(a.token) });
+      expect(mine.json().items.some((item: { id: string }) => item.id === id)).toBe(true);
+      const playable = await app.inject({ method: 'GET', url: '/v1/library/cloud/' + id + '/play', headers: headers(a.token) });
+      expect(playable.statusCode).toBe(200);
+      expect(new URL(playable.json().url).searchParams.get('X-Amz-Expires')).toBe('3600');
+      const blocked = await app.inject({ method: 'GET', url: '/v1/library/cloud/' + id + '/play', headers: headers(b.token) });
+      expect(blocked.statusCode).toBe(404);
+      const blockedDelete = await app.inject({ method: 'DELETE', url: '/v1/library/cloud/' + id, headers: headers(b.token) });
+      expect(blockedDelete.statusCode).toBe(404);
+      await pool.query('DELETE FROM cloud_tracks WHERE id=$1', [id]);
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
   it('rotates refresh tokens and detects reuse', async () => {
     const rotated = await app.inject({ method: 'POST', url: '/v1/auth/refresh', headers: { cookie: 'nebula_refresh=' + ownerCookie, 'x-nebula-client': 'test' } });
     expect(rotated.statusCode).toBe(200);

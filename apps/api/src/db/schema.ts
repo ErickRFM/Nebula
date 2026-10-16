@@ -1,4 +1,4 @@
-import { pgTable, timestamp, uuid, varchar, text, index, uniqueIndex, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, timestamp, uuid, varchar, text, index, uniqueIndex, jsonb, integer } from 'drizzle-orm/pg-core';
 
 export type Role = 'owner' | 'member';
 
@@ -75,3 +75,15 @@ export const externalLibraryItems = pgTable('external_library_items', {
   uniqueIndex('external_library_unique_owner_provider_track_idx').on(t.userId, t.provider, t.externalId),
   index('external_library_user_created_idx').on(t.userId, t.createdAt),
 ]);
+
+export const cloudTracks = pgTable('cloud_tracks', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  objectKey: text('object_key').notNull().unique(),
+  title: varchar('title', { length: 200 }).notNull(),
+  artist: varchar('artist', { length: 200 }).notNull().default('Mi música'),
+  mimeType: varchar('mime_type', { length: 80 }).notNull(),
+  byteSize: integer('byte_size').notNull(),
+  status: varchar('status', { length: 16 }).notNull().default('pending'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('cloud_tracks_user_created_idx').on(t.userId, t.createdAt)]);
