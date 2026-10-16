@@ -24,5 +24,9 @@
     "@types/react-dom": "^19.1.0",
     "typescript": "^5.9.0",
     "@types/node": "^22.15.0"
+  },
+  "overrides": {
+    "light-my-request": "6.6.0",
+    "@fastify/cookie": "11.1.0"
   }
 }
