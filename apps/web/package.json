@@ -17,7 +17,9 @@
     "@capacitor/core": "^7.4.3",
     "@capacitor/android": "^7.4.3",
     "@capacitor/ios": "^7.4.3",
-    "@nebula/api": "file:../api"
+    "@nebula/api": "file:../api",
+    "light-my-request": "6.6.0",
+    "@fastify/cookie": "11.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
