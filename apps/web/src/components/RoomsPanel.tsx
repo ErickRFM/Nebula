@@ -3,17 +3,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
+import { expectedPositionMs } from '@nebula/room-sync';
+import { RoomAudioPlayer } from './RoomAudioPlayer';
 
 type Room = {
   id: string; name: string; mode: 'listening' | 'party'; status: string;
   ownerUserId: string; participantCount: number; revision: number;
-  trackId: string | null; playbackStatus: 'playing' | 'paused';
+  trackId: string | null; shareEnabled: boolean; playbackStatus: 'playing' | 'paused';
   positionMs: number; effectiveAt: string; createdAt: string;
 };
 type RoomList = { items: Room[] };
 type RoomDetail = { room: Room; serverNowMs: number };
 
-export function RoomsPanel({ account, onAccount }: { account: AccountApi; onAccount: () => void }) {
+export function RoomsPanel({ account, onAccount, onActivate }: { account: AccountApi; onAccount: () => void; onActivate: () => void }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Room | null>(null);
@@ -21,6 +23,10 @@ export function RoomsPanel({ account, onAccount }: { account: AccountApi; onAcco
   const [mode, setMode] = useState<'listening' | 'party'>('listening');
   const [code, setCode] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [cloudItems, setCloudItems] = useState<{ id: string; title: string; artist: string }[]>([]);
+  const [selectedCloudId, setSelectedCloudId] = useState('');
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -38,7 +44,9 @@ export function RoomsPanel({ account, onAccount }: { account: AccountApi; onAcco
   const refreshSelected = useCallback(async () => {
     if (!selectedId || !account.user) return;
     try {
+      const sentAt = Date.now();
       const result = await account.cloudRequest<RoomDetail>('/v1/rooms/' + encodeURIComponent(selectedId));
+      setClockOffsetMs(result.serverNowMs - (sentAt + Date.now()) / 2);
       setSelected(result.room);
     } catch {
       setSelected(null);
@@ -54,6 +62,62 @@ export function RoomsPanel({ account, onAccount }: { account: AccountApi; onAcco
     const timer = window.setInterval(() => { void refreshSelected(); }, 3000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshSelected]);
+
+  useEffect(() => {
+    if (!selectedId || !account.user) { setCloudItems([]); return; }
+    let cancelled = false;
+    void account.cloudRequest<{items:{id:string;title:string;artist:string}[]}>('/v1/library/cloud')
+      .then(result => { if (!cancelled) setCloudItems(result.items); })
+      .catch(() => { if (!cancelled) setCloudItems([]); });
+    return () => { cancelled = true; };
+  }, [selectedId, account.user?.id, account.cloudRequest]);
+
+  function startSharedAudio() {
+    if (!selected || !selectedCloudId || !rightsConfirmed) {
+      setError('Selecciona una canción propia y confirma que tienes derecho a compartirla.');
+      return;
+    }
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/sharing', {
+        method: 'POST', body: JSON.stringify({ enabled: true, rightsConfirmed: true }),
+      });
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/timeline', {
+        method: 'POST', body: JSON.stringify({
+          expectedRevision: selected.revision, trackId: selectedCloudId, status: 'playing', positionMs: 0,
+        }),
+      });
+      await refreshSelected();
+      setNotice('Reproducción compartida programada. Cada participante debe activar su audio.');
+    });
+  }
+
+  function changePlayback(status: 'playing' | 'paused') {
+    if (!selected || !selected.trackId) return;
+    const positionMs = selected.playbackStatus === 'paused' ? selected.positionMs :
+      expectedPositionMs({
+        revision: selected.revision, trackId: selected.trackId,
+        status: selected.playbackStatus, positionMs: selected.positionMs,
+        effectiveServerTimeMs: Date.parse(selected.effectiveAt),
+      }, Date.now() + clockOffsetMs);
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/timeline', {
+        method: 'POST', body: JSON.stringify({
+          expectedRevision: selected.revision, trackId: selected.trackId, status, positionMs: Math.floor(positionMs),
+        }),
+      });
+      await refreshSelected();
+    });
+  }
+
+  function disableSharing() {
+    if (!selected) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/sharing', {
+        method: 'POST', body: JSON.stringify({ enabled: false }),
+      });
+      await refreshSelected();
+    });
+  }
 
   async function action(work: () => Promise<void>) {
     setBusy(true); setError(''); setNotice('');
@@ -166,9 +230,26 @@ export function RoomsPanel({ account, onAccount }: { account: AccountApi; onAcco
             <code style={{overflowWrap:'anywhere'}}>{issuedCode}</code>
             <button type="button" className="icon-button" aria-label="Copiar código" onClick={()=>{void navigator.clipboard.writeText(issuedCode).then(()=>setNotice('Código copiado.'));}}><Copy size={17}/></button>
           </div>}
-          <p className="disclosure">La creación, membresía e invitaciones ya funcionan. El audio sincronizado, las bocinas y la calibración todavía están en desarrollo. No se está transmitiendo audio a otros dispositivos.</p>
+          {selected.ownerUserId===account.user.id && <div>
+            <label htmlFor="room-cloud-track">Música propia en Cloudflare R2</label>
+            <select id="room-cloud-track" value={selectedCloudId} onChange={e=>setSelectedCloudId(e.target.value)}>
+              <option value="">Selecciona una canción</option>
+              {cloudItems.map(item=><option key={item.id} value={item.id}>{item.title} — {item.artist}</option>)}
+            </select>
+            <label style={{display:'flex',alignItems:'center',gap:8}}>
+              <input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>
+              Confirmo que tengo derechos para compartir este audio con los participantes.
+            </label>
+            <button type="button" className="button primary small" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={startSharedAudio}>Compartir y empezar</button>
+            {selected.trackId && <>
+              <button type="button" className="button small" disabled={busy} onClick={()=>changePlayback(selected.playbackStatus==='playing'?'paused':'playing')}>{selected.playbackStatus==='playing'?'Pausar para todos':'Reanudar para todos'}</button>
+              {selected.shareEnabled && <button type="button" className="button small" disabled={busy} onClick={disableSharing}>Dejar de compartir</button>}
+            </>}
+          </div>}
+          <p className="disclosure">Cada teléfono reproduce una URL privada temporal de R2. La sincronización usa sondeo periódico y corrección de desfase; no garantiza precisión acústica ni reproducción con pantalla bloqueada.</p>
         </div>
       </section>}
+      {selected && selectedId===selected.id && <RoomAudioPlayer room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>}
     </>}
   </section>;
 }
