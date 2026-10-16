@@ -48,7 +48,7 @@ export function presignR2(
   if (!/^audio\/[a-z0-9.+-]+$/.test(contentType ?? 'audio/mpeg') || (method !== 'PUT' && contentType)) {
     throw new Error('invalid_signed_content_type');
   }
-  if (!/^[a-z0-9-]+\/[0-9a-f-]{36}\.[a-z0-9]+$/.test(objectKey)) {
+  if (!/^users\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]+$/.test(objectKey)) {
     throw new Error('invalid_object_key');
   }
   const url = new URL('https://' + settings.accountId + '.r2.cloudflarestorage.com/' +

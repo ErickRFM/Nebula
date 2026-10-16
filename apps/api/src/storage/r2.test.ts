@@ -7,7 +7,7 @@ const settings = {
   secretAccessKey: 'exampleSecretKey',
   bucket: 'nebula-music-private',
 };
-const key = 'users/00000000-0000-4000-8000-000000000001.mp3';
+const key = 'users/00000000-0000-4000-8000-000000000000/00000000-0000-4000-8000-000000000001.mp3';
 
 describe('Cloudflare R2 private signed URLs', () => {
   it('requires all four R2 variables and a valid account/bucket', () => {

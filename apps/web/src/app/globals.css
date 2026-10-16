@@ -295,3 +295,14 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .explore-gate>div{flex:1}.explore-gate p{margin:5px 0 0;font-size:.79rem;color:var(--muted)}
 @media(max-width:1050px){.explore-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.explore-grid{grid-template-columns:1fr}.explore-art{aspect-ratio:2}.explore-gate{flex-wrap:wrap}.explore-gate .button{width:100%}.explore-form{gap:6px}.explore-form .button{padding:8px}}
+
+/* NÉBULA Cloud: a distinct, account-scoped library alongside offline local music. */
+.cloud-library .section-heading h2{display:flex;align-items:center;gap:10px}
+.cloud-actions{border-radius:18px;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:14px}
+.cloud-actions strong{font-size:1.04rem}
+.cloud-actions p{margin:5px 0 0;color:var(--muted);font-size:.87rem}
+.cloud-actions .button{white-space:nowrap}
+.cloud-disabled{opacity:.55;pointer-events:none}
+.cloud-track-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:rgba(160,124,255,.16);color:var(--accent)}
+.cloud-library .disclosure svg{vertical-align:middle;margin-right:5px}
+@media(max-width:720px){.cloud-actions{align-items:flex-start;flex-direction:column}.cloud-actions .button{width:100%;justify-content:center}}

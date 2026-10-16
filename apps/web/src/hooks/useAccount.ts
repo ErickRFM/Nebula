@@ -195,10 +195,16 @@ export function useAccount() {
     finally {setPlaylistsBusy(false);}
   },[accessToken]);
 
+
+  const cloudRequest=useCallback(async <T,>(path:string,init:RequestInit={}):Promise<T>=>{
+    if(!accessToken) throw new Error('Inicia sesión para usar tu biblioteca privada.');
+    return requestJson<T>(path,init,accessToken);
+  },[accessToken]);
+
   return {
     configured:isAccountApiConfigured,user,accessToken,busy,restoring,error,registrationOpen,
     serverPlaylists,playlistsBusy,sessions,login,logout,
-    revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,setError,
+    revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,cloudRequest,setError,
   };
 }
 
