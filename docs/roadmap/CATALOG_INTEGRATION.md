@@ -45,3 +45,9 @@
 - URL de Fastify en producción en Render y PostgreSQL accesible.
 - Verificación de la reproducción de Audius/Openverse según navegador y restricciones actuales.
 - R2 privado con credenciales de alcance mínimo.
+
+## C06 (UI): entrega preparada
+- Vista Explorar, búsqueda autenticada, filtros y estado de fuentes.
+- Escucha solo con URL HTTPS y permiso canStream=true; nunca almacenamiento automático.
+- Referencias de cuenta guardadas/eliminadas por API; QA de integración con Playwright.
+- Se necesita API Fastify desplegada/configurada en Vercel para acceso desde la web pública.

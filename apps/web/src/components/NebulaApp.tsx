@@ -16,10 +16,12 @@ import { useLocalAudio } from '../hooks/useLocalAudio';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useAccount } from '../hooks/useAccount';
 import { AccountPanel } from './AccountPanel';
+import { ExplorePanel } from './ExplorePanel';
 
-type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'reproductor';
+type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'explorar' | 'reproductor';
 const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'inicio', label: 'Inicio', icon: Home },
+  { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'buscar', label: 'Buscar', icon: Search },
   { id: 'biblioteca', label: 'Biblioteca', icon: Library },
   { id: 'playlists', label: 'Playlists', icon: ListMusic },
@@ -227,10 +229,11 @@ export function NebulaApp() {
           <div className="disclosure">Versión F01 · Sin cuenta, servicio remoto ni sincronización de preferencias.</div>
         </>}
         {screen === 'cuenta' && <AccountPanel account={account}/>}
+        {screen === 'explorar' && <ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
-      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>item.id !== 'ajustes' && item.id !== 'cuenta').map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
+      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>item.id !== 'ajustes' && item.id !== 'cuenta' && item.id !== 'salas').map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
     </div>
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;

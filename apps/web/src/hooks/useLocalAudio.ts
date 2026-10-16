@@ -22,6 +22,7 @@ export type Player = {
   removeLocalTrack: (id: string) => Promise<boolean>;
   selectTrack: (track: Track) => void;
   playQueue: (songs: Track[]) => void;
+  playExternal: (track: Track) => void;
   toggle: () => void;
   next: () => void;
   previous: () => void;
@@ -54,7 +55,7 @@ export function useLocalAudio(): Player {
   const repeatRef = useRef<RepeatMode>('off');
   const tracksRef = useRef<Track[]>(demoTracks);
   const current = tracks.find((track) => track.id === currentId);
-  const ownTracks = tracks.filter((track) => Boolean(track.audioUrl));
+  const ownTracks = tracks.filter((track) => track.id.startsWith('local-') && Boolean(track.audioUrl));
 
   useEffect(() => {
     let active = true;
@@ -170,6 +171,18 @@ export function useLocalAudio(): Player {
     selectTrack(list[previousIndex(Math.max(0,index), list.length, repeatRef.current) ?? 0]);
   }, [selectTrack]);
 
+  const playExternal = useCallback((track: Track) => {
+    if(track.source!=='external' || !track.audioUrl || !track.audioUrl.startsWith('https://')) {
+      setNotice('La pista externa no tiene una fuente segura de audio.');
+      return;
+    }
+    // External tracks are transient. They are not user-owned IndexedDB entries.
+    setTracks((existing) => [track, ...existing.filter((item)=>item.id!==track.id && item.source!=='external')]);
+    userQueueRef.current = [track];
+    queueRef.current = [track];
+    selectTrack(track);
+  },[selectTrack]);
+
   const playQueue = useCallback((songs: Track[]) => {
     const playable = songs.filter((track) => Boolean(track.audioUrl));
     if (!playable.length) { setNotice('Esta colección no tiene canciones reproducibles.'); return; }
@@ -217,7 +230,7 @@ export function useLocalAudio(): Player {
 
   const removeLocalTrack = useCallback(async (id: string): Promise<boolean> => {
     const track = tracksRef.current.find((item)=>item.id===id);
-    if (!track?.audioUrl) return false;
+    if (!track?.audioUrl || !track.id.startsWith('local-')) return false;
     try { await deleteSavedSong(id); }
     catch { setNotice('No fue posible eliminar la canción del almacenamiento.'); return false; }
     if (currentRef.current===id) {
@@ -278,7 +291,7 @@ export function useLocalAudio(): Player {
 
   return {
     tracks, ownTracks, current, state, notice, setNotice, time, duration, volume, shuffle, repeat, favorites,
-    loadingLibrary, importFiles, removeLocalTrack, selectTrack, playQueue, toggle, next, previous, seek, setVolume,
+    loadingLibrary, importFiles, removeLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
     toggleShuffle: () => setShuffle((value)=>!value),
     cycleRepeat: () => setRepeat((value)=>value==='off' ? 'all' : value==='all' ? 'one' : 'off'),
     toggleFavorite,
