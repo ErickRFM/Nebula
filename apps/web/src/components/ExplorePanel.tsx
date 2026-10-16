@@ -18,6 +18,7 @@ interface SavedTrack {
   artworkUrl:string|null;sourceUrl:string;licenseUrl:string|null;
 }
 const apiBase=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'') ?? '';
+const apiConfigured=Boolean(apiBase) || process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API === 'true';
 const providerNames:{id:Provider;label:string}[]=[
   {id:'all',label:'Todas'}, {id:'jamendo',label:'Jamendo'},
   {id:'openverse',label:'Openverse'}, {id:'audius',label:'Audius'},
@@ -44,7 +45,7 @@ export function ExplorePanel({account,onAccount,onPlay}:{
   const [enabled,setEnabled]=useState<Record<string,boolean>>({});
 
   const loadSaved=useCallback(async()=>{
-    if(!account.accessToken || !apiBase) {setSaved([]);return;}
+    if(!account.accessToken || !apiConfigured) {setSaved([]);return;}
     try {
       const response=await fetch(apiBase+'/v1/library/external',{headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store'});
       if(response.ok) setSaved((await response.json()).items as SavedTrack[]);
@@ -53,7 +54,7 @@ export function ExplorePanel({account,onAccount,onPlay}:{
 
   useEffect(()=>{void loadSaved();},[loadSaved]);
   useEffect(()=>{
-    if(!account.accessToken || !apiBase) return;
+    if(!account.accessToken || !apiConfigured) return;
     void fetch(apiBase+'/v1/discovery/providers',{
       headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',
     }).then(r=>r.ok?r.json():null).then((data)=>{
@@ -65,7 +66,7 @@ export function ExplorePanel({account,onAccount,onPlay}:{
     event.preventDefault();
     const q=query.trim();
     if(q.length<2){setNotice('Escribe al menos dos caracteres.');return;}
-    if(!account.accessToken || !apiBase){setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
+    if(!account.accessToken || !apiConfigured){setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
     setBusy(true);setNotice('');setFailed([]);setSearched(true);
     try {
       const params=new URLSearchParams({q,provider,limit:'12',page:'1'});
@@ -140,7 +141,7 @@ export function ExplorePanel({account,onAccount,onPlay}:{
     <div className="eyebrow">CATÁLOGOS MUSICALES</div>
     <h1 className="page-title">Explora nuevas frecuencias</h1>
     <p className="page-description">Busca canciones reales, escucha desde sus proveedores y guarda referencias privadas, sin descargar ni replicar archivos.</p>
-    {!apiBase || !account.user ? <div className="explore-gate glass">
+    {!apiConfigured || !account.user ? <div className="explore-gate glass">
       <WifiOff size={25}/><div><strong>Exploración privada</strong><p>Necesitas la API configurada y una sesión iniciada para acceder a los catálogos.</p></div>
       <button className="button primary small" type="button" onClick={onAccount}>Ir a Cuenta</button>
     </div> : <>

@@ -10,6 +10,7 @@ interface Match {
   sourceUrl:string; coverArtCandidate:string|null;
 }
 const api=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'') ?? '';
+const apiConfigured=Boolean(api) || process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API === 'true';
 
 export function MetadataLookup({account}:{account:AccountApi}) {
   const [query,setQuery]=useState('');
@@ -21,7 +22,7 @@ export function MetadataLookup({account}:{account:AccountApi}) {
   async function search(e:FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const q=query.trim();
-    if(q.length<2 || !account.accessToken || !api){setError('Necesitas una búsqueda de al menos dos caracteres y una sesión activa.');return;}
+    if(q.length<2 || !account.accessToken || !apiConfigured){setError('Necesitas una búsqueda de al menos dos caracteres y una sesión activa.');return;}
     setLoading(true);setError('');setSearched(true);
     try{
       const response=await fetch(api+'/v1/metadata/musicbrainz?'+new URLSearchParams({q,limit:'10'}),{
