@@ -29,5 +29,9 @@
   },
   "engines": {
     "node": ">=20.11.0"
+  },
+  "overrides": {
+    "light-my-request": "6.6.0",
+    "@fastify/cookie": "11.1.0"
   }
 }
