@@ -220,7 +220,7 @@ export function NebulaApp() {
           <section className="content-section"><SectionHeader title="Selecciones de ejemplo"/><div className="album-grid">{mixes.map((mix)=><AlbumCard key={mix.title} {...mix} onClick={()=>player.setNotice('Este mix es ilustrativo; añade tus propias canciones a una playlist para escucharlas.')}/>)}</div></section>
           <div className="disclosure">Las playlists se guardan en el navegador actual; aún no se sincronizan con otros dispositivos.</div>
         </>}
-        {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')}/>}
+        {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
         {screen === 'ajustes' && <>
           <Tag>PERSONALIZA TU EXPERIENCIA</Tag><h1 className="page-title">Configuración</h1><p className="page-description">Haz que NÉBULA suene y se vea como a ti te gusta.</p>
           <section className="settings-panel glass"><h2>Reproducción</h2><div className="setting-row"><div><strong>Audio de mejor calidad</strong><p>Estará disponible al integrar streaming y perfiles de calidad.</p></div><span className="soon">Próximamente</span></div><div className="setting-row"><div><strong>Reproducción continua</strong><p>Pasar a la siguiente pista de tus archivos locales.</p></div><span className="status-dot"/></div><div className="setting-row"><div><strong>Salida de audio</strong><p>Controlada por el navegador o el sistema operativo.</p></div><MonitorSpeaker size={22}/></div></section>
