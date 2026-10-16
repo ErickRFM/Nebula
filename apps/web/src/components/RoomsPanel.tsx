@@ -169,6 +169,13 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     });
   }
 
+  useEffect(() => {
+    if (!selectedId) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') void refreshSelected(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [selectedId, refreshSelected]);
+
   async function action(work: () => Promise<void>) {
     setBusy(true); setError(''); setNotice('');
     try { await work(); await refresh(); }

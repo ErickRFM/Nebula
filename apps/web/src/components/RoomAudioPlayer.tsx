@@ -21,6 +21,8 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
   const [calibrationMs, setCalibrationMs] = useState(0);
   const [sourceVersion, setSourceVersion] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trackKeyRef = useRef('');
+  const resumeRef = useRef<{ position: number; wasPlaying: boolean } | null>(null);
 
   useEffect(() => {
     try {
@@ -31,7 +33,16 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
 
   useEffect(() => {
     let cancelled = false;
-    setError(''); setSource(''); setTrack(null); setActive(false);
+    setError('');
+    const trackKey = room.id + ':' + (room.trackId ?? '') + ':' + room.shareEnabled;
+    if (trackKeyRef.current !== trackKey) {
+      trackKeyRef.current = trackKey;
+      resumeRef.current = null;
+      setSource(''); setTrack(null); setActive(false);
+    } else {
+      const audio = audioRef.current;
+      if (audio) resumeRef.current = { position: audio.currentTime, wasPlaying: !audio.paused };
+    }
     if (!room.trackId || !room.shareEnabled) return;
     void account.cloudRequest<AudioResult>('/v1/rooms/' + room.id + '/audio')
       .then(data => {
@@ -43,6 +54,15 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
       });
     return () => { cancelled = true; };
   }, [room.id, room.trackId, room.shareEnabled, sourceVersion, account.cloudRequest]);
+
+  // Signed room URLs expire after five minutes. Refresh early and preserve
+  // playback position across source replacement. A failed refresh keeps the
+  // previous URL until the browser or user retries.
+  useEffect(() => {
+    if (!source || !room.shareEnabled) return;
+    const timer = window.setInterval(() => setSourceVersion(value => value + 1), 240_000);
+    return () => window.clearInterval(timer);
+  }, [source, room.shareEnabled]);
 
   const timeline: RoomTimeline = {
     revision: room.revision,
@@ -126,7 +146,17 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
       onPlay={activated}
       onLoadedMetadata={() => {
         const a = audioRef.current;
-        if (a && room.playbackStatus === 'playing') a.currentTime = Math.max(0, targetMs() / 1000);
+        if (!a) return;
+        const previous = resumeRef.current;
+        resumeRef.current = null;
+        if (previous && Number.isFinite(previous.position)) {
+          a.currentTime = Math.max(0, previous.position);
+          if (previous.wasPlaying && room.playbackStatus === 'playing') {
+            void a.play().catch(() => setError('Pulsa Play para reanudar la salida de este dispositivo.'));
+          }
+        } else if (room.playbackStatus === 'playing') {
+          a.currentTime = Math.max(0, targetMs() / 1000);
+        }
       }}
       onError={() => setError('No se pudo cargar el audio. Renueva el enlace temporal.')}
       aria-label="Audio de la sala"/>}

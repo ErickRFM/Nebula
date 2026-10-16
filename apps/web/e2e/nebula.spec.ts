@@ -142,3 +142,54 @@ test('MusicBrainz lookup displays reviewed matches without importing audio',asyn
   await expect(page.getByText('Grabación de prueba')).toBeVisible();
   await expect(page.getByText('Banda E2E', {exact:false})).toBeVisible();
 });
+
+test('private rooms can be created, joined and closed across two accounts', async ({ page, browser, request }) => {
+  const api = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+  test.skip(!api, 'Requires disposable PostgreSQL-backed API');
+  const password = 'NebulaTestPassword123!';
+  const suffix = Date.now() + '-' + Math.random().toString(36).slice(2);
+  const hostEmail = 'rooms-host-' + suffix + '@example.test';
+  const guestEmail = 'rooms-guest-' + suffix + '@example.test';
+  for (const email of [hostEmail, guestEmail]) {
+    const created = await request.post(api + '/v1/auth/register', {
+      data: { email, password }, headers: { 'x-nebula-client': 'e2e' },
+    });
+    expect(created.status()).toBe(201);
+  }
+
+  async function signIn(target: Page, email: string) {
+    await target.goto('/');
+    await target.getByRole('button', { name: 'Mi cuenta' }).click();
+    await target.getByRole('textbox', { name: 'Correo electrónico' }).fill(email);
+    await target.getByLabel('Contraseña').fill(password);
+    await target.getByRole('button', { name: 'Entrar' }).click();
+    await expect(target.getByText('Sesión activa')).toBeVisible();
+    await navigate(target, 'Salas');
+    await expect(target.getByRole('heading', { name: 'Salas NÉBULA' })).toBeVisible();
+  }
+
+  await signIn(page, hostEmail);
+  await page.getByLabel('Nombre').fill('Sala E2E privada');
+  await page.getByRole('button', { name: 'Crear sala', exact: true }).click();
+  const codeElement = page.locator('.room-hero code');
+  await expect(codeElement).toBeVisible();
+  const code = (await codeElement.textContent())?.trim() ?? '';
+  expect(code.length).toBeGreaterThan(20);
+
+  const guestContext = await browser.newContext();
+  try {
+    const guest = await guestContext.newPage();
+    await signIn(guest, guestEmail);
+    await guest.getByLabel('Código privado').fill(code);
+    await guest.getByRole('button', { name: 'Unirme' }).click();
+    await expect(guest.getByText('Te uniste a la sala.')).toBeVisible();
+    await expect(guest.getByText('2 participante(s)', { exact: false }).first()).toBeVisible();
+
+    page.once('dialog', dialog => { void dialog.accept(); });
+    await page.getByRole('button', { name: 'Salir o cerrar Sala E2E privada' }).click();
+    await expect(page.getByText('Sala cerrada.')).toBeVisible();
+    await expect(guest.getByText('La cola está vacía.')).toHaveCount(0, { timeout: 10000 });
+  } finally {
+    await guestContext.close();
+  }
+});
