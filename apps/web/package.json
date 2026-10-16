@@ -16,10 +16,19 @@
     "@nebula/player-core": "file:../../packages/player-core",
     "@capacitor/core": "^7.4.3",
     "@capacitor/android": "^7.4.3",
-    "@capacitor/ios": "^7.4.3"
+    "@capacitor/ios": "^7.4.3",
+    "@nebula/api": "file:../api",
+    "light-my-request": "6.6.0",
+    "@fastify/cookie": "11.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0"
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^22.15.0"
+  },
+  "overrides": {
+    "light-my-request": "6.6.0",
+    "@fastify/cookie": "11.1.0"
   }
 }

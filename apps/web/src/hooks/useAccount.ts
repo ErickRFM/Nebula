@@ -16,7 +16,8 @@ export type AccountSession = {
 type AuthResponse = { user: AccountUser; accessToken: string; expiresInSeconds: number };
 
 const configuredBase=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'') ?? '';
-export const isAccountApiConfigured=Boolean(configuredBase);
+// Vercel serves /v1 through same-origin Functions; Capacitor requires an explicit remote URL.
+export const isAccountApiConfigured=Boolean(configuredBase) || process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API === 'true';
 
 function apiError(code:string,status:number):string {
   if(status===429) return 'Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.';
@@ -37,7 +38,7 @@ function apiError(code:string,status:number):string {
   }
 }
 async function requestJson<T>(path:string,init:RequestInit={},token?:string):Promise<T> {
-  if(!configuredBase) throw new Error('Configura NEXT_PUBLIC_API_URL para activar las cuentas.');
+  if(!isAccountApiConfigured) throw new Error('Configura NEXT_PUBLIC_API_URL para activar las cuentas.');
   let response:Response;
   try {
     response=await fetch(configuredBase+path,{
@@ -77,7 +78,7 @@ export function useAccount() {
   const [sessions,setSessions]=useState<AccountSession[]>([]);
 
   useEffect(()=>{
-    if(!configuredBase) {setRestoring(false); return;}
+    if(!isAccountApiConfigured) {setRestoring(false); return;}
     void fetch(configuredBase+'/v1/auth/config',{cache:'no-store'})
       .then(r=>r.ok?r.json():null)
       .then(data=>setRegistrationOpen(data?.registrationOpen===true))
@@ -86,7 +87,7 @@ export function useAccount() {
 
   // Restore a persistent session from the HttpOnly refresh cookie on first load.
   useEffect(()=>{
-    if(!configuredBase){setRestoring(false);return;}
+    if(!isAccountApiConfigured){setRestoring(false);return;}
     let cancelled=false;
     (async()=>{
       try {
