@@ -150,7 +150,7 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     const updated = await pool.query<RoomRow>(`
       UPDATE rooms r
       SET track_id=$4, playback_status=$5, position_ms=$6,
-          effective_at=now() + CASE WHEN $5='playing' THEN interval '3 seconds' ELSE interval '0 seconds' END,
+          effective_at=now() + CASE WHEN $5::varchar='playing' THEN interval '3 seconds' ELSE interval '0 seconds' END,
           revision=revision+1
       WHERE r.id=$1 AND r.owner_user_id=$2 AND r.status='active' AND r.revision=$3
       RETURNING r.id, r.revision::int AS revision, r.track_id AS "trackId",
