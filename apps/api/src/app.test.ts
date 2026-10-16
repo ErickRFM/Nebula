@@ -76,4 +76,27 @@ describe.skipIf(!url)('authenticated API backed by PostgreSQL',()=>{
     expect(disabled.json().disabledProviders).toContain('jamendo');
   });
 
+  it('stores external references only for owner and de-duplicates saves',async()=>{
+    const owner=await register('reference-owner');
+    const stranger=await register('reference-stranger');
+    const body={provider:'jamendo',externalId:'12345',title:'Mi canción',artist:'Demo',
+      sourceUrl:'https://www.jamendo.com/track/12345'};
+    const header=(token:string)=>({authorization:'Bearer '+token});
+    const saved=await app.inject({method:'POST',url:'/v1/library/external',headers:header(owner.token),payload:body});
+    expect(saved.statusCode).toBe(201);
+    const duplicate=await app.inject({method:'POST',url:'/v1/library/external',headers:header(owner.token),payload:body});
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json().created).toBe(false);
+    const mine=await app.inject({method:'GET',url:'/v1/library/external',headers:header(owner.token)});
+    expect(mine.json().items.some((x:{externalId:string})=>x.externalId==='12345')).toBe(true);
+    const other=await app.inject({method:'GET',url:'/v1/library/external',headers:header(stranger.token)});
+    expect(other.json().items.some((x:{externalId:string})=>x.externalId==='12345')).toBe(false);
+    const blocked=await app.inject({method:'DELETE',url:'/v1/library/external/jamendo/12345',headers:header(stranger.token)});
+    expect(blocked.statusCode).toBe(404);
+    const removed=await app.inject({method:'DELETE',url:'/v1/library/external/jamendo/12345',headers:header(owner.token)});
+    expect(removed.statusCode).toBe(204);
+    const denied=await app.inject({method:'GET',url:'/v1/library/external'});
+    expect(denied.statusCode).toBe(401);
+  });
+
 });
