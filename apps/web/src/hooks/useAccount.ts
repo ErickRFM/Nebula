@@ -147,6 +147,19 @@ export function useAccount() {
     finally {setBusy(false);}
   },[]);
 
+  const acceptInvite=useCallback(async (token:string,email:string,password:string):Promise<boolean>=>{
+    setBusy(true);setError('');
+    try {
+      const data=await requestJson<AuthResponse>('/v1/auth/accept-invite',{
+        method:'POST',body:JSON.stringify({token:token.trim(),email:email.trim().toLowerCase(),password}),
+      });
+      if(!data.accessToken||!data.user?.id) throw new Error('La invitación devolvió una sesión inválida.');
+      setAccessToken(data.accessToken);setUser(data.user);
+      return true;
+    } catch(err) {setError(err instanceof Error?err.message:'No se pudo aceptar la invitación.');return false;}
+    finally {setBusy(false);}
+  },[]);
+
   const logout=useCallback(async()=>{
     try { await requestJson<unknown>('/v1/auth/logout',{method:'POST'},accessToken ?? undefined); }
     catch { /* clear locally even if the server is unreachable */ }
@@ -203,7 +216,7 @@ export function useAccount() {
 
   return {
     configured:isAccountApiConfigured,user,accessToken,busy,restoring,error,registrationOpen,
-    serverPlaylists,playlistsBusy,sessions,login,logout,
+    serverPlaylists,playlistsBusy,sessions,login,acceptInvite,logout,
     revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,cloudRequest,setError,
   };
 }

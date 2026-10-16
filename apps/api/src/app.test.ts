@@ -182,6 +182,21 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(sessions.json().items.some((item: { current: boolean }) => item.current)).toBe(true);
   });
 
+  it('accepts a private invite only once under concurrent requests', async () => {
+    const invite = await app.inject({
+      method: 'POST', url: '/v1/admin/invites',
+      headers: { authorization: 'Bearer ' + ownerToken }, payload: {},
+    });
+    expect(invite.statusCode).toBe(201);
+    const token = invite.json().token as string;
+    const attempts = await Promise.all([1, 2].map(async (n) => app.inject({
+      method: 'POST', url: '/v1/auth/accept-invite',
+      payload: { token, email: 'invite-race-' + n + '-' + Date.now() + '@example.test', password: PASSWORD },
+    })));
+    expect(attempts.filter(result => result.statusCode === 201)).toHaveLength(1);
+    expect(attempts.filter(result => result.statusCode === 401)).toHaveLength(1);
+  });
+
   it('isolates private R2 tracks and issues signed URLs only to their owner', async () => {
     const previous = {
       R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,

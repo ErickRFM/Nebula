@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { invites, sessions, users, type Role } from '../db/schema.js';
@@ -274,14 +274,21 @@ export function registerAuthRoutes(
     }
     const hash = await hashPassword(parsed.data.password);
     try {
-      const [user] = await db
-        .insert(users)
-        .values({ id: newId(), email, passwordHash: hash, role: 'member' })
-        .returning({ id: users.id, email: users.email, role: users.role });
-      await db
-        .update(invites)
-        .set({ usedAt: new Date(), usedBy: user.id })
-        .where(eq(invites.id, invite.id));
+      // Claim the invite atomically. Concurrent requests cannot create multiple
+      // accounts from the same token, even for invitations without a bound email.
+      const user = await db.transaction(async (tx) => {
+        const [claimed] = await tx.update(invites)
+          .set({ usedAt: new Date() })
+          .where(and(eq(invites.id, invite.id), isNull(invites.usedAt), gt(invites.expiresAt, new Date())))
+          .returning({ id: invites.id });
+        if (!claimed) return null;
+        const [created] = await tx.insert(users)
+          .values({ id: newId(), email, passwordHash: hash, role: 'member' })
+          .returning({ id: users.id, email: users.email, role: users.role });
+        await tx.update(invites).set({ usedBy: created.id }).where(eq(invites.id, invite.id));
+        return created;
+      });
+      if (!user) return reply.code(401).send(fail('invalid_invite'));
       const accessToken = await issueSession(user, request, reply);
       await recordAudit(db, { actorUserId: user.id, action: 'invite_accepted', target: invite.id, ...meta });
       return reply.code(201).send({ user, accessToken, expiresInSeconds: config.accessTtlSeconds });
