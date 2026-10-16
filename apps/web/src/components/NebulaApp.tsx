@@ -232,7 +232,7 @@ export function NebulaApp() {
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
-      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>item.id !== 'ajustes' && item.id !== 'cuenta' && item.id !== 'salas').map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
+      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>item.id !== 'ajustes' && item.id !== 'cuenta').map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
     </div>
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;

@@ -1,4 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
+import { Pool } from 'pg';
+import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 
 async function navigate(page: Page, name: string) {
   const desktop = page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
@@ -141,4 +143,60 @@ test('MusicBrainz lookup displays reviewed matches without importing audio',asyn
   await page.getByRole('button',{name:'Identificar'}).click();
   await expect(page.getByText('Grabación de prueba')).toBeVisible();
   await expect(page.getByText('Banda E2E', {exact:false})).toBeVisible();
+});
+
+test('private rooms can be created, joined and closed across two accounts', async ({ page, browser }) => {
+  const api = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+  test.skip(!api || !process.env.NEBULA_TEST_DATABASE_URL, 'Requires disposable PostgreSQL-backed API');
+  const password = 'NebulaTestPassword123!';
+  const suffix = Date.now() + '-' + Math.random().toString(36).slice(2);
+  const hostEmail = 'rooms-host-' + suffix + '@example.test';
+  const guestEmail = 'rooms-guest-' + suffix + '@example.test';
+  // Provision fixture users directly in disposable CI PostgreSQL. Do not
+  // consume public registration rate limits shared by parallel browser tests.
+  const pool = new Pool({ connectionString: process.env.NEBULA_TEST_DATABASE_URL, max: 1 });
+  try {
+    for (const email of [hostEmail, guestEmail]) {
+      const salt = randomBytes(16).toString('hex');
+      const hash = 'scrypt$' + salt + '$' + scryptSync(password, salt, 64).toString('hex');
+      await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",
+        [randomUUID(), email, hash]);
+    }
+  } finally { await pool.end(); }
+
+  async function signIn(target: Page, email: string) {
+    await target.goto('/');
+    await target.getByRole('button', { name: 'Mi cuenta' }).click();
+    await target.getByRole('textbox', { name: 'Correo electrónico' }).fill(email);
+    await target.getByLabel('Contraseña').fill(password);
+    await target.getByRole('button', { name: 'Entrar' }).click();
+    await expect(target.getByText('Sesión activa')).toBeVisible();
+    await navigate(target, 'Salas');
+    await expect(target.getByRole('heading', { name: 'Salas NÉBULA' })).toBeVisible();
+  }
+
+  await signIn(page, hostEmail);
+  await page.getByLabel('Nombre').fill('Sala E2E privada');
+  await page.getByRole('button', { name: 'Crear sala', exact: true }).click();
+  const codeElement = page.locator('.room-hero code');
+  await expect(codeElement).toBeVisible();
+  const code = (await codeElement.textContent())?.trim() ?? '';
+  expect(code.length).toBeGreaterThan(20);
+
+  const guestContext = await browser.newContext();
+  try {
+    const guest = await guestContext.newPage();
+    await signIn(guest, guestEmail);
+    await guest.getByLabel('Código privado').fill(code);
+    await guest.getByRole('button', { name: 'Unirme' }).click();
+    await expect(guest.getByText('Te uniste a la sala.')).toBeVisible();
+    await expect(guest.getByText('2 participante(s)', { exact: false }).first()).toBeVisible();
+
+    page.once('dialog', dialog => { void dialog.accept(); });
+    await page.getByRole('button', { name: 'Salir o cerrar Sala E2E privada' }).click();
+    await expect(page.getByText('Sala cerrada.')).toBeVisible();
+    await expect(guest.getByText('La cola está vacía.')).toHaveCount(0, { timeout: 10000 });
+  } finally {
+    await guestContext.close();
+  }
 });
