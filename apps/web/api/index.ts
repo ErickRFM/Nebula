@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Pool } from 'pg';
-import { buildApp } from '../../api/src/app.js';
+import type { buildApp } from '../../api/src/app.js';
 
 // This is a Vercel Node Function. Keep the Next.js UI as a static export
 // (also used by Capacitor) and expose the existing Fastify API on /v1/*.
@@ -28,7 +28,10 @@ function getApp() {
         idleTimeoutMillis: 10000,
       });
       try {
-        return await buildApp({
+        // Keep the backend ESM package out of the CJS require() path used by
+        // Vercel's standalone Node Function launcher.
+        const backend = await import('../../api/src/app.js');
+        return await backend.buildApp({
           pool,
           secret,
           origin: process.env.API_CORS_ORIGIN ?? 'https://nebula-er-i1.vercel.app',
