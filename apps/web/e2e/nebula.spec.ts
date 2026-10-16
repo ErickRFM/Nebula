@@ -70,3 +70,33 @@ test('account UI registers and manages server-side playlists', async ({page}) =>
   await page.getByRole('button',{name:'Mi cuenta'}).click();
   await expect(page.getByRole('heading',{name:'Iniciar sesión'})).toBeVisible();
 });
+
+test('private explorer saves a real provider reference, not an audio file',async({page})=>{
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs local API with disposable PostgreSQL');
+  await page.route('**/v1/discovery/search?**',async route=>{
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      failedProviders:[],disabledProviders:[],
+      items:[{id:'jamendo:54321',provider:'jamendo',externalId:'54321',
+        title:'Noche de prueba',artist:'Artista E2E',album:'Álbum test',
+        durationSeconds:120,artworkUrl:null,
+        sourceUrl:'https://www.jamendo.com/track/54321',licenseUrl:null,
+        canStream:false,canDownload:false,canStorePrivateCopy:false,streamUrl:null}]
+    })});
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
+  const email='explore-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
+  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
+  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
+  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await navigate(page,'Explorar');
+  await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('noche');
+  await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
+  await expect(page.getByText('Noche de prueba')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Escuchar'})).toBeDisabled();
+  await page.getByRole('button',{name:'Guardar',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Guardada'})).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Referencia guardada');
+});

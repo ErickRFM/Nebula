@@ -1,0 +1,175 @@
+'use client';
+
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Bookmark, Check, ExternalLink, Headphones, Search, WifiOff } from 'lucide-react';
+import type { AccountApi } from '../hooks/useAccount';
+import type { Track } from '../lib/catalog';
+
+type Provider = 'all'|'jamendo'|'openverse'|'audius';
+interface RemoteTrack {
+  id:string;provider:Exclude<Provider,'all'>;externalId:string;
+  title:string;artist:string;album:string|null;durationSeconds:number|null;
+  artworkUrl:string|null;sourceUrl:string;licenseUrl:string|null;
+  canStream:boolean;canDownload:boolean;canStorePrivateCopy:false;streamUrl:string|null;
+}
+interface SavedTrack {
+  provider:Exclude<Provider,'all'>;externalId:string;title:string;artist:string;
+  artworkUrl:string|null;sourceUrl:string;licenseUrl:string|null;
+}
+const apiBase=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'') ?? '';
+const providerNames:{id:Provider;label:string}[]=[
+  {id:'all',label:'Todas'}, {id:'jamendo',label:'Jamendo'},
+  {id:'openverse',label:'Openverse'}, {id:'audius',label:'Audius'},
+];
+const keyOf=(item:SavedTrack)=>item.provider+':'+item.externalId;
+const isSafe=(url:string|null):url is string=>{
+  if(!url) return false;
+  try {const u=new URL(url);return u.protocol==='https:' && !u.username && !u.password;}
+  catch{return false;}
+};
+
+export function ExplorePanel({account,onAccount,onPlay}:{
+  account:AccountApi;onAccount:()=>void;onPlay:(track:Track)=>void;
+}) {
+  const [query,setQuery]=useState('');
+  const [provider,setProvider]=useState<Provider>('all');
+  const [tracks,setTracks]=useState<RemoteTrack[]>([]);
+  const [saved,setSaved]=useState<SavedTrack[]>([]);
+  const [busy,setBusy]=useState(false);
+  const [notice,setNotice]=useState('');
+  const [searched,setSearched]=useState(false);
+  const [failed,setFailed]=useState<string[]>([]);
+  const [saving,setSaving]=useState<string|null>(null);
+  const [enabled,setEnabled]=useState<Record<string,boolean>>({});
+
+  const loadSaved=useCallback(async()=>{
+    if(!account.accessToken || !apiBase) {setSaved([]);return;}
+    try {
+      const response=await fetch(apiBase+'/v1/library/external',{headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store'});
+      if(response.ok) setSaved((await response.json()).items as SavedTrack[]);
+    } catch { /* Discovery still works if saved list is temporarily unavailable. */ }
+  },[account.accessToken]);
+
+  useEffect(()=>{void loadSaved();},[loadSaved]);
+  useEffect(()=>{
+    if(!account.accessToken || !apiBase) return;
+    void fetch(apiBase+'/v1/discovery/providers',{
+      headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',
+    }).then(r=>r.ok?r.json():null).then((data)=>{
+      if(data?.providers) setEnabled(Object.fromEntries((data.providers as {id:string;enabled:boolean}[]).map(x=>[x.id,x.enabled])));
+    }).catch(()=>{});
+  },[account.accessToken]);
+
+  async function search(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const q=query.trim();
+    if(q.length<2){setNotice('Escribe al menos dos caracteres.');return;}
+    if(!account.accessToken || !apiBase){setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
+    setBusy(true);setNotice('');setFailed([]);setSearched(true);
+    try {
+      const params=new URLSearchParams({q,provider,limit:'12',page:'1'});
+      const response=await fetch(apiBase+'/v1/discovery/search?'+params.toString(),{
+        headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',
+      });
+      if(!response.ok) throw new Error(response.status===401?'La sesión caducó; vuelve a iniciar sesión.':'No fue posible consultar los proveedores.');
+      const json=await response.json();
+      setTracks(Array.isArray(json.items)?json.items:[]);
+      setFailed(Array.isArray(json.failedProviders)?json.failedProviders:[]);
+      if(json.disabledProviders?.length) setNotice('Este proveedor necesita configuración en el servidor.');
+    } catch(e) {
+      setTracks([]);
+      setNotice(e instanceof Error?e.message:'Ocurrió un error al buscar.');
+    } finally {setBusy(false);}
+  }
+
+  function play(item:RemoteTrack) {
+    if(!item.canStream || !isSafe(item.streamUrl)) {
+      setNotice('Este proveedor no ofrece una dirección de audio reproducible para esta pista.');
+      return;
+    }
+    onPlay({
+      id:'remote-'+item.provider+'-'+item.externalId,
+      title:item.title,artist:item.artist,album:item.album??'Catálogo externo',
+      cover:isSafe(item.artworkUrl)?item.artworkUrl:'/art/orbita.svg',
+      genre:item.provider,duration:item.durationSeconds?Math.floor(item.durationSeconds/60)+':'+String(item.durationSeconds%60).padStart(2,'0'):'--:--',
+      audioUrl:item.streamUrl,source:'external',
+    });
+    setNotice('Reproduciendo desde '+item.provider+'. El audio externo puede estar sujeto a disponibilidad o límites del proveedor.');
+  }
+
+  async function save(item:RemoteTrack) {
+    if(!account.accessToken) return;
+    if(!isSafe(item.sourceUrl)){setNotice('La fuente de esta pista no es segura.');return;}
+    const key=keyOf(item);
+    setSaving(key);setNotice('');
+    try {
+      const exists=saved.some(x=>keyOf(x)===key);
+      const url=apiBase+'/v1/library/external'+(exists?'/'+encodeURIComponent(item.provider)+'/'+encodeURIComponent(item.externalId):'');
+      const response=await fetch(url,{
+        method:exists?'DELETE':'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+account.accessToken},
+        ...(exists?{}:{body:JSON.stringify({
+          provider:item.provider,externalId:item.externalId,
+          title:item.title.slice(0,200),artist:item.artist.slice(0,200),
+          sourceUrl:item.sourceUrl,artworkUrl:isSafe(item.artworkUrl)?item.artworkUrl:null,
+          licenseUrl:isSafe(item.licenseUrl)?item.licenseUrl:null,
+        })}),
+      });
+      if(!response.ok) throw new Error('No se pudo actualizar tu biblioteca (HTTP '+response.status+').');
+      await loadSaved();
+      setNotice(exists?'Referencia eliminada de tu biblioteca.':'Referencia guardada en tu cuenta, sin copiar audio.');
+    } catch(e) {setNotice(e instanceof Error?e.message:'Error al guardar.');}
+    finally {setSaving(null);}
+  }
+
+  return <section className="explore-page">
+    <div className="eyebrow">CATÁLOGOS MUSICALES</div>
+    <h1 className="page-title">Explora nuevas frecuencias</h1>
+    <p className="page-description">Busca canciones reales, escucha desde sus proveedores y guarda referencias privadas, sin descargar ni replicar archivos.</p>
+    {!apiBase || !account.user ? <div className="explore-gate glass">
+      <WifiOff size={25}/><div><strong>Exploración privada</strong><p>Necesitas la API configurada y una sesión iniciada para acceder a los catálogos.</p></div>
+      <button className="button primary small" type="button" onClick={onAccount}>Ir a Cuenta</button>
+    </div> : <>
+      <form onSubmit={(event)=>void search(event)} className="explore-form glass">
+        <Search size={19}/><label className="sr-only" htmlFor="catalog-query">Buscar canciones externas</label>
+        <input id="catalog-query" placeholder="Busca por artista, canción o género" value={query} maxLength={100} onChange={e=>setQuery(e.target.value)}/>
+        <button type="submit" className="button primary small" disabled={busy}>{busy?'Buscando…':'Buscar'}</button>
+      </form>
+      <div className="chip-row">{providerNames.map(x=><button type="button" key={x.id}
+        className={'chip '+(provider===x.id?'active':'')} onClick={()=>setProvider(x.id)}>
+        {x.label}{x.id!=='all'&&enabled[x.id]===false?' · sin configurar':''}
+      </button>)}</div>
+      {notice && <p className="explore-notice" role="status">{notice}</p>}
+      {failed.length>0 && <p className="explore-notice">Algunas fuentes no respondieron: {failed.join(', ')}.</p>}
+      {!searched && <div className="explore-empty glass"><Headphones size={33}/><strong>Empieza por una búsqueda</strong><span>Jamendo, Openverse y Audius, según disponibilidad.</span></div>}
+      {searched && !busy && tracks.length===0 && <div className="explore-empty glass">No encontramos canciones. Prueba otro término o proveedor.</div>}
+      <div className="explore-grid">{tracks.map(item=>{
+        const id=keyOf(item);
+        const exists=saved.some(x=>keyOf(x)===id);
+        return <article className="explore-card glass" key={item.id}>
+          {isSafe(item.artworkUrl)?<img className="explore-art" alt={'Portada de '+item.title} src={item.artworkUrl} loading="lazy"/>:
+          <div className="explore-art explore-placeholder"><Headphones size={32}/></div>}
+          <div className="explore-card-content">
+            <div className="explore-provider">{item.provider.toUpperCase()}</div>
+            <strong>{item.title}</strong><span>{item.artist}</span>
+            <small>{item.album || 'Colección externa'}</small>
+            <div className="explore-links">
+              <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14}/> Fuente</a>
+              {isSafe(item.licenseUrl)&&<a href={item.licenseUrl} target="_blank" rel="noopener noreferrer">Licencia</a>}
+            </div>
+            <div className="explore-actions">
+              <button type="button" className="button secondary small" disabled={!item.canStream || !isSafe(item.streamUrl)} onClick={()=>play(item)}>
+                <Headphones size={16}/> Escuchar
+              </button>
+              <button type="button" className="button secondary small" disabled={saving===id} onClick={()=>void save(item)}>
+                {exists?<Check size={16}/>:<Bookmark size={16}/>} {exists?'Guardada':'Guardar'}
+              </button>
+            </div>
+            <div className="explore-rights">Archivo en NÉBULA: no · {item.canDownload?'Descarga ofrecida por proveedor':'Sin descarga confirmada'}</div>
+          </div>
+        </article>;
+      })}</div>
+      <p className="disclosure">Guardar una referencia no importa audio. Las pistas externas dependen de sus fuentes y términos; la importación a R2 requiere autorización independiente.</p>
+    </>}
+  </section>;
+}
