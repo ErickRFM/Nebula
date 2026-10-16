@@ -10,3 +10,7 @@ CREATE TABLE IF NOT EXISTS cloud_tracks (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS cloud_tracks_user_created_idx ON cloud_tracks (user_id, created_at DESC);
+
+-- Supabase public schema must never expose private music metadata via PostgREST.
+ALTER TABLE public.cloud_tracks ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.cloud_tracks FROM anon, authenticated;
