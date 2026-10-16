@@ -91,20 +91,24 @@ export function createAudiusProvider(fetchImpl:JsonFetch=fetch):AudioProvider {
     async search({query,page,limit}:SearchRequest){
       const url=new URL('https://api.audius.co/v1/tracks/search');
       url.searchParams.set('query',query);url.searchParams.set('limit',String(limit));url.searchParams.set('offset',String((page-1)*limit));
+      url.searchParams.set('filter_tracks','public');
+      url.searchParams.set('gate_condition','ungated');
       const json=await loadProviderJson(url,fetchImpl) as {data?:unknown};
       return array(json?.data).flatMap((row):ExternalTrack[]=>{
         const externalId=stringField(row.id);
         const sourceUrl=safeHttpsUrl(row.permalink);
         if(!externalId || !/^[a-zA-Z0-9_-]+$/.test(externalId) || !sourceUrl) return [];
         const artwork=row.artwork && typeof row.artwork==='object' ? row.artwork as Record<string,unknown> : {};
+        const isPublicStream=row.is_stream_gated===false && row.is_scheduled_release!==true;
+        const streamUrl=isPublicStream?'https://api.audius.co/v1/tracks/'+encodeURIComponent(externalId)+'/stream':null;
         return [track('audius',externalId,{
           title:stringField(row.title,'Sin título'),
           artist:stringField(row.user && typeof row.user==='object' ? (row.user as Record<string,unknown>).name : null,'Artista desconocido'),
           album:null,durationSeconds:durationField(row.duration),
           artworkUrl:safeHttpsUrl(artwork['480x480']) ?? safeHttpsUrl(artwork['150x150']),
           sourceUrl,licenseUrl:null,
-          // API stream resolution is a separate authenticated capability.
-          canStream:false,canDownload:false,streamUrl:null,
+          // Only explicitly ungated public tracks can use the official stream endpoint.
+          canStream:isPublicStream,canDownload:false,streamUrl,
         })];
       });
     },
