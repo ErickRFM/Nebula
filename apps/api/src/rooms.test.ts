@@ -110,10 +110,10 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
       VALUES ($1,$2,$3,'Queue test','Artist','audio/mpeg',2048,'ready')
     `, [trackId, userId, 'users/' + userId + '/queue-' + trackId + '.mp3']);
     const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/queue',
-      headers: auth(b), payload: { trackId } });
+      headers: auth(b), payload: { trackId, rightsConfirmed: true } });
     expect(denied.statusCode).toBe(404);
     const added = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/queue',
-      headers: auth(a), payload: { trackId } });
+      headers: auth(a), payload: { trackId, rightsConfirmed: true } });
     expect(added.statusCode).toBe(201);
     const list = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId + '/queue', headers: auth(b) });
     expect(list.statusCode).toBe(200);

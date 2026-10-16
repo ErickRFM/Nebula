@@ -222,7 +222,7 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
 
   app.post('/v1/rooms/:id/queue', { preHandler: requireAuth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const params = roomId.safeParse(request.params);
-    const body = z.object({ trackId: z.string().uuid() }).safeParse(request.body);
+    const body = z.object({ trackId: z.string().uuid(), rightsConfirmed: z.literal(true) }).safeParse(request.body);
     if (!params.success || !body.success) return reply.code(400).send(error('invalid_queue_item'));
     const client = await pool.connect();
     try {

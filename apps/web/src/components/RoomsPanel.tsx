@@ -81,10 +81,13 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   }, [selectedId, account.user?.id, refreshQueue]);
 
   function addToQueue() {
-    if (!selected || !selectedCloudId) return;
+    if (!selected || !selectedCloudId || !rightsConfirmed) {
+      setError('Confirma que tienes derecho a compartir esta canción antes de añadirla a la cola.');
+      return;
+    }
     void action(async () => {
       await account.cloudRequest('/v1/rooms/' + selected.id + '/queue', {
-        method: 'POST', body: JSON.stringify({ trackId: selectedCloudId }),
+        method: 'POST', body: JSON.stringify({ trackId: selectedCloudId, rightsConfirmed: true }),
       });
       await refreshQueue();
       setNotice('Canción agregada a la cola de la sala.');
@@ -288,7 +291,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
               Confirmo que tengo derechos para compartir este audio con los participantes.
             </label>
             <button type="button" className="button primary small" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={startSharedAudio}>Compartir y empezar</button>
-            <button type="button" className="button small" disabled={busy || !selectedCloudId} onClick={addToQueue}>Agregar a cola</button>
+            <button type="button" className="button small" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={addToQueue}>Agregar a cola</button>
             {selected.shareEnabled && <button type="button" className="button small" disabled={busy || !queue.length} onClick={nextFromQueue}>Siguiente de la cola</button>}
             {selected.trackId && <>
               <button type="button" className="button small" disabled={busy} onClick={()=>changePlayback(selected.playbackStatus==='playing'?'paused':'playing')}>{selected.playbackStatus==='playing'?'Pausar para todos':'Reanudar para todos'}</button>
