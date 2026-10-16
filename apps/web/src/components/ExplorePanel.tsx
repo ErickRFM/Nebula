@@ -82,6 +82,19 @@ export function ExplorePanel({account,onAccount,onPlay}:{
     } finally {setBusy(false);}
   }
 
+  async function removeSavedReference(item:SavedTrack) {
+    if(!account.accessToken) return;
+    setSaving(keyOf(item));setNotice('');
+    try {
+      const url=apiBase+'/v1/library/external/'+encodeURIComponent(item.provider)+'/'+encodeURIComponent(item.externalId);
+      const response=await fetch(url,{method:'DELETE',headers:{Authorization:'Bearer '+account.accessToken}});
+      if(!response.ok) throw new Error('No fue posible eliminar la referencia.');
+      await loadSaved();
+      setNotice('Referencia eliminada de tu biblioteca.');
+    } catch(error) {setNotice(error instanceof Error?error.message:'Error de biblioteca.');}
+    finally {setSaving(null);}
+  }
+
   function play(item:RemoteTrack) {
     if(!item.canStream || !isSafe(item.streamUrl)) {
       setNotice('Este proveedor no ofrece una dirección de audio reproducible para esta pista.');
@@ -169,6 +182,18 @@ export function ExplorePanel({account,onAccount,onPlay}:{
           </div>
         </article>;
       })}</div>
+      <section className="content-section">
+        <div className="section-heading"><h2>Mi colección externa</h2><span className="server-pill">{saved.length} referencias</span></div>
+        {saved.length===0?<div className="explore-empty glass"><Bookmark size={25}/><strong>Aún no hay canciones externas guardadas</strong><span>Busca música y elige «Guardar» para encontrarla aquí cuando vuelvas a iniciar sesión.</span></div>:
+          <div className="track-list glass">{saved.map(item=><div className="track-row" key={keyOf(item)}>
+            <span className="track-descriptor" style={{flex:1}}>
+              <strong>{item.title}</strong>
+              <small>{item.artist} · {item.provider}</small>
+            </span>
+            {isSafe(item.sourceUrl) && <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={'Ver fuente de '+item.title}><ExternalLink size={18}/></a>}
+            <button type="button" className="icon-button" disabled={saving===keyOf(item)} aria-label={'Quitar '+item.title+' de la colección'} onClick={()=>void removeSavedReference(item)}><Bookmark size={18}/></button>
+          </div>)}</div>}
+      </section>
       <p className="disclosure">Guardar una referencia no importa audio. Las pistas externas dependen de sus fuentes y términos; la importación a R2 requiere autorización independiente.</p>
     </>}
   </section>;
