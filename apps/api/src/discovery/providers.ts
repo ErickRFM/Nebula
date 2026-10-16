@@ -1,5 +1,5 @@
 import type { AudioProvider, AudioProviderId, ExternalTrack, SearchRequest } from './types.js';
-import { durationField, safeHttpsUrl, stringField } from './types.js';
+import { durationField, normalizeLicenseUrl, safeHttpsUrl, stringField } from './types.js';
 import { loadProviderJson, type JsonFetch } from './client.js';
 
 function array(value: unknown): Record<string, unknown>[] {
@@ -46,7 +46,7 @@ export function createJamendoProvider(clientId?:string, fetchImpl:JsonFetch=fetc
           durationSeconds:durationField(row.duration),
           artworkUrl:safeHttpsUrl(row.image),
           sourceUrl:safeHttpsUrl(row.shareurl) ?? 'https://www.jamendo.com/track/'+externalId,
-          licenseUrl:safeHttpsUrl(row.license_ccurl),
+          licenseUrl:normalizeLicenseUrl(row.license_ccurl),
           canStream:Boolean(streamUrl),
           canDownload:row.audiodownload_allowed===true && Boolean(safeHttpsUrl(row.audiodownload)),
           streamUrl,

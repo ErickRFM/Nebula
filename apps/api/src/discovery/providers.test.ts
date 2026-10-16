@@ -30,7 +30,7 @@ describe('music provider adapters',()=>{
     expect(song.canStream).toBe(true);
     expect(song.canDownload).toBe(true);
     expect(song.canStorePrivateCopy).toBe(false);
-    expect(song.licenseUrl).toBeNull();
+    expect(song.licenseUrl).toBe('https://creativecommons.org/licenses/by/4.0/');
   });
   it('normalizes Openverse and leaves download unverified',async()=>{
     const provider=createOpenverseProvider(fake({results:[{

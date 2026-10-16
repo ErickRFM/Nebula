@@ -49,3 +49,16 @@ export function durationField(value: unknown): number | null {
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   return Number.isFinite(n) && n >= 0 && n < 1_000_000 ? Math.round(n) : null;
 }
+
+/** Jamendo occasionally uses historical HTTP Creative Commons links. */
+export function normalizeLicenseUrl(value: unknown): string | null {
+  if(typeof value !== 'string') return null;
+  try {
+    const parsed=new URL(value);
+    if(parsed.hostname === 'creativecommons.org' && parsed.protocol === 'http:') {
+      parsed.protocol='https:';
+      return safeHttpsUrl(parsed.toString());
+    }
+    return safeHttpsUrl(value);
+  } catch { return null; }
+}
