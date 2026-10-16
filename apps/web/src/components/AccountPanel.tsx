@@ -59,7 +59,11 @@ export function AccountPanel({account}: {account:AccountApi}) {
         <input id="account-password" type="password" required autoComplete={mode==='login'?'current-password':'new-password'} minLength={12} maxLength={128} value={password} onChange={(event)=>setPassword(event.target.value)} placeholder="Mínimo 12 caracteres"/>
         <button className="button primary" type="submit" disabled={account.busy}>{account.busy?'Conectando…':mode==='login'?'Entrar':'Crear mi cuenta'}</button>
       </form>
-      <button type="button" className="account-switch" onClick={()=>{setMode(mode==='login'?'register':'login');account.setError('');}}>{mode==='login'?'¿No tienes cuenta? Regístrate':'¿Ya tienes cuenta? Inicia sesión'}</button>
+      {account.registrationOpen ?
+        <button type="button" className="account-switch" onClick={()=>{setMode(mode==='login'?'register':'login');account.setError('');}}>
+          {mode==='login'?'¿No tienes cuenta? Regístrate':'¿Ya tienes cuenta? Inicia sesión'}
+        </button>
+      : <p className="disclosure">Acceso privado: el administrador configura las cuentas, sin registro público.</p>}
     </div>}
     {account.error && <p className="account-error" role="alert">{account.error}</p>}
   </section>;
