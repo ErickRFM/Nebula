@@ -152,6 +152,36 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(denied.statusCode).toBe(401);
   });
 
+  it('signs the owner in and enforces owner-only administration', async () => {
+    const login = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { email: ownerEmail, password: PASSWORD } });
+    expect(login.statusCode).toBe(200);
+    ownerToken = login.json().accessToken as string;
+    ownerCookie = cookieValue(login, 'nebula_refresh');
+    expect(ownerCookie.length).toBeGreaterThan(20);
+    const profile = await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: 'Bearer ' + ownerToken } });
+    expect(profile.json().user.role).toBe('owner');
+
+    const invite = await app.inject({ method: 'POST', url: '/v1/admin/invites', headers: { authorization: 'Bearer ' + ownerToken }, payload: { email: memberEmail } });
+    expect(invite.statusCode).toBe(201);
+    const inviteToken = invite.json().token as string;
+    const accept = await app.inject({ method: 'POST', url: '/v1/auth/accept-invite', payload: { token: inviteToken, email: memberEmail, password: PASSWORD } });
+    expect(accept.statusCode).toBe(201);
+    expect(accept.json().user.role).toBe('member');
+    memberToken = accept.json().accessToken as string;
+    memberCookie = cookieValue(accept, 'nebula_refresh');
+
+    const blocked = await app.inject({ method: 'POST', url: '/v1/admin/invites', headers: { authorization: 'Bearer ' + memberToken }, payload: {} });
+    expect(blocked.statusCode).toBe(403);
+    const accounts = await app.inject({ method: 'GET', url: '/v1/admin/users', headers: { authorization: 'Bearer ' + ownerToken } });
+    expect(accounts.statusCode).toBe(200);
+    const emails = accounts.json().items.map((item: { email: string }) => item.email);
+    expect(emails).toContain(ownerEmail);
+    expect(emails).toContain(memberEmail);
+    const sessions = await app.inject({ method: 'GET', url: '/v1/auth/sessions', headers: { authorization: 'Bearer ' + ownerToken } });
+    expect(sessions.statusCode).toBe(200);
+    expect(sessions.json().items.some((item: { current: boolean }) => item.current)).toBe(true);
+  });
+
   it('isolates private R2 tracks and issues signed URLs only to their owner', async () => {
     const previous = {
       R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
@@ -166,8 +196,8 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       R2_BUCKET: 'nebula-music-private',
     });
     try {
-      const a = await register('r2-owner');
-      const b = await register('r2-other');
+      const a = { token: ownerToken };
+      const b = { token: memberToken };
       const headers = (token: string) => ({ authorization: 'Bearer ' + token });
       const denied = await app.inject({ method: 'GET', url: '/v1/library/cloud' });
       expect(denied.statusCode).toBe(401);
@@ -201,36 +231,6 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
         else process.env[key] = value;
       }
     }
-  });
-
-  it('signs the owner in and enforces owner-only administration', async () => {
-    const login = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { email: ownerEmail, password: PASSWORD } });
-    expect(login.statusCode).toBe(200);
-    ownerToken = login.json().accessToken as string;
-    ownerCookie = cookieValue(login, 'nebula_refresh');
-    expect(ownerCookie.length).toBeGreaterThan(20);
-    const profile = await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: 'Bearer ' + ownerToken } });
-    expect(profile.json().user.role).toBe('owner');
-
-    const invite = await app.inject({ method: 'POST', url: '/v1/admin/invites', headers: { authorization: 'Bearer ' + ownerToken }, payload: { email: memberEmail } });
-    expect(invite.statusCode).toBe(201);
-    const inviteToken = invite.json().token as string;
-    const accept = await app.inject({ method: 'POST', url: '/v1/auth/accept-invite', payload: { token: inviteToken, email: memberEmail, password: PASSWORD } });
-    expect(accept.statusCode).toBe(201);
-    expect(accept.json().user.role).toBe('member');
-    memberToken = accept.json().accessToken as string;
-    memberCookie = cookieValue(accept, 'nebula_refresh');
-
-    const blocked = await app.inject({ method: 'POST', url: '/v1/admin/invites', headers: { authorization: 'Bearer ' + memberToken }, payload: {} });
-    expect(blocked.statusCode).toBe(403);
-    const accounts = await app.inject({ method: 'GET', url: '/v1/admin/users', headers: { authorization: 'Bearer ' + ownerToken } });
-    expect(accounts.statusCode).toBe(200);
-    const emails = accounts.json().items.map((item: { email: string }) => item.email);
-    expect(emails).toContain(ownerEmail);
-    expect(emails).toContain(memberEmail);
-    const sessions = await app.inject({ method: 'GET', url: '/v1/auth/sessions', headers: { authorization: 'Bearer ' + ownerToken } });
-    expect(sessions.statusCode).toBe(200);
-    expect(sessions.json().items.some((item: { current: boolean }) => item.current)).toBe(true);
   });
 
   it('rotates refresh tokens and detects reuse', async () => {
