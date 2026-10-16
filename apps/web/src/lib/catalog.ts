@@ -1,6 +1,8 @@
 export type Track = {
   id: string; title: string; artist: string; album: string; genre: string;
   cover: string; duration: string; audioUrl?: string;
+  /** Temporary external player entry; never persisted to IndexedDB. */
+  source?: 'external';
 };
 export const artwork = ['/art/orbita.svg','/art/frecuencia.svg','/art/neon.svg','/art/aurora.svg','/art/nocturno.svg','/art/estelar.svg'];
 export const demoTracks: Track[] = [
