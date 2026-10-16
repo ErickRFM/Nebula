@@ -10,7 +10,7 @@ async function navigate(page: Page, name: string) {
 
 
 async function signInTestUser(page: Page, request: APIRequestContext, prefix:string) {
-  const api=(process.env.NEXT_PUBLIC_API_URL??'').replace(/\\/$/,'');
+  const api=(process.env.NEXT_PUBLIC_API_URL??'').replace(/\/$/,'');
   if(!api) throw new Error('Set NEXT_PUBLIC_API_URL for session integration tests');
   const email=prefix+'-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
   const password='NebulaTestPassword123!';
