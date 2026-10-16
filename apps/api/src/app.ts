@@ -63,7 +63,10 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
           to_regclass('public.sessions') IS NOT NULL AND
           to_regclass('public.invites') IS NOT NULL AND
           to_regclass('public.audit_events') IS NOT NULL AND
-          to_regclass('public.cloud_tracks') IS NOT NULL
+          to_regclass('public.cloud_tracks') IS NOT NULL AND
+          to_regclass('public.rooms') IS NOT NULL AND
+          to_regclass('public.room_members') IS NOT NULL AND
+          to_regclass('public.room_queue_items') IS NOT NULL
         ) AS ready
       `);
       if (!result.rows[0]?.ready) {
