@@ -7,7 +7,8 @@ import { and, desc, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { users, playlists } from './db/schema.js';
+import { users, playlists, externalLibraryItems } from './db/schema.js';
+import { externalInput, externalDelete } from './library/external-input.js';
 import { hashPassword, verifyPassword } from './security/password.js';
 import { DiscoveryService } from './discovery/service.js';
 
@@ -121,6 +122,57 @@ export async function buildApp({pool,secret,origin}:Options) {
       .where(and(eq(playlists.id,params.data.id),eq(playlists.userId,unauthorized(request))))
       .returning({id:playlists.id});
     if(!deleted) return reply.code(404).send(fail('playlist_not_found'));
+    return reply.code(204).send();
+  });
+
+  app.get('/v1/library/external',{preHandler:requireAuth},async(request)=>{
+    const items=await db.select({
+      id:externalLibraryItems.id,
+      provider:externalLibraryItems.provider, externalId:externalLibraryItems.externalId,
+      title:externalLibraryItems.title,artist:externalLibraryItems.artist,
+      artworkUrl:externalLibraryItems.artworkUrl,sourceUrl:externalLibraryItems.sourceUrl,
+      licenseUrl:externalLibraryItems.licenseUrl,createdAt:externalLibraryItems.createdAt,
+    }).from(externalLibraryItems).where(eq(externalLibraryItems.userId,unauthorized(request)))
+      .orderBy(desc(externalLibraryItems.createdAt)).limit(1000);
+    return {items};
+  });
+
+  app.post('/v1/library/external',{preHandler:requireAuth},async(request,reply)=>{
+    const parsed=externalInput.safeParse(request.body);
+    if(!parsed.success) return reply.code(400).send(fail('invalid_external_track'));
+    const data=parsed.data;
+    const userId=unauthorized(request);
+    const projection={
+      provider:externalLibraryItems.provider,externalId:externalLibraryItems.externalId,
+      title:externalLibraryItems.title,artist:externalLibraryItems.artist,
+      artworkUrl:externalLibraryItems.artworkUrl,sourceUrl:externalLibraryItems.sourceUrl,
+      licenseUrl:externalLibraryItems.licenseUrl,id:externalLibraryItems.id,
+    };
+    const created=await db.insert(externalLibraryItems).values({
+      id:randomUUID(),userId,provider:data.provider,externalId:data.externalId,
+      title:data.title,artist:data.artist,artworkUrl:data.artworkUrl??null,
+      sourceUrl:data.sourceUrl,licenseUrl:data.licenseUrl??null,
+    }).onConflictDoNothing({
+      target:[externalLibraryItems.userId,externalLibraryItems.provider,externalLibraryItems.externalId]
+    }).returning(projection);
+    if(created.length) return reply.code(201).send({item:created[0],created:true});
+    const [existing]=await db.select(projection).from(externalLibraryItems).where(and(
+      eq(externalLibraryItems.userId,userId),
+      eq(externalLibraryItems.provider,data.provider),
+      eq(externalLibraryItems.externalId,data.externalId),
+    )).limit(1);
+    return reply.code(200).send({item:existing,created:false});
+  });
+
+  app.delete('/v1/library/external/:provider/:externalId',{preHandler:requireAuth},async(request,reply)=>{
+    const parsed=externalDelete.safeParse(request.params);
+    if(!parsed.success) return reply.code(400).send(fail('invalid_external_track_id'));
+    const [removed]=await db.delete(externalLibraryItems).where(and(
+      eq(externalLibraryItems.userId,unauthorized(request)),
+      eq(externalLibraryItems.provider,parsed.data.provider),
+      eq(externalLibraryItems.externalId,parsed.data.externalId),
+    )).returning({id:externalLibraryItems.id});
+    if(!removed) return reply.code(404).send(fail('external_track_not_found'));
     return reply.code(204).send();
   });
 
