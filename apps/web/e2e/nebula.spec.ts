@@ -102,3 +102,32 @@ test('private explorer saves a real provider reference, not an audio file',async
   await expect(page.locator('.content-section').filter({hasText:'Mi colección externa'}).getByText('Noche de prueba')).toBeVisible();
   await expect(page.getByRole('status')).toContainText('Referencia guardada');
 });
+
+test('MusicBrainz lookup displays reviewed matches without importing audio',async({page})=>{
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'API not configured');
+  await page.route('**/v1/metadata/musicbrainz?**',async route=>{
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      source:'musicbrainz',audioAvailable:false,
+      items:[{
+        recordingId:'6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+        title:'Grabación de prueba',artist:'Banda E2E',
+        album:'Disco E2E',releaseId:null,durationSeconds:180,
+        score:94,sourceUrl:'https://musicbrainz.org/recording/6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+        coverArtCandidate:null,
+      }]
+    })});
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
+  const email='mb-'+Date.now()+Math.random().toString(36).slice(2)+'@example.test';
+  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
+  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
+  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await navigate(page,'Explorar');
+  await page.getByRole('textbox',{name:'Buscar metadatos musicales'}).fill('banda');
+  await page.getByRole('button',{name:'Identificar'}).click();
+  await expect(page.getByText('Grabación de prueba')).toBeVisible();
+  await expect(page.getByText('Banda E2E', {exact:false})).toBeVisible();
+});

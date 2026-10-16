@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Bookmark, Check, ExternalLink, Headphones, Search, WifiOff } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
+import { MetadataLookup } from './MetadataLookup';
 
 type Provider = 'all'|'jamendo'|'openverse'|'audius';
 interface RemoteTrack {
@@ -194,6 +195,7 @@ export function ExplorePanel({account,onAccount,onPlay}:{
             <button type="button" className="icon-button" disabled={saving===keyOf(item)} aria-label={'Quitar '+item.title+' de la colección'} onClick={()=>void removeSavedReference(item)}><Bookmark size={18}/></button>
           </div>)}</div>}
       </section>
+      <MetadataLookup account={account}/>
       <p className="disclosure">Guardar una referencia no importa audio. Las pistas externas dependen de sus fuentes y términos; la importación a R2 requiere autorización independiente.</p>
     </>}
   </section>;
