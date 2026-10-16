@@ -48,9 +48,18 @@ export function useAccount() {
   // Never store bearer tokens in localStorage, IndexedDB, URLs or persistent cookies.
   const [accessToken,setAccessToken]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
+  const [registrationOpen,setRegistrationOpen]=useState(false);
   const [error,setError]=useState('');
   const [serverPlaylists,setServerPlaylists]=useState<ServerPlaylist[]>([]);
   const [playlistsBusy,setPlaylistsBusy]=useState(false);
+
+  useEffect(()=>{
+    if(!configuredBase)return;
+    void fetch(configuredBase+'/v1/auth/config',{cache:'no-store'})
+      .then(r=>r.ok?r.json():null)
+      .then(data=>setRegistrationOpen(data?.registrationOpen===true))
+      .catch(()=>setRegistrationOpen(false));
+  },[]);
 
   const refreshPlaylists=useCallback(async (token:string)=>{
     setPlaylistsBusy(true);
@@ -108,7 +117,7 @@ export function useAccount() {
   },[accessToken]);
 
   return {
-    configured:isAccountApiConfigured,user,accessToken,busy,error,
+    configured:isAccountApiConfigured,user,accessToken,busy,error,registrationOpen,
     serverPlaylists,playlistsBusy,login,logout,createServerPlaylist,removeServerPlaylist,setError,
   };
 }

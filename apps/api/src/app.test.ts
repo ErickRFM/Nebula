@@ -21,6 +21,18 @@ describe.skipIf(!url)('authenticated API backed by PostgreSQL',()=>{
     return {email,token:result.json().accessToken as string};
   }
 
+  it('rejects public registration when private mode is enabled',async()=>{
+    const privateApp=await buildApp({pool,secret:'private-test-only-jwt-secret-000000000000000',origin:'http://localhost:3000',registrationEnabled:false});
+    try {
+      const response=await privateApp.inject({method:'POST',url:'/v1/auth/register',
+        payload:{email:'unauthorized@example.test',password:'NotAllowedToJoin123!'}});
+      expect(response.statusCode).toBe(403);
+      expect(response.json().error).toBe('registration_closed');
+      const config=await privateApp.inject({method:'GET',url:'/v1/auth/config'});
+      expect(config.json().registrationOpen).toBe(false);
+    } finally {await privateApp.close();}
+  });
+
   it('health reports database connectivity',async()=>{
     const response=await app.inject({method:'GET',url:'/v1/health'});
     expect(response.statusCode).toBe(200);

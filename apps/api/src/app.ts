@@ -12,7 +12,7 @@ import { externalInput, externalDelete } from './library/external-input.js';
 import { hashPassword, verifyPassword } from './security/password.js';
 import { DiscoveryService } from './discovery/service.js';
 
-type Options = { pool: Pool; secret: string; origin: string };
+type Options = { pool: Pool; secret: string; origin: string; registrationEnabled?: boolean };
 const accountInput=z.object({
   email:z.string().trim().toLowerCase().email().max(254),
   password:z.string().min(12).max(128),
@@ -36,7 +36,7 @@ async function requireAuth(request:FastifyRequest,reply:FastifyReply){
   catch {return reply.code(401).send(fail('unauthorized'));}
 }
 
-export async function buildApp({pool,secret,origin}:Options) {
+export async function buildApp({pool,secret,origin,registrationEnabled=process.env.NEBULA_ALLOW_REGISTRATION==='true'}:Options) {
   if(secret.length<32) throw new Error('API_JWT_SECRET must contain at least 32 characters');
   const app=Fastify({logger:false,bodyLimit:50_000});
   const db=drizzle(pool);
@@ -50,7 +50,10 @@ export async function buildApp({pool,secret,origin}:Options) {
     catch {return reply.code(503).send({status:'degraded',database:'unavailable'});}
   });
 
+  app.get('/v1/auth/config',async()=>({registrationOpen:registrationEnabled}));
+
   app.post('/v1/auth/register',{config:{rateLimit:{max:8,timeWindow:'1 minute'}}},async(request,reply)=>{
+    if(!registrationEnabled) return reply.code(403).send(fail('registration_closed'));
     const parsed=accountInput.safeParse(request.body);
     if(!parsed.success) return reply.code(400).send(fail('invalid_credentials_format'));
     const {email,password}=parsed.data;
