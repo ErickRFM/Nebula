@@ -102,7 +102,11 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
     }
     res.end(response.rawPayload);
   } catch (error) {
-    console.error('[nebula-api] function request failed', error instanceof Error ? error.name : 'unknown');
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown';
+    const detail = process.env.VERCEL_ENV === 'preview' && error instanceof Error
+      ? error.message.replace(/postgres(?:ql)?:\/\/[^\s]+/gi, 'postgresql://[redacted]')
+      : undefined;
+    console.error('[nebula-api] function request failed', { code, name: error instanceof Error ? error.name : 'unknown', detail });
     res.statusCode = error instanceof Error && error.message === 'nebula_api_not_configured' ? 503 : 500;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ error: res.statusCode === 503 ? 'api_not_configured' : 'server_error' }));
