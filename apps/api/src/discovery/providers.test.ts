@@ -54,6 +54,22 @@ describe('music provider adapters',()=>{
     expect(song.canStream).toBe(false);
     expect(song.streamUrl).toBeNull();
   });
+  it('exposes official Audius stream only for explicitly ungated public tracks',async()=>{
+    const provider=createAudiusProvider(async(url)=> {
+      expect(url).toContain('gate_condition=ungated');
+      return new Response(JSON.stringify({data:[
+        {id:'A1',title:'Public',permalink:'https://audius.co/a/1',is_stream_gated:false,is_scheduled_release:false},
+        {id:'A2',title:'Gated',permalink:'https://audius.co/a/2',is_stream_gated:true},
+      ]}),{status:200});
+    });
+    const [publicTrack,blockedTrack]=await provider.search(request);
+    expect(publicTrack.canStream).toBe(true);
+    expect(publicTrack.streamUrl).toBe('https://api.audius.co/v1/tracks/A1/stream');
+    expect(publicTrack.canStorePrivateCopy).toBe(false);
+    expect(blockedTrack.canStream).toBe(false);
+    expect(blockedTrack.streamUrl).toBeNull();
+  });
+
   it('filters invalid URLs, handles partial provider failures',async()=>{
     expect(safeHttpsUrl('http://127.0.0.1/private')).toBeNull();
     expect(safeHttpsUrl('https://name:pass@example.org')).toBeNull();
