@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import handler from './index';
+import handler from '../apps/web/api/index';
 
 async function invoke(path: string, method = 'GET', body?: unknown) {
   const headers: Record<string, string | string[] | number> = {};
