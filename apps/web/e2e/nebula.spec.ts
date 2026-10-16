@@ -144,7 +144,7 @@ test('MusicBrainz lookup displays reviewed matches without importing audio',asyn
 });
 
 test('private rooms can be created, joined and closed across two accounts', async ({ page, browser, request }) => {
-  const api = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\\/$/, '');
+  const api = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
   test.skip(!api, 'Requires disposable PostgreSQL-backed API');
   const password = 'NebulaTestPassword123!';
   const suffix = Date.now() + '-' + Math.random().toString(36).slice(2);
