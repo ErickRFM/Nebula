@@ -15,6 +15,7 @@ import { MusicBrainzMetadata } from './metadata/musicbrainz.js';
 import { loadConfig } from './config.js';
 import { createGuards, registerAdminRoutes, registerAuthRoutes } from './modules/auth.js';
 import { registerCloudRoutes } from './modules/cloud.js';
+import { registerRoomRoutes } from './modules/rooms.js';
 import './types.js';
 
 type Options = { pool: Pool; secret: string; origin: string; registrationEnabled?: boolean };
@@ -79,6 +80,7 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   registerAuthRoutes(app, { db, config });
   registerAdminRoutes(app, { db });
   registerCloudRoutes(app, db);
+  registerRoomRoutes(app, pool);
 
   app.get('/v1/me', { preHandler: requireAuth }, async (request, reply) => {
     const [user] = await db
