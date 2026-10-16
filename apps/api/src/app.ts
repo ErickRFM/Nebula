@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { users, playlists } from './db/schema.js';
 import { hashPassword, verifyPassword } from './security/password.js';
+import { DiscoveryService } from './discovery/service.js';
 
 type Options = { pool: Pool; secret: string; origin: string };
 const accountInput=z.object({
@@ -17,6 +18,12 @@ const accountInput=z.object({
 });
 const playlistInput=z.object({name:z.string().trim().min(1).max(80)});
 const idInput=z.object({id:z.string().uuid()});
+const discoveryInput=z.object({
+  q:z.string().trim().min(2).max(100),
+  page:z.coerce.number().int().min(1).max(20).default(1),
+  limit:z.coerce.number().int().min(1).max(25).default(12),
+  provider:z.enum(['all','jamendo','openverse','audius']).default('all'),
+});
 
 function fail(reason:string){return {error:reason};}
 function unauthorized(request:FastifyRequest):string{
@@ -32,6 +39,7 @@ export async function buildApp({pool,secret,origin}:Options) {
   if(secret.length<32) throw new Error('API_JWT_SECRET must contain at least 32 characters');
   const app=Fastify({logger:false,bodyLimit:50_000});
   const db=drizzle(pool);
+  const discovery=new DiscoveryService();
   await app.register(cors,{origin,credentials:false});
   await app.register(jwt,{secret,sign:{expiresIn:'15m'}});
   await app.register(rateLimit,{global:true,max:120,timeWindow:'1 minute'});
@@ -64,6 +72,15 @@ export async function buildApp({pool,secret,origin}:Options) {
     if(!user || !(await verifyPassword(parsed.data.password,user.passwordHash))) return reply.code(401).send(fail('invalid_credentials'));
     const accessToken=app.jwt.sign({sub:user.id},{expiresIn:'15m'});
     return {user:{id:user.id,email:user.email},accessToken,expiresInSeconds:900};
+  });
+
+  app.get('/v1/discovery/providers',{preHandler:requireAuth},async()=>({providers:discovery.list()}));
+
+  app.get('/v1/discovery/search',{preHandler:requireAuth,config:{rateLimit:{max:24,timeWindow:'1 minute'}}},async(request,reply)=>{
+    const parsed=discoveryInput.safeParse(request.query);
+    if(!parsed.success) return reply.code(400).send(fail('invalid_discovery_query'));
+    const {q,page,limit,provider}=parsed.data;
+    return discovery.search({query:q,page,limit},provider==='all'?undefined:provider);
   });
 
   app.get('/v1/me',{preHandler:requireAuth},async(request,reply)=>{
