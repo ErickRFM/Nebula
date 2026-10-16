@@ -53,7 +53,19 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
 
   app.get('/v1/health', async (_request, reply) => {
     try {
-      await pool.query('SELECT 1');
+      const result = await pool.query<{ ready: boolean }>(`
+        SELECT (
+          to_regclass('public.users') IS NOT NULL AND
+          to_regclass('public.playlists') IS NOT NULL AND
+          to_regclass('public.external_library_items') IS NOT NULL AND
+          to_regclass('public.sessions') IS NOT NULL AND
+          to_regclass('public.invites') IS NOT NULL AND
+          to_regclass('public.audit_events') IS NOT NULL
+        ) AS ready
+      `);
+      if (!result.rows[0]?.ready) {
+        return reply.code(503).send({ status: 'degraded', database: 'schema_incomplete' });
+      }
       return { status: 'ok', database: 'connected' };
     } catch {
       return reply.code(503).send({ status: 'degraded', database: 'unavailable' });
