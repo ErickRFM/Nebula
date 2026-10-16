@@ -101,6 +101,37 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
     expect(blockedAgain.statusCode).toBe(403);
   });
 
+  it('enforces host-only queue mutations and atomically advances tracks', async () => {
+    const profile = await app.inject({ method: 'GET', url: '/v1/me', headers: auth(a) });
+    const userId = profile.json().user.id as string;
+    const trackId = crypto.randomUUID();
+    await pool.query(`
+      INSERT INTO cloud_tracks (id,user_id,object_key,title,artist,mime_type,byte_size,status)
+      VALUES ($1,$2,$3,'Queue test','Artist','audio/mpeg',2048,'ready')
+    `, [trackId, userId, 'users/' + userId + '/queue-' + trackId + '.mp3']);
+    const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/queue',
+      headers: auth(b), payload: { trackId } });
+    expect(denied.statusCode).toBe(404);
+    const added = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/queue',
+      headers: auth(a), payload: { trackId } });
+    expect(added.statusCode).toBe(201);
+    const list = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId + '/queue', headers: auth(b) });
+    expect(list.statusCode).toBe(200);
+    expect(list.json().items[0].trackId).toBe(trackId);
+    const shared = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/sharing',
+      headers: auth(a), payload: { enabled: true, rightsConfirmed: true } });
+    expect(shared.statusCode).toBe(200);
+    const advance = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/next',
+      headers: auth(a), payload: { expectedRevision: 2 } });
+    expect(advance.statusCode).toBe(200);
+    expect(advance.json().trackId).toBe(trackId);
+    const stale = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/next',
+      headers: auth(a), payload: { expectedRevision: 2 } });
+    expect(stale.statusCode).toBe(409);
+    const empty = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId + '/queue', headers: auth(b) });
+    expect(empty.json().items).toHaveLength(0);
+  });
+
   it('rotates invites and closes room for all members', async () => {
     const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/invite', headers: auth(b), payload: {} });
     expect(denied.statusCode).toBe(404);

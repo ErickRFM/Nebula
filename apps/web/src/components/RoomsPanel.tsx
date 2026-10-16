@@ -13,6 +13,7 @@ type Room = {
   positionMs: number; effectiveAt: string; createdAt: string;
 };
 type RoomList = { items: Room[] };
+type QueueItem = { id: string; trackId: string; title: string; artist: string; position: number };
 type RoomDetail = { room: Room; serverNowMs: number };
 
 export function RoomsPanel({ account, onAccount, onActivate }: { account: AccountApi; onAccount: () => void; onActivate: () => void }) {
@@ -24,6 +25,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   const [code, setCode] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [cloudItems, setCloudItems] = useState<{ id: string; title: string; artist: string }[]>([]);
   const [selectedCloudId, setSelectedCloudId] = useState('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
@@ -62,6 +64,51 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     const timer = window.setInterval(() => { void refreshSelected(); }, 3000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshSelected]);
+
+  const refreshQueue = useCallback(async () => {
+    if (!selectedId || !account.user) { setQueue([]); return; }
+    try {
+      const result = await account.cloudRequest<{items:QueueItem[]}>('/v1/rooms/' + selectedId + '/queue');
+      setQueue(result.items);
+    } catch { setQueue([]); }
+  }, [selectedId, account.user?.id, account.cloudRequest]);
+
+  useEffect(() => {
+    if (!selectedId || !account.user) return;
+    void refreshQueue();
+    const timer = window.setInterval(() => { void refreshQueue(); }, 3000);
+    return () => window.clearInterval(timer);
+  }, [selectedId, account.user?.id, refreshQueue]);
+
+  function addToQueue() {
+    if (!selected || !selectedCloudId) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/queue', {
+        method: 'POST', body: JSON.stringify({ trackId: selectedCloudId }),
+      });
+      await refreshQueue();
+      setNotice('Canción agregada a la cola de la sala.');
+    });
+  }
+
+  function nextFromQueue() {
+    if (!selected) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/next', {
+        method: 'POST', body: JSON.stringify({ expectedRevision: selected.revision }),
+      });
+      await refreshSelected(); await refreshQueue();
+      setNotice('Reproducción de la siguiente canción programada.');
+    });
+  }
+
+  function removeFromQueue(itemId: string) {
+    if (!selected) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/queue/' + itemId, { method: 'DELETE' });
+      await refreshQueue();
+    });
+  }
 
   useEffect(() => {
     if (!selectedId || !account.user) { setCloudItems([]); return; }
@@ -241,12 +288,25 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
               Confirmo que tengo derechos para compartir este audio con los participantes.
             </label>
             <button type="button" className="button primary small" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={startSharedAudio}>Compartir y empezar</button>
+            <button type="button" className="button small" disabled={busy || !selectedCloudId} onClick={addToQueue}>Agregar a cola</button>
+            {selected.shareEnabled && <button type="button" className="button small" disabled={busy || !queue.length} onClick={nextFromQueue}>Siguiente de la cola</button>}
             {selected.trackId && <>
               <button type="button" className="button small" disabled={busy} onClick={()=>changePlayback(selected.playbackStatus==='playing'?'paused':'playing')}>{selected.playbackStatus==='playing'?'Pausar para todos':'Reanudar para todos'}</button>
               {selected.shareEnabled && <button type="button" className="button small" disabled={busy} onClick={disableSharing}>Dejar de compartir</button>}
             </>}
           </div>}
           <p className="disclosure">Cada teléfono reproduce una URL privada temporal de R2. La sincronización usa sondeo periódico y corrección de desfase; no garantiza precisión acústica ni reproducción con pantalla bloqueada.</p>
+        </div>
+      </section>}
+      {selected && selectedId===selected.id && <section className="content-section">
+        <div className="section-heading"><h2>Cola compartida</h2></div>
+        <div className="track-list glass">
+          {!queue.length ? <p className="empty-note">La cola está vacía.</p> :
+            queue.map((item,index)=><div className="track-row" key={item.id}>
+              <span className="track-index">{index+1}</span>
+              <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist}</small></span>
+              {selected.ownerUserId===account.user?.id && <button type="button" className="icon-button" aria-label={'Quitar '+item.title} disabled={busy} onClick={()=>removeFromQueue(item.id)}><X size={17}/></button>}
+            </div>)}
         </div>
       </section>}
       {selected && selectedId===selected.id && <RoomAudioPlayer room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>}

@@ -203,6 +203,105 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     return { timeline: updated.rows[0], serverNowMs: Date.now() };
   });
 
+
+  app.get('/v1/rooms/:id/queue', { preHandler: requireAuth }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    if (!params.success) return reply.code(400).send(error('invalid_room_id'));
+    const result = await pool.query<{
+      id: string; trackId: string; title: string; artist: string; position: number;
+    }>(`
+      SELECT q.id, q.track_id AS "trackId", c.title, c.artist, q.position
+      FROM room_queue_items q
+      JOIN cloud_tracks c ON c.id=q.track_id
+      JOIN rooms r ON r.id=q.room_id AND r.status='active'
+      JOIN room_members m ON m.room_id=r.id AND m.user_id=$2
+      WHERE q.room_id=$1 ORDER BY q.position ASC LIMIT 200
+    `, [params.data.id, request.principal!.userId]);
+    return { items: result.rows };
+  });
+
+  app.post('/v1/rooms/:id/queue', { preHandler: requireAuth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    const body = z.object({ trackId: z.string().uuid() }).safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send(error('invalid_queue_item'));
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const room = await client.query(`
+        SELECT id FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active' FOR UPDATE
+      `, [params.data.id, request.principal!.userId]);
+      if (!room.rowCount) { await client.query('ROLLBACK'); return reply.code(404).send(error('room_not_found')); }
+      const owned = await client.query(`
+        SELECT 1 FROM cloud_tracks WHERE id=$1 AND user_id=$2 AND status='ready'
+      `, [body.data.trackId, request.principal!.userId]);
+      if (!owned.rowCount) { await client.query('ROLLBACK'); return reply.code(403).send(error('track_not_available')); }
+      const count = await client.query<{count:string;next:number}>(`
+        SELECT count(*)::text AS count, (coalesce(max(position),0)+1)::int AS next
+        FROM room_queue_items WHERE room_id=$1
+      `, [params.data.id]);
+      if (Number(count.rows[0].count) >= 200) {
+        await client.query('ROLLBACK'); return reply.code(409).send(error('room_queue_full'));
+      }
+      const inserted = await client.query<{id:string;position:number}>(`
+        INSERT INTO room_queue_items (id,room_id,track_id,added_by,position)
+        VALUES ($1,$2,$3,$4,$5) RETURNING id,position
+      `, [randomUUID(), params.data.id, body.data.trackId, request.principal!.userId, count.rows[0].next]);
+      await client.query('COMMIT');
+      return reply.code(201).send({ item: inserted.rows[0] });
+    } catch (cause) {
+      await client.query('ROLLBACK'); throw cause;
+    } finally { client.release(); }
+  });
+
+  app.delete('/v1/rooms/:id/queue/:itemId', { preHandler: requireAuth }, async (request, reply) => {
+    const params = z.object({ id: z.string().uuid(), itemId: z.string().uuid() }).safeParse(request.params);
+    if (!params.success) return reply.code(400).send(error('invalid_queue_item'));
+    const deleted = await pool.query(`
+      DELETE FROM room_queue_items q USING rooms r
+      WHERE q.room_id=r.id AND r.id=$1 AND q.id=$2
+        AND r.owner_user_id=$3 AND r.status='active'
+      RETURNING q.id
+    `, [params.data.id, params.data.itemId, request.principal!.userId]);
+    if (!deleted.rowCount) return reply.code(404).send(error('queue_item_not_found'));
+    return reply.code(204).send();
+  });
+
+  app.post('/v1/rooms/:id/next', { preHandler: requireAuth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    const body = z.object({ expectedRevision: z.number().int().nonnegative() }).safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send(error('invalid_room_revision'));
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selected = await client.query<{revision:number;shareEnabled:boolean}>(`
+        SELECT revision::int AS revision, share_enabled AS "shareEnabled"
+        FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active' FOR UPDATE
+      `, [params.data.id, request.principal!.userId]);
+      const room = selected.rows[0];
+      if (!room) { await client.query('ROLLBACK'); return reply.code(404).send(error('room_not_found')); }
+      if (room.revision !== body.data.expectedRevision) {
+        await client.query('ROLLBACK'); return reply.code(409).send(error('revision_conflict'));
+      }
+      if (!room.shareEnabled) { await client.query('ROLLBACK'); return reply.code(409).send(error('room_audio_not_shared')); }
+      const next = await client.query<{id:string;trackId:string}>(`
+        SELECT q.id, q.track_id AS "trackId" FROM room_queue_items q
+        JOIN cloud_tracks c ON c.id=q.track_id AND c.user_id=$2 AND c.status='ready'
+        WHERE q.room_id=$1 ORDER BY q.position ASC LIMIT 1 FOR UPDATE OF q
+      `, [params.data.id, request.principal!.userId]);
+      if (!next.rows[0]) { await client.query('ROLLBACK'); return reply.code(409).send(error('room_queue_empty')); }
+      const updated = await client.query<{revision:number}>(`
+        UPDATE rooms SET track_id=$3, playback_status='playing', position_ms=0,
+          effective_at=now()+interval '3 seconds', revision=revision+1
+        WHERE id=$1 AND owner_user_id=$2 RETURNING revision::int AS revision
+      `, [params.data.id, request.principal!.userId, next.rows[0].trackId]);
+      await client.query('DELETE FROM room_queue_items WHERE id=$1', [next.rows[0].id]);
+      await client.query('COMMIT');
+      return { trackId: next.rows[0].trackId, revision: updated.rows[0].revision };
+    } catch (cause) {
+      await client.query('ROLLBACK'); throw cause;
+    } finally { client.release(); }
+  });
+
   app.post('/v1/rooms/:id/leave', { preHandler: requireAuth }, async (request, reply) => {
     const params = roomId.safeParse(request.params);
     if (!params.success) return reply.code(400).send(error('invalid_room_id'));
