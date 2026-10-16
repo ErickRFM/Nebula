@@ -1,8 +1,18 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 
-export type AccountUser = { id: string; email: string };
+export type Role = 'owner' | 'member';
+export type AccountUser = { id: string; email: string; role?: Role };
 export type ServerPlaylist = { id: string; name: string; createdAt: string };
+export type AccountSession = {
+  id: string;
+  userAgent: string | null;
+  ip: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  current: boolean;
+};
 type AuthResponse = { user: AccountUser; accessToken: string; expiresInSeconds: number };
 
 const configuredBase=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'') ?? '';
@@ -14,7 +24,13 @@ function apiError(code:string,status:number):string {
     case 'invalid_credentials': return 'Correo o contraseña incorrectos.';
     case 'account_already_exists': return 'Ya existe una cuenta con este correo.';
     case 'invalid_credentials_format': return 'Revisa el correo y utiliza una contraseña de al menos 12 caracteres.';
+    case 'registration_disabled': return 'El acceso es privado. Solicita una invitación al propietario.';
+    case 'invalid_invite': return 'La invitación no es válida o ha caducado.';
+    case 'invalid_invite_payload': return 'Revisa los datos de la invitación.';
+    case 'invite_email_mismatch': return 'La invitación pertenece a otro correo electrónico.';
+    case 'forbidden': return 'Tu cuenta no tiene permisos para esta acción.';
     case 'invalid_playlist_name': return 'El nombre debe tener entre 1 y 80 caracteres.';
+    case 'missing_client_header': return 'Solicitud de sesión no reconocida por el cliente.';
     case 'unauthorized': return 'La sesión caducó. Vuelve a iniciar sesión.';
     default: return 'No se pudo completar la solicitud (HTTP ' + status + ').';
   }
@@ -26,8 +42,10 @@ async function requestJson<T>(path:string,init:RequestInit={},token?:string):Pro
     response=await fetch(configuredBase+path,{
       ...init,
       cache:'no-store',
+      credentials:'include',
       headers:{
         'Content-Type':'application/json',
+        'x-nebula-client':'web',
         ...(token?{Authorization:'Bearer '+token}:{}),
         ...init.headers,
       },
@@ -45,21 +63,41 @@ async function requestJson<T>(path:string,init:RequestInit={},token?:string):Pro
 
 export function useAccount() {
   const [user,setUser]=useState<AccountUser|null>(null);
-  // Never store bearer tokens in localStorage, IndexedDB, URLs or persistent cookies.
+  // The access token stays in memory only. The refresh token lives in an HttpOnly cookie
+  // and is never readable from JavaScript.
   const [accessToken,setAccessToken]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
-  const [registrationOpen,setRegistrationOpen]=useState(false);
+  const [restoring,setRestoring]=useState(true);
   const [error,setError]=useState('');
   const [serverPlaylists,setServerPlaylists]=useState<ServerPlaylist[]>([]);
   const [playlistsBusy,setPlaylistsBusy]=useState(false);
+  const [sessions,setSessions]=useState<AccountSession[]>([]);
+
+  // Restore a persistent session from the HttpOnly refresh cookie on first load.
+  useEffect(()=>{
+    if(!configuredBase){setRestoring(false);return;}
+    let cancelled=false;
+    (async()=>{
+      try {
+        const data=await requestJson<{accessToken:string}>('/v1/auth/refresh',{method:'POST',body:'{}'});
+        if(!cancelled && data.accessToken) setAccessToken(data.accessToken);
+      } catch { /* no active session */ }
+      finally { if(!cancelled) setRestoring(false); }
+    })();
+    return ()=>{cancelled=true;};
+  },[]);
 
   useEffect(()=>{
-    if(!configuredBase)return;
-    void fetch(configuredBase+'/v1/auth/config',{cache:'no-store'})
-      .then(r=>r.ok?r.json():null)
-      .then(data=>setRegistrationOpen(data?.registrationOpen===true))
-      .catch(()=>setRegistrationOpen(false));
-  },[]);
+    if(!accessToken || user) return;
+    let cancelled=false;
+    (async()=>{
+      try {
+        const data=await requestJson<{user:AccountUser}>('/v1/me',{},accessToken);
+        if(!cancelled) setUser(data.user);
+      } catch(err) { if(!cancelled) setError(err instanceof Error?err.message:'No se pudo obtener la cuenta.'); }
+    })();
+    return ()=>{cancelled=true;};
+  },[accessToken,user]);
 
   const refreshPlaylists=useCallback(async (token:string)=>{
     setPlaylistsBusy(true);
@@ -71,15 +109,22 @@ export function useAccount() {
     finally {setPlaylistsBusy(false);}
   },[]);
 
-  useEffect(()=>{
-    if(accessToken) void refreshPlaylists(accessToken);
-    else setServerPlaylists([]);
-  },[accessToken,refreshPlaylists]);
+  const loadSessions=useCallback(async (token:string)=>{
+    try {
+      const data=await requestJson<{items:AccountSession[]}>('/v1/auth/sessions',{},token);
+      setSessions(data.items);
+    } catch { /* sessions are best-effort */ }
+  },[]);
 
-  const login=useCallback(async (mode:'login'|'register',email:string,password:string):Promise<boolean>=>{
+  useEffect(()=>{
+    if(accessToken){ void refreshPlaylists(accessToken); void loadSessions(accessToken); }
+    else { setServerPlaylists([]); setSessions([]); }
+  },[accessToken,refreshPlaylists,loadSessions]);
+
+  const login=useCallback(async(email:string,password:string):Promise<boolean>=>{
     setBusy(true);setError('');
     try {
-      const data=await requestJson<AuthResponse>('/v1/auth/'+mode,{
+      const data=await requestJson<AuthResponse>('/v1/auth/login',{
         method:'POST',body:JSON.stringify({email:email.trim().toLowerCase(),password}),
       });
       if(!data.accessToken||!data.user?.id) throw new Error('El servidor devolvió una respuesta de sesión inválida.');
@@ -90,9 +135,31 @@ export function useAccount() {
     finally {setBusy(false);}
   },[]);
 
-  const logout=useCallback(()=>{
-    setAccessToken(null);setUser(null);setServerPlaylists([]);setError('');
-  },[]);
+  const logout=useCallback(async()=>{
+    try { await requestJson<unknown>('/v1/auth/logout',{method:'POST'},accessToken ?? undefined); }
+    catch { /* clear locally even if the server is unreachable */ }
+    setAccessToken(null);setUser(null);setServerPlaylists([]);setSessions([]);setError('');
+  },[accessToken]);
+
+  const revokeSession=useCallback(async (id:string):Promise<boolean>=>{
+    if(!accessToken) return false;
+    try {
+      await requestJson<unknown>('/v1/auth/sessions/'+encodeURIComponent(id),{method:'DELETE'},accessToken);
+      setSessions((current)=>current.filter((item)=>item.id!==id));
+      return true;
+    } catch(err) {setError(err instanceof Error?err.message:'No se pudo cerrar la sesión.');return false;}
+  },[accessToken]);
+
+  const revokeOtherSessions=useCallback(async ():Promise<boolean>=>{
+    if(!accessToken) return false;
+    setBusy(true);setError('');
+    try {
+      await requestJson<unknown>('/v1/auth/sessions/revoke-all',{method:'POST'},accessToken);
+      await loadSessions(accessToken);
+      return true;
+    } catch(err) {setError(err instanceof Error?err.message:'No se pudieron cerrar las demás sesiones.');return false;}
+    finally {setBusy(false);}
+  },[accessToken,loadSessions]);
 
   const createServerPlaylist=useCallback(async (name:string):Promise<boolean>=>{
     if(!accessToken) {setError('Inicia sesión para usar tu cuenta.');return false;}
@@ -117,8 +184,9 @@ export function useAccount() {
   },[accessToken]);
 
   return {
-    configured:isAccountApiConfigured,user,accessToken,busy,error,registrationOpen,
-    serverPlaylists,playlistsBusy,login,logout,createServerPlaylist,removeServerPlaylist,setError,
+    configured:isAccountApiConfigured,user,accessToken,busy,restoring,error,
+    serverPlaylists,playlistsBusy,sessions,login,logout,
+    revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,setError,
   };
 }
 

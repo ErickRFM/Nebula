@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 
 async function navigate(page: Page, name: string) {
   const desktop = page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
@@ -7,6 +7,25 @@ async function navigate(page: Page, name: string) {
   else await mobile.click();
 }
 
+
+
+async function signInTestUser(page: Page, request: APIRequestContext, prefix:string) {
+  const api=(process.env.NEXT_PUBLIC_API_URL??'').replace(/\\/$/,'');
+  if(!api) throw new Error('Set NEXT_PUBLIC_API_URL for session integration tests');
+  const email=prefix+'-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
+  const password='NebulaTestPassword123!';
+  const created=await request.post(api+'/v1/auth/register',{
+    data:{email,password},headers:{'x-nebula-client':'e2e'}
+  });
+  expect(created.status()).toBe(201);
+  await page.goto('/');
+  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button',{name:'Entrar'}).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+  return {email,password};
+}
 
 test('navigation and search work', async ({page}) => {
   await page.goto('/');
@@ -52,26 +71,20 @@ test('web manifest is served for installation', async ({request}) => {
   expect((await r.json()).name).toBe('NÉBULA Music');
 });
 
-test('account UI registers and manages server-side playlists', async ({page}) => {
+test('private account persists with refresh cookie and revokes on logout',async({page,request})=>{
   test.skip(!process.env.NEXT_PUBLIC_API_URL,'API not configured for browser integration');
-  await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await expect(page.getByRole('heading',{name:'Cuenta NÉBULA'})).toBeVisible();
-  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
-  const email='nebula-e2e-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
-  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
-  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await signInTestUser(page,request,'session');
   await page.getByRole('textbox',{name:'Nombre de playlist en nube'}).fill('Colección E2E');
   await page.getByRole('button',{name:'Crear en cuenta'}).click();
   await expect(page.locator('.account-remote-list').getByText('Colección E2E')).toBeVisible();
   await page.reload();
   await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await page.getByRole('button',{name:'Salir'}).click();
   await expect(page.getByRole('heading',{name:'Iniciar sesión'})).toBeVisible();
 });
 
-test('private explorer saves a real provider reference, not an audio file',async({page})=>{
+test('private explorer saves a real provider reference, not an audio file',async({page,request})=>{
   test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs local API with disposable PostgreSQL');
   await page.route('**/v1/discovery/search?**',async route=>{
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
@@ -83,14 +96,7 @@ test('private explorer saves a real provider reference, not an audio file',async
         canStream:false,canDownload:false,canStorePrivateCopy:false,streamUrl:null}]
     })});
   });
-  await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
-  const email='explore-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
-  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
-  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await signInTestUser(page,request,'explore');
   await navigate(page,'Explorar');
   await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('noche');
   await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
@@ -103,7 +109,7 @@ test('private explorer saves a real provider reference, not an audio file',async
   await expect(page.getByRole('status')).toContainText('Referencia guardada');
 });
 
-test('MusicBrainz lookup displays reviewed matches without importing audio',async({page})=>{
+test('MusicBrainz lookup displays reviewed matches without importing audio',async({page,request})=>{
   test.skip(!process.env.NEXT_PUBLIC_API_URL,'API not configured');
   await page.route('**/v1/metadata/musicbrainz?**',async route=>{
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
@@ -117,14 +123,7 @@ test('MusicBrainz lookup displays reviewed matches without importing audio',asyn
       }]
     })});
   });
-  await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
-  const email='mb-'+Date.now()+Math.random().toString(36).slice(2)+'@example.test';
-  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
-  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await signInTestUser(page,request,'mb');
   await navigate(page,'Explorar');
   await page.getByRole('textbox',{name:'Buscar metadatos musicales'}).fill('banda');
   await page.getByRole('button',{name:'Identificar'}).click();
