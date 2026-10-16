@@ -18,6 +18,7 @@ import { useAccount } from '../hooks/useAccount';
 import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { CloudLibrary } from './CloudLibrary';
+import { RoomsPanel } from './RoomsPanel';
 
 type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'explorar' | 'reproductor';
 const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
@@ -219,11 +220,7 @@ export function NebulaApp() {
           <section className="content-section"><SectionHeader title="Selecciones de ejemplo"/><div className="album-grid">{mixes.map((mix)=><AlbumCard key={mix.title} {...mix} onClick={()=>player.setNotice('Este mix es ilustrativo; añade tus propias canciones a una playlist para escucharlas.')}/>)}</div></section>
           <div className="disclosure">Las playlists se guardan en el navegador actual; aún no se sincronizan con otros dispositivos.</div>
         </>}
-        {screen === 'salas' && <>
-          <Tag>ES MEJOR CUANDO SE COMPARTE</Tag><h1 className="page-title">Salas musicales</h1><p className="page-description">En el futuro podrás organizar momentos para escuchar junto a otras personas.</p>
-          <section className="room-hero glass"><span className="room-icon"><Users size={27}/></span><div><h2>Crea tu propio espacio</h2><p>Invita a tus amigos, prepara una cola de reproducción y comparte descubrimientos.</p></div><button className="button primary small" type="button" onClick={()=>player.setNotice('Las salas reales requieren backend, permisos y sincronización. Todavía no están activas.')}><Plus size={16}/> Crear sala</button></section>
-          <section className="content-section"><SectionHeader title="Próximamente"/><div className="room-grid"><div className="room-card glass"><Waves size={26}/><h3>Órbita compartida</h3><p>Cola colaborativa, anfitrión e invitaciones seguras.</p><span className="soon">En planificación</span></div><div className="room-card glass"><AudioLines size={26}/><h3>Marea tranquila</h3><p>Reproducción sincronizada entre dispositivos compatibles.</p><span className="soon">Investigación técnica</span></div></div></section>
-        </>}
+        {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')}/>}
         {screen === 'ajustes' && <>
           <Tag>PERSONALIZA TU EXPERIENCIA</Tag><h1 className="page-title">Configuración</h1><p className="page-description">Haz que NÉBULA suene y se vea como a ti te gusta.</p>
           <section className="settings-panel glass"><h2>Reproducción</h2><div className="setting-row"><div><strong>Audio de mejor calidad</strong><p>Estará disponible al integrar streaming y perfiles de calidad.</p></div><span className="soon">Próximamente</span></div><div className="setting-row"><div><strong>Reproducción continua</strong><p>Pasar a la siguiente pista de tus archivos locales.</p></div><span className="status-dot"/></div><div className="setting-row"><div><strong>Salida de audio</strong><p>Controlada por el navegador o el sistema operativo.</p></div><MonitorSpeaker size={22}/></div></section>
