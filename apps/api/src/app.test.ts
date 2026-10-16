@@ -60,4 +60,20 @@ describe.skipIf(!url)('authenticated API backed by PostgreSQL',()=>{
     const removed=await app.inject({method:'DELETE',url:'/v1/playlists/'+id,headers:{authorization:'Bearer '+a.token}});
     expect(removed.statusCode).toBe(204);
   });
+  it('requires authentication and validates provider search parameters',async()=>{
+    const denied=await app.inject({method:'GET',url:'/v1/discovery/search?q=music'});
+    expect(denied.statusCode).toBe(401);
+    const {token}=await register('discovery');
+    const headers={authorization:'Bearer '+token};
+    const providers=await app.inject({method:'GET',url:'/v1/discovery/providers',headers});
+    expect(providers.statusCode).toBe(200);
+    expect(providers.json().providers.some((p:{id:string})=>p.id==='jamendo')).toBe(true);
+    const invalid=await app.inject({method:'GET',url:'/v1/discovery/search?q=a',headers});
+    expect(invalid.statusCode).toBe(400);
+    const disabled=await app.inject({method:'GET',url:'/v1/discovery/search?q=ambient&provider=jamendo',headers});
+    expect(disabled.statusCode).toBe(200);
+    expect(disabled.json().items).toEqual([]);
+    expect(disabled.json().disabledProviders).toContain('jamendo');
+  });
+
 });
