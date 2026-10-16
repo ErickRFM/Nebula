@@ -4,6 +4,7 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { z } from 'zod';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { createGuards } from './auth.js';
+import { presignR2, readR2Settings } from '../storage/r2.js';
 
 const roomCreate = z.object({
   name: z.string().trim().min(1).max(80),
@@ -11,6 +12,7 @@ const roomCreate = z.object({
 });
 const joinInput = z.object({ code: z.string().trim().min(20).max(80) });
 const roomId = z.object({ id: z.string().uuid() });
+const sharingInput = z.object({ enabled: z.boolean(), rightsConfirmed: z.boolean().optional() });
 const timelineInput = z.object({
   expectedRevision: z.number().int().nonnegative(),
   trackId: z.string().uuid().nullable(),
@@ -19,13 +21,13 @@ const timelineInput = z.object({
 });
 type RoomRow = {
   id: string; name: string; mode: 'listening' | 'party'; status: string;
-  ownerUserId: string; revision: number; trackId: string | null;
+  ownerUserId: string; revision: number; trackId: string | null; shareEnabled: boolean;
   playbackStatus: 'playing' | 'paused'; positionMs: number;
   effectiveAt: Date; createdAt: Date; participantCount: number;
 };
 const projection = `
   r.id, r.name, r.mode, r.status, r.owner_user_id AS "ownerUserId",
-  r.revision::int AS revision, r.track_id AS "trackId",
+  r.revision::int AS revision, r.track_id AS "trackId", r.share_enabled AS "shareEnabled",
   r.playback_status AS "playbackStatus", r.position_ms AS "positionMs",
   r.effective_at AS "effectiveAt", r.created_at AS "createdAt",
   (SELECT count(*)::int FROM room_members m WHERE m.room_id = r.id) AS "participantCount"
@@ -132,6 +134,46 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     `, [params.data.id, request.principal!.userId, codeHash(code)]);
     if (!updated.rowCount) return reply.code(404).send(error('room_not_found'));
     return { inviteCode: code };
+  });
+
+
+  // Room membership alone never grants private audio access. The host must explicitly
+  // confirm sharing rights, and only the currently selected ready track is exposed.
+  app.post('/v1/rooms/:id/sharing', { preHandler: requireAuth }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    const body = sharingInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send(error('invalid_sharing_settings'));
+    if (body.data.enabled && body.data.rightsConfirmed !== true) {
+      return reply.code(400).send(error('sharing_rights_confirmation_required'));
+    }
+    const updated = await pool.query<{ shareEnabled: boolean }>(`
+      UPDATE rooms SET share_enabled=$3
+      WHERE id=$1 AND owner_user_id=$2 AND status='active'
+      RETURNING share_enabled AS "shareEnabled"
+    `, [params.data.id, request.principal!.userId, body.data.enabled]);
+    if (!updated.rowCount) return reply.code(404).send(error('room_not_found'));
+    return { shareEnabled: updated.rows[0].shareEnabled };
+  });
+
+  app.get('/v1/rooms/:id/audio', { preHandler: requireAuth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    if (!params.success) return reply.code(400).send(error('invalid_room_id'));
+    const result = await pool.query<{ shareEnabled: boolean; id: string; title: string; artist: string; objectKey: string }>(`
+      SELECT r.share_enabled AS "shareEnabled", c.id, c.title, c.artist, c.object_key AS "objectKey"
+      FROM rooms r
+      JOIN room_members m ON m.room_id=r.id AND m.user_id=$2
+      JOIN cloud_tracks c ON c.id=r.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+      WHERE r.id=$1 AND r.status='active'
+    `, [params.data.id, request.principal!.userId]);
+    const item = result.rows[0];
+    if (!item) return reply.code(404).send(error('room_audio_not_found'));
+    if (!item.shareEnabled) return reply.code(403).send(error('room_audio_not_shared'));
+    const settings = readR2Settings();
+    if (!settings) return reply.code(503).send(error('storage_not_configured'));
+    reply.header('Cache-Control', 'no-store');
+    // Short expiry limits the window after revocation; URLs are still bearer capabilities.
+    return { track: { id: item.id, title: item.title, artist: item.artist },
+      url: presignR2(settings, 'GET', item.objectKey, 300), expiresInSeconds: 300 };
   });
 
   app.post('/v1/rooms/:id/timeline', { preHandler: requireAuth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {

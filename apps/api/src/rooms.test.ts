@@ -69,6 +69,38 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
     expect(stale.statusCode).toBe(409);
   });
 
+  it('requires explicit host rights confirmation before sharing private room audio', async () => {
+    const profile = await app.inject({ method: 'GET', url: '/v1/me', headers: auth(a) });
+    const userId = profile.json().user.id as string;
+    const trackId = crypto.randomUUID();
+    await pool.query(`
+      INSERT INTO cloud_tracks (id,user_id,object_key,title,artist,mime_type,byte_size,status)
+      VALUES ($1,$2,$3,'Test original','Artist','audio/mpeg',1024,'ready')
+    `, [trackId, userId, 'users/' + userId + '/test-' + trackId + '.mp3']);
+    const timeline = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/timeline',
+      headers: auth(a), payload: { expectedRevision: 1, trackId, status: 'paused', positionMs: 0 } });
+    expect(timeline.statusCode).toBe(200);
+    const denied = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId + '/audio', headers: auth(b) });
+    expect(denied.statusCode).toBe(403);
+    const notHost = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/sharing',
+      headers: auth(b), payload: { enabled: true, rightsConfirmed: true } });
+    expect(notHost.statusCode).toBe(404);
+    const missingRights = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/sharing',
+      headers: auth(a), payload: { enabled: true } });
+    expect(missingRights.statusCode).toBe(400);
+    const shared = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/sharing',
+      headers: auth(a), payload: { enabled: true, rightsConfirmed: true } });
+    expect(shared.statusCode).toBe(200);
+    // CI has no R2 credentials. Authorization now succeeds but storage is unavailable.
+    const authorized = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId + '/audio', headers: auth(b) });
+    expect(authorized.statusCode).toBe(503);
+    const revoke = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/sharing',
+      headers: auth(a), payload: { enabled: false } });
+    expect(revoke.statusCode).toBe(200);
+    const blockedAgain = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId + '/audio', headers: auth(b) });
+    expect(blockedAgain.statusCode).toBe(403);
+  });
+
   it('rotates invites and closes room for all members', async () => {
     const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/invite', headers: auth(b), payload: {} });
     expect(denied.statusCode).toBe(404);
