@@ -13,7 +13,7 @@ CREATE INDEX IF NOT EXISTS cloud_tracks_user_created_idx ON cloud_tracks (user_i
 
 -- Supabase public schema must never expose private music metadata via PostgREST.
 ALTER TABLE public.cloud_tracks ENABLE ROW LEVEL SECURITY;
-DO $
+DO $nebula$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
     REVOKE ALL ON TABLE public.cloud_tracks FROM anon;
@@ -21,4 +21,4 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
     REVOKE ALL ON TABLE public.cloud_tracks FROM authenticated;
   END IF;
-END $;
+END $nebula$;
