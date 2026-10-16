@@ -33,6 +33,15 @@ describe.skipIf(!url)('authenticated API backed by PostgreSQL',()=>{
     } finally {await privateApp.close();}
   });
 
+  it('protects MusicBrainz metadata lookup and rejects invalid search',async()=>{
+    const denied=await app.inject({method:'GET',url:'/v1/metadata/musicbrainz?q=music'});
+    expect(denied.statusCode).toBe(401);
+    const {token}=await register('metadata');
+    const invalid=await app.inject({method:'GET',url:'/v1/metadata/musicbrainz?q=a',
+      headers:{authorization:'Bearer '+token}});
+    expect(invalid.statusCode).toBe(400);
+  });
+
   it('health reports database connectivity',async()=>{
     const response=await app.inject({method:'GET',url:'/v1/health'});
     expect(response.statusCode).toBe(200);

@@ -11,6 +11,7 @@ import { users, playlists, externalLibraryItems } from './db/schema.js';
 import { externalInput, externalDelete } from './library/external-input.js';
 import { hashPassword, verifyPassword } from './security/password.js';
 import { DiscoveryService } from './discovery/service.js';
+import { MusicBrainzMetadata } from './metadata/musicbrainz.js';
 
 type Options = { pool: Pool; secret: string; origin: string; registrationEnabled?: boolean };
 const accountInput=z.object({
@@ -41,6 +42,7 @@ export async function buildApp({pool,secret,origin,registrationEnabled=process.e
   const app=Fastify({logger:false,bodyLimit:50_000});
   const db=drizzle(pool);
   const discovery=new DiscoveryService();
+  const musicBrainz=new MusicBrainzMetadata();
   await app.register(cors,{origin,credentials:false});
   await app.register(jwt,{secret,sign:{expiresIn:'15m'}});
   await app.register(rateLimit,{global:true,max:120,timeWindow:'1 minute'});
@@ -85,6 +87,19 @@ export async function buildApp({pool,secret,origin,registrationEnabled=process.e
     if(!parsed.success) return reply.code(400).send(fail('invalid_discovery_query'));
     const {q,page,limit,provider}=parsed.data;
     return discovery.search({query:q,page,limit},provider==='all'?undefined:provider);
+  });
+
+  app.get('/v1/metadata/musicbrainz',{preHandler:requireAuth,config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async(request,reply)=>{
+    const parsed=z.object({
+      q:z.string().trim().min(2).max(100),
+      limit:z.coerce.number().int().min(1).max(20).default(10),
+    }).safeParse(request.query);
+    if(!parsed.success) return reply.code(400).send(fail('invalid_metadata_query'));
+    try {
+      return {items:await musicBrainz.search(parsed.data.q,parsed.data.limit),source:'musicbrainz',audioAvailable:false};
+    } catch {
+      return reply.code(503).send(fail('metadata_provider_unavailable'));
+    }
   });
 
   app.get('/v1/me',{preHandler:requireAuth},async(request,reply)=>{
