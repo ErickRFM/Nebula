@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
-import type { AccountApi } from '../hooks/useAccount';
+import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomAudioPlayer } from './RoomAudioPlayer';
 
@@ -51,10 +51,16 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     try {
       const result = await account.cloudRequest<RoomDetail>('/v1/rooms/' + encodeURIComponent(selectedId));
       setSelected(result.room);
-    } catch {
-      setSelected(null);
-      setSelectedId(null);
-      void refresh();
+    } catch (cause) {
+      // A temporary 429/503 or network failure must not eject participants
+      // from the selected room. Only a confirmed membership loss clears it.
+      if (cause instanceof ApiRequestError && (cause.status === 404 || cause.status === 403)) {
+        setSelected(null);
+        setSelectedId(null);
+        void refresh();
+      } else {
+        setError(cause instanceof Error ? cause.message : 'No se pudo actualizar la sala. Reintentando.');
+      }
     }
   }, [selectedId, account.user?.id, account.cloudRequest, refresh]);
 
@@ -82,7 +88,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
       } catch { if (!cancelled) setClockMetrics(null); }
     };
     void probe();
-    const timer = window.setInterval(() => { void probe(); }, 15_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void probe(); }, 15_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [selectedId, account.user?.id, account.cloudRequest]);
 
@@ -90,7 +96,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   useEffect(() => {
     if (!selectedId || !account.user) return;
     void refreshSelected();
-    const timer = window.setInterval(() => { void refreshSelected(); }, 3000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshSelected(); }, 3000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshSelected]);
 
@@ -99,13 +105,13 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     try {
       const result = await account.cloudRequest<{items:QueueItem[]}>('/v1/rooms/' + selectedId + '/queue');
       setQueue(result.items);
-    } catch { setQueue([]); }
+    } catch { /* retain the last confirmed queue during transient failures */ }
   }, [selectedId, account.user?.id, account.cloudRequest]);
 
   useEffect(() => {
     if (!selectedId || !account.user) return;
     void refreshQueue();
-    const timer = window.setInterval(() => { void refreshQueue(); }, 3000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshQueue(); }, 5000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshQueue]);
 
@@ -114,13 +120,13 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     try {
       const result = await account.cloudRequest<{items:RoomMember[]}>('/v1/rooms/' + selectedId + '/members');
       setMembers(result.items);
-    } catch { setMembers([]); }
+    } catch { /* retain the last confirmed member list during transient failures */ }
   }, [selectedId, account.user?.id, account.cloudRequest]);
 
   useEffect(() => {
     if (!selectedId || !account.user) { setMembers([]); return; }
     void refreshMembers();
-    const timer = window.setInterval(() => { void refreshMembers(); }, 10_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshMembers(); }, 10_000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshMembers]);
 

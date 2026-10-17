@@ -37,6 +37,13 @@ function apiError(code:string,status:number):string {
     default: return 'No se pudo completar la solicitud (HTTP ' + status + ').';
   }
 }
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 async function requestJson<T>(path:string,init:RequestInit={},token?:string):Promise<T> {
   if(!isAccountApiConfigured) throw new Error('Configura NEXT_PUBLIC_API_URL para activar las cuentas.');
   let response:Response;
@@ -59,7 +66,7 @@ async function requestJson<T>(path:string,init:RequestInit={},token?:string):Pro
   const payload= response.status===204 ? {} : await response.json().catch(()=>({}));
   if(!response.ok){
     const code=typeof payload?.error==='string' ? payload.error : 'unknown';
-    throw new Error(apiError(code,response.status));
+    throw new ApiRequestError(apiError(code,response.status),response.status);
   }
   return payload as T;
 }
