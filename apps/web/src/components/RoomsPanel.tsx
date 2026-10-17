@@ -175,6 +175,19 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     });
   }
 
+  function moveQueueItem(index: number, direction: -1 | 1) {
+    if (!selected || index + direction < 0 || index + direction >= queue.length) return;
+    const ordered = [...queue];
+    [ordered[index], ordered[index + direction]] = [ordered[index + direction], ordered[index]];
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/queue/reorder', {
+        method: 'PATCH', body: JSON.stringify({ itemIds: ordered.map(item => item.id) }),
+      });
+      await refreshQueue();
+      setNotice('Orden de reproducción actualizado.');
+    });
+  }
+
   function nextFromQueue() {
     if (!selected) return;
     void action(async () => {
@@ -434,7 +447,11 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
             queue.map((item,index)=><div className="track-row" key={item.id}>
               <span className="track-index">{index+1}</span>
               <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist}</small></span>
-              {selected.ownerUserId===account.user?.id && <button type="button" className="icon-button" aria-label={'Quitar '+item.title} disabled={busy} onClick={()=>removeFromQueue(item.id)}><X size={17}/></button>}
+              {selected.ownerUserId===account.user?.id && <>
+                <button type="button" className="button small" aria-label={'Subir '+item.title} disabled={busy || index===0} onClick={()=>moveQueueItem(index,-1)}>↑</button>
+                <button type="button" className="button small" aria-label={'Bajar '+item.title} disabled={busy || index===queue.length-1} onClick={()=>moveQueueItem(index,1)}>↓</button>
+                <button type="button" className="icon-button" aria-label={'Quitar '+item.title} disabled={busy} onClick={()=>removeFromQueue(item.id)}><X size={17}/></button>
+              </>}
             </div>)}
         </div>
       </section>}

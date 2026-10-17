@@ -80,7 +80,7 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     return reply.code(201).send({ room: { id, name: parsed.data.name, mode: parsed.data.mode }, inviteCode: code });
   });
 
-  app.post('/v1/rooms/join', { preHandler: requireAuth, config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.post('/v1/rooms/join', { preHandler: requireAuth, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request, reply) => {
     const parsed = joinInput.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send(error('invalid_invite'));
     const client = await pool.connect();
@@ -267,6 +267,51 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     } catch (cause) {
       await client.query('ROLLBACK'); throw cause;
     } finally { client.release(); }
+  });
+
+  app.patch('/v1/rooms/:id/queue/reorder', {
+    preHandler: requireAuth, config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    const body = z.object({ itemIds: z.array(z.string().uuid()).min(2).max(200) }).safeParse(request.body);
+    if (!params.success || !body.success || new Set(body.data.itemIds).size !== body.data.itemIds.length) {
+      return reply.code(400).send(error('invalid_queue_order'));
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const host = await client.query(
+        "SELECT id FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active' FOR UPDATE",
+        [params.data.id, request.principal!.userId],
+      );
+      if (!host.rowCount) { await client.query('ROLLBACK'); return reply.code(404).send(error('room_not_found')); }
+      const current = await client.query<{ id: string }>(
+        'SELECT id FROM room_queue_items WHERE room_id=$1 ORDER BY position ASC FOR UPDATE',
+        [params.data.id],
+      );
+      const expected = body.data.itemIds;
+      if (current.rows.length !== expected.length ||
+          current.rows.some(row => !expected.includes(row.id))) {
+        await client.query('ROLLBACK');
+        return reply.code(409).send(error('room_queue_changed'));
+      }
+      if (current.rows.every((row, index) => row.id === expected[index])) {
+        await client.query('COMMIT');
+        return { itemIds: expected };
+      }
+      // The unique(room_id, position) constraint is immediate. Move all rows
+      // into a disjoint positive range first, then assign final positions.
+      await client.query('UPDATE room_queue_items SET position=position+1000 WHERE room_id=$1', [params.data.id]);
+      for (let index = 0; index < expected.length; index++) {
+        await client.query(
+          'UPDATE room_queue_items SET position=$3 WHERE room_id=$1 AND id=$2',
+          [params.data.id, expected[index], index + 1],
+        );
+      }
+      await client.query('COMMIT');
+      return { itemIds: expected };
+    } catch (cause) { await client.query('ROLLBACK'); throw cause; }
+    finally { client.release(); }
   });
 
   app.delete('/v1/rooms/:id/queue/:itemId', { preHandler: requireAuth }, async (request, reply) => {
