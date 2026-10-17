@@ -19,6 +19,7 @@ import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { CloudLibrary } from './CloudLibrary';
 import { RoomsPanel } from './RoomsPanel';
+import { roomInviteFromHash } from '../lib/room-invite-link';
 
 type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'explorar' | 'reproductor';
 const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
@@ -145,6 +146,20 @@ export function NebulaApp() {
     return matchesText && (genre === 'Todos' || track.genre === genre);
   });
 
+  useEffect(() => {
+    // Invite tokens live in the URL fragment, never in HTTP query parameters.
+    const openRoomInvite = () => {
+      if (roomInviteFromHash(window.location.hash)) setScreen('salas');
+    };
+    openRoomInvite();
+    window.addEventListener('hashchange', openRoomInvite);
+    return () => window.removeEventListener('hashchange', openRoomInvite);
+  }, []);
+  useEffect(() => {
+    // A guest who followed a room link may need to sign in first. Return to
+    // Salas after authentication without automatically joining the room.
+    if (account.user && roomInviteFromHash(window.location.hash)) setScreen('salas');
+  }, [account.user?.id]);
   useEffect(() => {
     try { setReducedMotion(localStorage.getItem('nebula:reduced-motion') === 'true'); } catch { /* optional */ }
   }, []);
