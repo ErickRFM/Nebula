@@ -134,6 +134,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
       await account.cloudRequest('/v1/rooms/' + selected.id + '/timeline', {
         method: 'POST', body: JSON.stringify({
           expectedRevision: selected.revision, trackId: selectedCloudId, status: 'playing', positionMs: 0,
+          rightsConfirmed: true,
         }),
       });
       await refreshSelected();
