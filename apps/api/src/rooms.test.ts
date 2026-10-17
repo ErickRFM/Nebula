@@ -195,6 +195,47 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
     expect(currentHostClose.statusCode).toBe(204);
   });
 
+  it('reorders a private room queue atomically and rejects guest or stale lists', async () => {
+    const me = await app.inject({ method: 'GET', url: '/v1/me', headers: auth(a) });
+    const userId = me.json().user.id as string;
+    const ids = [crypto.randomUUID(), crypto.randomUUID()];
+    for (const id of ids) {
+      await pool.query(`
+        INSERT INTO cloud_tracks (id,user_id,object_key,title,artist,mime_type,byte_size,status)
+        VALUES ($1,$2,$3,'Original','Artist','audio/mpeg',1024,'ready')
+      `, [id, userId, 'users/' + userId + '/reorder-' + id + '.mp3']);
+    }
+    const created = await app.inject({ method: 'POST', url: '/v1/rooms', headers: auth(a),
+      payload: { name: 'Cola ordenada', mode: 'listening' } });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().room.id as string;
+    await app.inject({ method: 'POST', url: '/v1/rooms/join', headers: auth(b),
+      payload: { code: created.json().inviteCode } });
+    for (const trackId of ids) {
+      const added = await app.inject({ method: 'POST', url: '/v1/rooms/' + id + '/queue', headers: auth(a),
+        payload: { trackId, rightsConfirmed: true } });
+      expect(added.statusCode).toBe(201);
+    }
+    const before = await app.inject({ method: 'GET', url: '/v1/rooms/' + id + '/queue', headers: auth(a) });
+    const itemIds = (before.json().items as {id:string}[]).map(item => item.id);
+    const reverse = [...itemIds].reverse();
+    const forbidden = await app.inject({ method: 'PATCH', url: '/v1/rooms/' + id + '/queue/reorder',
+      headers: auth(b), payload: { itemIds: reverse } });
+    expect(forbidden.statusCode).toBe(404);
+    const incomplete = await app.inject({ method: 'PATCH', url: '/v1/rooms/' + id + '/queue/reorder',
+      headers: auth(a), payload: { itemIds: [reverse[0], crypto.randomUUID()] } });
+    expect(incomplete.statusCode).toBe(409);
+    const moved = await app.inject({ method: 'PATCH', url: '/v1/rooms/' + id + '/queue/reorder',
+      headers: auth(a), payload: { itemIds: reverse } });
+    expect(moved.statusCode).toBe(200);
+    const after = await app.inject({ method: 'GET', url: '/v1/rooms/' + id + '/queue', headers: auth(b) });
+    expect((after.json().items as {id:string}[]).map(item => item.id)).toEqual(reverse);
+    const unchanged = await app.inject({ method: 'PATCH', url: '/v1/rooms/' + id + '/queue/reorder',
+      headers: auth(a), payload: { itemIds: reverse } });
+    expect(unchanged.statusCode).toBe(200);
+    await app.inject({ method: 'POST', url: '/v1/rooms/' + id + '/close', headers: auth(a), payload: {} });
+  });
+
   it('rotates invites and closes room for all members', async () => {
     const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/invite', headers: auth(b), payload: {} });
     expect(denied.statusCode).toBe(404);
