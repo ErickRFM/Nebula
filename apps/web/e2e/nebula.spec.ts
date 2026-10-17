@@ -200,3 +200,42 @@ test('private rooms can be created, joined and closed across two accounts', asyn
     await guestContext.close();
   }
 });
+
+test('OWNER invites a MEMBER through the private account UI', async ({ page }) => {
+  const api = process.env.NEXT_PUBLIC_API_URL;
+  test.skip(!api || !process.env.NEBULA_TEST_DATABASE_URL, 'Requires disposable PostgreSQL-backed API');
+  const password = 'NebulaTestPassword123!';
+  const suffix = randomUUID();
+  const ownerEmail = 'invite-owner-' + suffix + '@example.test';
+  const memberEmail = 'invite-member-' + suffix + '@example.test';
+  const pool = new Pool({ connectionString: process.env.NEBULA_TEST_DATABASE_URL, max: 1 });
+  try {
+    const salt = randomBytes(16).toString('hex');
+    const hash = 'scrypt$' + salt + '$' + scryptSync(password, salt, 64).toString('hex');
+    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'owner')",
+      [randomUUID(), ownerEmail, hash]);
+  } finally { await pool.end(); }
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Mi cuenta' }).click();
+  await page.getByRole('textbox', { name: 'Correo electrónico' }).fill(ownerEmail);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+
+  await page.getByLabel('Correo de la persona invitada').fill(memberEmail);
+  await page.getByRole('button', { name: 'Crear invitación' }).click();
+  const tokenElement = page.locator('.settings-panel code').last();
+  await expect(tokenElement).toBeVisible();
+  const token = (await tokenElement.textContent())?.trim() ?? '';
+  expect(token.length).toBeGreaterThan(20);
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await page.getByRole('button', { name: 'Tengo un código de invitación' }).click();
+  await page.getByLabel('Código de invitación').fill(token);
+  await page.getByRole('textbox', { name: 'Correo electrónico' }).fill(memberEmail);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button', { name: 'Crear cuenta con invitación' }).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await expect(page.getByText(memberEmail)).toBeVisible();
+});
