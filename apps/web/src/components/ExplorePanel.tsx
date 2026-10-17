@@ -30,8 +30,8 @@ const isSafe=(url:string|null):url is string=>{
   catch{return false;}
 };
 
-export function ExplorePanel({account,onAccount,onPlay}:{
-  account:AccountApi;onAccount:()=>void;onPlay:(track:Track)=>void;
+export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=false}:{
+  account:AccountApi;onAccount:()=>void;onPlay:(track:Track)=>void;initialQuery?:string;embedded?:boolean;
 }) {
   const [query,setQuery]=useState('');
   const [provider,setProvider]=useState<Provider>('all');
@@ -62,10 +62,8 @@ export function ExplorePanel({account,onAccount,onPlay}:{
     }).catch(()=>{});
   },[account.accessToken]);
 
-  async function search(event:FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const q=query.trim();
-    if(q.length<2){setNotice('Escribe al menos dos caracteres.');return;}
+  async function searchRemote(q:string) {
+    if(q.length<2){setTracks([]);setSearched(false);return;}
     if(!account.accessToken || !apiConfigured){setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
     setBusy(true);setNotice('');setFailed([]);setSearched(true);
     try {
@@ -83,6 +81,14 @@ export function ExplorePanel({account,onAccount,onPlay}:{
       setNotice(e instanceof Error?e.message:'Ocurrió un error al buscar.');
     } finally {setBusy(false);}
   }
+
+  useEffect(()=>{
+    if(!embedded) return;
+    const q=(initialQuery??'').trim();
+    if(q.length<2){setTracks([]);setSearched(false);setNotice('');return;}
+    const timer=setTimeout(()=>{void searchRemote(q);},400);
+    return ()=>clearTimeout(timer);
+  },[embedded,initialQuery,provider,account.accessToken]);
 
   async function removeSavedReference(item:SavedTrack) {
     if(!account.accessToken) return;
@@ -138,25 +144,25 @@ export function ExplorePanel({account,onAccount,onPlay}:{
   }
 
   return <section className="explore-page">
-    <div className="eyebrow">CATÁLOGOS MUSICALES</div>
-    <h1 className="page-title">Explora nuevas frecuencias</h1>
-    <p className="page-description">Busca canciones reales, escucha desde sus proveedores y guarda referencias privadas, sin descargar ni replicar archivos.</p>
+    {!embedded && <div className="eyebrow">CATÁLOGOS MUSICALES</div>}
+    {!embedded && <h1 className="page-title">Explora nuevas frecuencias</h1>}
+    {!embedded && <p className="page-description">Busca canciones reales, escucha desde sus proveedores y guarda referencias privadas, sin descargar ni replicar archivos.</p>}
     {!apiConfigured || !account.user ? <div className="explore-gate glass">
       <WifiOff size={25}/><div><strong>Exploración privada</strong><p>Necesitas la API configurada y una sesión iniciada para acceder a los catálogos.</p></div>
       <button className="button primary small" type="button" onClick={onAccount}>Ir a Cuenta</button>
     </div> : <>
-      <form onSubmit={(event)=>void search(event)} className="explore-form glass">
+      {!embedded && <form onSubmit={(event)=>{event.preventDefault();void searchRemote(query.trim());}} className="explore-form glass">
         <Search size={19}/><label className="sr-only" htmlFor="catalog-query">Buscar canciones externas</label>
         <input id="catalog-query" placeholder="Busca por artista, canción o género" value={query} maxLength={100} onChange={e=>setQuery(e.target.value)}/>
         <button type="submit" className="button primary small" disabled={busy}>{busy?'Buscando…':'Buscar'}</button>
-      </form>
+      </form>}
       <div className="chip-row">{providerNames.map(x=><button type="button" key={x.id}
         className={'chip '+(provider===x.id?'active':'')} onClick={()=>setProvider(x.id)}>
         {x.label}{x.id!=='all'&&enabled[x.id]===false?' · sin configurar':''}
       </button>)}</div>
       {notice && <p className="explore-notice" role="status">{notice}</p>}
       {failed.length>0 && <p className="explore-notice">Algunas fuentes no respondieron: {failed.join(', ')}.</p>}
-      {!searched && <div className="explore-empty glass"><Headphones size={33}/><strong>Empieza por una búsqueda</strong><span>Jamendo, Openverse y Audius, según disponibilidad.</span></div>}
+      {!embedded && !searched && <div className="explore-empty glass"><Headphones size={33}/><strong>Empieza por una búsqueda</strong><span>Jamendo, Openverse y Audius, según disponibilidad.</span></div>}
       {searched && !busy && tracks.length===0 && <div className="explore-empty glass">No encontramos canciones. Prueba otro término o proveedor.</div>}
       <div className="explore-grid">{tracks.map(item=>{
         const id=keyOf(item);
@@ -184,7 +190,7 @@ export function ExplorePanel({account,onAccount,onPlay}:{
           </div>
         </article>;
       })}</div>
-      <section className="content-section">
+      {!embedded && <section className="content-section">
         <div className="section-heading"><h2>Mi colección externa</h2><span className="server-pill">{saved.length} referencias</span></div>
         {saved.length===0?<div className="explore-empty glass"><Bookmark size={25}/><strong>Aún no hay canciones externas guardadas</strong><span>Busca música y elige «Guardar» para encontrarla aquí cuando vuelvas a iniciar sesión.</span></div>:
           <div className="track-list glass">{saved.map(item=><div className="track-row" key={keyOf(item)}>
@@ -195,9 +201,9 @@ export function ExplorePanel({account,onAccount,onPlay}:{
             {isSafe(item.sourceUrl) && <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={'Ver fuente de '+item.title}><ExternalLink size={18}/></a>}
             <button type="button" className="icon-button" disabled={saving===keyOf(item)} aria-label={'Quitar '+item.title+' de la colección'} onClick={()=>void removeSavedReference(item)}><Bookmark size={18}/></button>
           </div>)}</div>}
-      </section>
-      <MetadataLookup account={account}/>
-      <p className="disclosure">Guardar una referencia no importa audio. Las pistas externas dependen de sus fuentes y términos; la importación a R2 requiere autorización independiente.</p>
+      </section>}
+      {!embedded && <MetadataLookup account={account}/>}
+      {!embedded && <p className="disclosure">Guardar una referencia no importa audio. Las pistas externas dependen de sus fuentes y términos; la importación a R2 requiere autorización independiente.</p>}
     </>}
   </section>;
 }
