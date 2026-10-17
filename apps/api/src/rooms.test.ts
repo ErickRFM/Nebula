@@ -132,6 +132,34 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
     expect(empty.json().items).toHaveLength(0);
   });
 
+  it('requires renewed rights confirmation when changing the currently shared audio', async () => {
+    const me = await app.inject({ method: 'GET', url: '/v1/me', headers: auth(a) });
+    const userId = me.json().user.id as string;
+    const trackId = crypto.randomUUID();
+    await pool.query(`
+      INSERT INTO cloud_tracks (id,user_id,object_key,title,artist,mime_type,byte_size,status)
+      VALUES ($1,$2,$3,'Another original','Artist','audio/mpeg',2048,'ready')
+    `, [trackId, userId, 'users/' + userId + '/rights-' + trackId + '.mp3']);
+    const before = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId, headers: auth(a) });
+    const revision = before.json().room.revision as number;
+    const originalTrack = before.json().room.trackId as string;
+    expect(before.json().room.shareEnabled).toBe(true);
+
+    const payload = { expectedRevision: revision, trackId, status: 'playing', positionMs: 0 };
+    const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/timeline',
+      headers: auth(a), payload });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json().error).toBe('sharing_rights_confirmation_required');
+    const unchanged = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId, headers: auth(b) });
+    expect(unchanged.json().room.trackId).toBe(originalTrack);
+    expect(unchanged.json().room.revision).toBe(revision);
+
+    const allowed = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/timeline',
+      headers: auth(a), payload: { ...payload, rightsConfirmed: true } });
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json().timeline.trackId).toBe(trackId);
+  });
+
   it('rotates invites and closes room for all members', async () => {
     const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/invite', headers: auth(b), payload: {} });
     expect(denied.statusCode).toBe(404);

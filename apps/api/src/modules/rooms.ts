@@ -18,6 +18,7 @@ const timelineInput = z.object({
   trackId: z.string().uuid().nullable(),
   status: z.enum(['playing', 'paused']),
   positionMs: z.number().int().min(0).max(86_400_000),
+  rightsConfirmed: z.boolean().optional(),
 });
 type RoomRow = {
   id: string; name: string; mode: 'listening' | 'party'; status: string;
@@ -181,7 +182,7 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     const body = timelineInput.safeParse(request.body);
     if (!params.success || !body.success) return reply.code(400).send(error('invalid_timeline'));
     const userId = request.principal!.userId;
-    const { trackId, status, positionMs, expectedRevision } = body.data;
+    const { trackId, status, positionMs, expectedRevision, rightsConfirmed } = body.data;
     if (trackId) {
       const owned = await pool.query(`
         SELECT 1 FROM cloud_tracks WHERE id=$1 AND user_id=$2 AND status='ready'
@@ -195,11 +196,26 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
           effective_at=now() + CASE WHEN $5::varchar='playing' THEN interval '3 seconds' ELSE interval '0 seconds' END,
           revision=revision+1
       WHERE r.id=$1 AND r.owner_user_id=$2 AND r.status='active' AND r.revision=$3
+        -- A host must reconfirm rights when switching the shared track.
+        -- Enforce in the same CAS UPDATE to prevent concurrent bypasses.
+        AND (NOT r.share_enabled OR $4::uuid IS NULL OR
+             r.track_id IS NOT DISTINCT FROM $4::uuid OR $7::boolean IS TRUE)
       RETURNING r.id, r.revision::int AS revision, r.track_id AS "trackId",
         r.playback_status AS "playbackStatus", r.position_ms AS "positionMs",
         r.effective_at AS "effectiveAt"
-    `, [params.data.id, userId, expectedRevision, trackId, status, positionMs]);
-    if (!updated.rowCount) return reply.code(409).send(error('room_not_found_or_revision_conflict'));
+    `, [params.data.id, userId, expectedRevision, trackId, status, positionMs, rightsConfirmed === true]);
+    if (!updated.rowCount) {
+      // Distinguish a missing per-track consent from a stale revision without
+      // weakening the atomic guard above.
+      const current = await pool.query<{ trackId: string | null; shareEnabled: boolean }>(`
+        SELECT track_id AS "trackId", share_enabled AS "shareEnabled"
+        FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active' AND revision=$3
+      `, [params.data.id, userId, expectedRevision]);
+      if (current.rows[0]?.shareEnabled && trackId && current.rows[0].trackId !== trackId && rightsConfirmed !== true) {
+        return reply.code(403).send(error('sharing_rights_confirmation_required'));
+      }
+      return reply.code(409).send(error('room_not_found_or_revision_conflict'));
+    }
     return { timeline: updated.rows[0], serverNowMs: Date.now() };
   });
 
