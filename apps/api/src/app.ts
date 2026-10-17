@@ -16,7 +16,7 @@ import { loadConfig } from './config.js';
 import { createGuards, registerAdminRoutes, registerAuthRoutes } from './modules/auth.js';
 import { registerCloudRoutes } from './modules/cloud.js';
 import { registerRoomRoutes } from './modules/rooms.js';
-import { classifyDatabaseFailure } from './db/diagnostics.js';
+import { classifyDatabaseFailure, describeDatabaseConnectionShape } from './db/diagnostics.js';
 import './types.js';
 
 type Options = { pool: Pool; secret: string; origin: string; registrationEnabled?: boolean };
@@ -81,7 +81,10 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
     } catch (cause) {
       // Never log DATABASE_URL, connection hosts, usernames or raw driver
       // messages. This classification is sufficient for operator triage.
-      console.error('[nebula:health] database probe failed', classifyDatabaseFailure(cause));
+      console.error('[nebula:health] database probe failed', {
+        ...classifyDatabaseFailure(cause),
+        connection: describeDatabaseConnectionShape(process.env.DATABASE_URL),
+      });
       return reply.code(503).send({ status: 'degraded', database: 'unavailable' });
     }
   });

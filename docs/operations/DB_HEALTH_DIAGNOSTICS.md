@@ -12,3 +12,9 @@ The public `GET /v1/health` response remains generic (no connection details). If
 A successful Supabase SQL Editor query proves the database itself works but does **not** prove that the deployed Vercel `DATABASE_URL` can authenticate. Production failures must be diagnosed from sanitized logs, not by repeatedly creating databases or pasting URIs.
 
 **Release gate:** `/v1/health` returns 200 with `database=connected` and OWNER login succeeds after each deployment. If health is degraded, block release.
+
+## Safe Supabase pooler diagnostics
+
+Some pooler failures use SQLSTATE `XX000`. Known message patterns are classified internally as `pooler_configuration` (tenant/username mismatch), `credentials`, or `pooler_capacity`. The original message is **never** logged.
+
+The health log also emits a safe connection shape: `valid`, `kind` (pooler/direct/other), `poolerUsername` boolean, and port. It does **not** emit hostname, username, database, password or URI. For a Supabase pooler, expect `kind=pooler` and `poolerUsername=true`. Never copy the full URI into chat.
