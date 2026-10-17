@@ -5,6 +5,7 @@ import { Copy, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomAudioPlayer } from './RoomAudioPlayer';
+import { buildRoomInviteLink, roomInviteFromHash } from '../lib/room-invite-link';
 
 type Room = {
   id: string; name: string; mode: 'listening' | 'party'; status: string;
@@ -35,6 +36,16 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    const fillInvite = () => {
+      const token = roomInviteFromHash(window.location.hash);
+      if (token) setCode(token);
+    };
+    fillInvite();
+    window.addEventListener('hashchange', fillInvite);
+    return () => window.removeEventListener('hashchange', fillInvite);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!account.user) { setRooms([]); setSelected(null); return; }
@@ -271,8 +282,27 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
         method: 'POST', body: JSON.stringify({ code: code.trim() }),
       });
       setSelectedId(result.roomId); setIssuedCode(''); setCode('');
+      if (roomInviteFromHash(window.location.hash)) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
       setNotice('Te uniste a la sala.');
     });
+  }
+
+  async function shareRoomLink() {
+    if (!issuedCode) return;
+    const url = buildRoomInviteLink(window.location.href, issuedCode);
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: 'Sala privada NÉBULA', url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setNotice('Enlace privado copiado. Compártelo únicamente con personas invitadas.');
+      }
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === 'AbortError') return;
+      setError('No se pudo compartir el enlace. Copia el código manualmente.');
+    }
   }
 
   function leaveOrClose(room: Room) {
@@ -357,7 +387,9 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
           {issuedCode && <div>
             <p>Código privado (se muestra una sola vez):</p>
             <code style={{overflowWrap:'anywhere'}}>{issuedCode}</code>
-            <button type="button" className="icon-button" aria-label="Copiar código" onClick={()=>{void navigator.clipboard.writeText(issuedCode).then(()=>setNotice('Código copiado.'));}}><Copy size={17}/></button>
+            <button type="button" className="icon-button" aria-label="Copiar código" onClick={()=>{void navigator.clipboard.writeText(issuedCode).then(()=>setNotice('Código copiado.')).catch(()=>setError('No se pudo copiar. Selecciona el código manualmente.'));}}><Copy size={17}/></button>
+            <button type="button" className="button small" onClick={()=>{void shareRoomLink();}}>Compartir enlace privado</button>
+            <p>El enlace abre NÉBULA en Salas y rellena el código. La persona invitada necesita su propia cuenta.</p>
           </div>}
           {selected.ownerUserId===account.user.id && <div>
             <label htmlFor="room-cloud-track">Música propia en Cloudflare R2</label>
