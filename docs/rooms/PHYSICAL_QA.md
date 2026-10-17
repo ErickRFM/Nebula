@@ -42,3 +42,16 @@
 - Web Audio timing does not guarantee acoustic phase alignment. Precise verification requires recording simultaneous transients and measuring delay.
 - Screen-lock and background playback are platform-specific and are not certified.
 - Never claim synchronized acoustic output, amplified volume or supported Bluetooth routing until real measurements are attached.
+
+## F12.7–F12.11 follow-up matrix (still NOT executed)
+
+1. Invite phone B through the `#room=` private link. Confirm Salas opens and the code is prefilled; join only after login and explicit confirmation.
+2. Check clock RTT and offset estimates on A and B. They are **network/logic estimates**, not microphone/acoustic measurements.
+3. Compare device and Bluetooth calibration profiles. Set estimated output latency and fine adjustment separately, reload, and verify persistence on each phone.
+4. If a browser supports `setSinkId`, select an enumerated output and verify audio routing. Otherwise use Android/iOS OS Bluetooth settings; do not mark unsupported browsers as failed.
+5. As host, reorder two queued tracks; verify the guest sees the new order and the next track follows it.
+6. Transfer host to B, verify A loses host privileges, and test that B can expel A. Verify no new audio URLs for expelled participants; previously signed URLs may survive for up to 300 seconds.
+7. Measure acoustic offset with an external reference recording or suitable audio analysis; do not infer it from `HTMLAudioElement.currentTime`.
+8. Record foreground, background and locked-screen behavior independently for each browser/OS.
+
+**Blocking:** production PostgreSQL health must be 200 and an authorized MP3 must be available in R2 before these tests can be completed.

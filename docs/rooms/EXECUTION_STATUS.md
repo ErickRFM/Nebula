@@ -1,27 +1,48 @@
 # NÉBULA — F12 Rooms execution status
 
-Updated 2026-10-16. Verify GitHub and deployment SHAs before trusting this document.
+Updated 2026-10-16. Source of truth is the current GitHub main SHA, CI and production health; do not treat code merges as physical certification.
 
-## Implemented in repository
-- F12.1 pure room clock estimation, drift correction, timeline and tests (#28).
-- F12.2 private rooms, authenticated membership, invitation rotation and browser UI (#29).
-- F12.3 opt-in R2 room audio sharing with rights confirmation, short-lived signed URLs (#30).
-- F12.4 browser-based room audio, host track selection, pause/resume and manual calibration (#31).
-- F12.5 private durable queue, host-only controls and CAS next-track scheduling (#32).
-- F12.6 URL renewal, foreground reconciliation, mobile navigation, E2E and physical QA protocol (#33).
-- Private OWNER invitation UI and atomic redemption in PR #34 (pending merge at time of writing).
+## Integrated PRs
+- #28–#33: clock and drift core, private rooms, invite rotation, R2 sharing, playback, queue, renewal, initial E2E.
+- #34: OWNER invitation UI, atomic MEMBER redemption.
+- #35: filtered room clock probes, per-output local calibration profiles and diagnostics.
+- #36: atomic rights confirmation for changing shared tracks.
+- #37: sanitized database health diagnostics.
+- #38: host transfer, member moderation, shared-IP rate-limit resilience and stable room polling.
+- #39: private fragment-based invite links with login return flow.
+- #40: Supabase XX000 pooler diagnostics without secret exposure.
+- #41: optional browser `setSinkId` audio output selection with OS fallback.
+- #42: atomic host queue reorder, integration tests, and shared-Wi-Fi join limit adjustment.
 
-## Deployment / database
-- Migrations 0005, 0006, 0007 are additive and were applied to the dedicated NÉBULA Supabase project.
-- RLS is enabled; direct anon/authenticated table privileges are revoked.
-- Health checks now include Rooms tables.
+Last merged main at this checkpoint: `ca0b843380a43469e95daefaf5a021c5db264cd2`. Verify before reuse.
 
-## Not yet validated or implemented
-- Real multi-phone acoustic timing measurements, Bluetooth speaker latency and screen-lock playback.
-- Dedicated realtime gateway: current transport is polling; do not claim sub-100ms sync.
-- DJ guest permissions, voting, cross-provider playback, speaker output selection beyond OS routing.
-- Registration email verification, password reset, Resend delivery and full member administration.
-- Real R2 MP3 E2E: no ready cloud tracks were present when checked.
+## Verified by automated CI
+- Typecheck, unit tests, DB-backed API tests, web build, API build and Playwright E2E are required on PRs.
+- PR #42 completed successfully before merge.
+- Prior main CI passed on `1d2237c`; check CI for newer main after each merge.
+- New room tests cover host transfer, membership, queue order, rights confirmation, clock and output profile helpers.
 
-## Release rule
-Do not label Party Sound physically verified until QA evidence exists for two phones and Bluetooth speaker. CI validates logic and browser flows, not acoustic output.
+## Production blocker — action required
+- Vercel `/v1/health` returned HTTP 503 with `database=unavailable` during this session.
+- Supabase SQL Editor successfully queried the dedicated NÉBULA project.
+- Safe Vercel diagnostics reported `category=pooler_configuration`, `code=XX000`, `kind=pooler`, `poolerUsername=false`, `port=5432`.
+- The **Production** `DATABASE_URL` pooler username needs the project suffix: `postgres.cznvepkwccnxvqnsiusl`. The existing Vercel variable is marked sensitive and cannot be decrypted through the connected tool, so it was **not** altered. Never paste the URI or password into issues, chat or Git.
+- Operator: update Production `DATABASE_URL` from Supabase Connect > Session pooler in Vercel Environment Variables, redeploy, verify health=200 and OWNER login. Do not create a new database.
+- Vercel READY means the deployment compiled; it does **not** prove database connectivity.
+
+## Not complete — do not claim release
+- Dedicated low-latency authenticated realtime gateway. Current browser state transport still polls (~3s).
+- Physical acoustic synchronization with two phones and a Bluetooth speaker, latency/drift measurements and screen-lock/background validation.
+- Full DJ/voting permissions, guest queue proposals, QR generator and native app output routing.
+- End-to-end real MP3 upload/playback on R2 with cross-device permission checks.
+- Cross-provider shared streaming with rights checks and source availability for every participant.
+- Production health recovery, production login smoke tests and release sign-off.
+
+## Next executable steps
+1. Recover production PostgreSQL pooler configuration (requires operator action on sensitive Vercel variable).
+2. Execute real R2 upload/playback and two-phone room test with owned/authorized MP3.
+3. Choose and provision an authenticated realtime gateway with sustainable WebSocket/SSE transport; do not claim low-latency Party Sound until deployed.
+4. Add DJ/voting and any native-only capabilities based on verified requirements.
+5. Record physical evidence in `docs/rooms/PHYSICAL_QA.md`, then certify or document platform-specific limitations.
+
+No background work is implied by this checkpoint; resume from the verified main HEAD and current PR list.
