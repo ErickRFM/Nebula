@@ -156,6 +156,11 @@ export function NebulaApp() {
     return () => window.removeEventListener('hashchange', openRoomInvite);
   }, []);
   useEffect(() => {
+    // A guest who followed a room link may need to sign in first. Return to
+    // Salas after authentication without automatically joining the room.
+    if (account.user && roomInviteFromHash(window.location.hash)) setScreen('salas');
+  }, [account.user?.id]);
+  useEffect(() => {
     try { setReducedMotion(localStorage.getItem('nebula:reduced-motion') === 'true'); } catch { /* optional */ }
   }, []);
   useEffect(() => {
