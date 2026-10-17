@@ -80,7 +80,7 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     return reply.code(201).send({ room: { id, name: parsed.data.name, mode: parsed.data.mode }, inviteCode: code });
   });
 
-  app.post('/v1/rooms/join', { preHandler: requireAuth, config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.post('/v1/rooms/join', { preHandler: requireAuth, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request, reply) => {
     const parsed = joinInput.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send(error('invalid_invite'));
     const client = await pool.connect();

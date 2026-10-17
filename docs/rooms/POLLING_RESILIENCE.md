@@ -10,3 +10,7 @@ A Playwright mobile trace exposed real HTTP 429 responses during room creation a
 
 ## Regression
 CI must pass Playwright mobile-chromium with concurrent OWNER onboarding and two-account room lifecycle. Do not suppress, skip or weaken these tests.
+
+## Shared Wi-Fi room joins
+
+The original six joins/minute per IP also blocked legitimate 16-person parties and sequential integration tests on a single CI IP. `POST /v1/rooms/join` now permits 60 attempts/minute per IP. Codes are 192-bit random, hashed at rest, expire in seven days, and membership remains authenticated with a hard 16-account room capacity. This remains rate-limited and does not open public rooms.
