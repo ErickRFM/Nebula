@@ -160,6 +160,41 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
     expect(allowed.json().timeline.trackId).toBe(trackId);
   });
 
+  it('lists members privately, allows host moderation and transfers host atomically', async () => {
+    const created = await app.inject({ method: 'POST', url: '/v1/rooms', headers: auth(a),
+      payload: { name: 'Moderación', mode: 'party' } });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().room.id as string;
+    const invite = created.json().inviteCode as string;
+    const joinedB = await app.inject({ method: 'POST', url: '/v1/rooms/join', headers: auth(b), payload: { code: invite } });
+    const joinedC = await app.inject({ method: 'POST', url: '/v1/rooms/join', headers: auth(c), payload: { code: invite } });
+    expect(joinedB.statusCode).toBe(200);
+    expect(joinedC.statusCode).toBe(200);
+    const members = await app.inject({ method: 'GET', url: '/v1/rooms/' + id + '/members', headers: auth(a) });
+    expect(members.statusCode).toBe(200);
+    expect(members.json().items).toHaveLength(3);
+    const guest = await app.inject({ method: 'GET', url: '/v1/rooms/' + id + '/members', headers: auth(b) });
+    expect(guest.statusCode).toBe(200);
+    expect(guest.json().items.every((m: { email: string | null }) => m.email === null)).toBe(true);
+    const meB = await app.inject({ method: 'GET', url: '/v1/me', headers: auth(b) });
+    const guestId = (guest.json().items as {userId:string;role:string}[]).find(m => m.role === 'listener' && m.userId !== meB.json().user.id)?.userId;
+    expect(guestId).toBeDefined();
+    const unauthorized = await app.inject({ method: 'DELETE', url: '/v1/rooms/' + id + '/members/' + guestId, headers: auth(b) });
+    expect(unauthorized.statusCode).toBe(404);
+    const kicked = await app.inject({ method: 'DELETE', url: '/v1/rooms/' + id + '/members/' + guestId, headers: auth(a) });
+    expect(kicked.statusCode).toBe(204);
+    const kickedRead = await app.inject({ method: 'GET', url: '/v1/rooms/' + id, headers: auth(c) });
+    expect(kickedRead.statusCode).toBe(404);
+    const newHost = (guest.json().items as {userId:string;role:string}[]).find(m => m.role === 'listener' && m.userId !== guestId)!.userId;
+    const transfer = await app.inject({ method: 'POST', url: '/v1/rooms/' + id + '/transfer-host', headers: auth(a),
+      payload: { memberId: newHost } });
+    expect(transfer.statusCode).toBe(200);
+    const formerHostDenied = await app.inject({ method: 'POST', url: '/v1/rooms/' + id + '/close', headers: auth(a), payload: {} });
+    expect(formerHostDenied.statusCode).toBe(404);
+    const currentHostClose = await app.inject({ method: 'POST', url: '/v1/rooms/' + id + '/close', headers: auth(b), payload: {} });
+    expect(currentHostClose.statusCode).toBe(204);
+  });
+
   it('rotates invites and closes room for all members', async () => {
     const denied = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/invite', headers: auth(b), payload: {} });
     expect(denied.statusCode).toBe(404);

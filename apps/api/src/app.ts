@@ -52,7 +52,11 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   });
   await app.register(cookie);
   await app.register(jwt, { secret: config.jwtSecret, sign: { expiresIn: config.accessTtlSeconds } });
-  await app.register(rateLimit, { global: true, max: 120, timeWindow: '1 minute' });
+  // A private Party Sound room may have up to 16 phones behind one Wi-Fi NAT.
+  // A 120/minute shared-IP ceiling caused legitimate room polling and E2E
+  // moderation actions to receive 429. Sensitive auth and mutation routes
+  // retain their much tighter per-route limits.
+  await app.register(rateLimit, { global: true, max: 900, timeWindow: '1 minute' });
 
   app.get('/v1/health', async (_request, reply) => {
     try {
