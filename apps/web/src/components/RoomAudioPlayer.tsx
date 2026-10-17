@@ -3,12 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { correctionForDrift, desiredPositionMs, type RoomTimeline } from '@nebula/room-sync';
 import type { AccountApi } from '../hooks/useAccount';
 import { readRoomOutputProfile, saveRoomOutputProfile, type RoomOutputKind } from '../lib/room-output-profile';
+import { listRoomAudioSinks, type RoomAudioSink } from '../lib/room-audio-sinks';
 
 export type SharedRoom = {
   id: string; revision: number; trackId: string | null; shareEnabled: boolean;
   playbackStatus: 'playing' | 'paused'; positionMs: number; effectiveAt: string;
 };
 type AudioResult = { url: string; track: { id: string; title: string; artist: string }; expiresInSeconds: number };
+type SinkCapableAudio = HTMLAudioElement & { setSinkId?: (sinkId: string) => Promise<void> };
 
 export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
   room: SharedRoom; account: AccountApi; clockOffsetMs: number; onActivate: () => void;
@@ -22,6 +24,10 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
   const [calibrationMs, setCalibrationMs] = useState(0);
   const [outputLatencyMs, setOutputLatencyMs] = useState(0);
   const [logicalDriftMs, setLogicalDriftMs] = useState<number | null>(null);
+  const [sinkSupported, setSinkSupported] = useState(false);
+  const [audioSinks, setAudioSinks] = useState<RoomAudioSink[]>([]);
+  const [selectedSinkId, setSelectedSinkId] = useState('default');
+  const [sinkNotice, setSinkNotice] = useState('');
   const [sourceVersion, setSourceVersion] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackKeyRef = useRef('');
@@ -34,6 +40,36 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
     setCalibrationMs(profile.calibrationMs);
     setOutputLatencyMs(profile.outputLatencyMs);
   }, [outputKind]);
+
+  // Optional browser output routing (setSinkId) is independent from Bluetooth
+  // pairing. No microphone permission is requested to enumerate outputs.
+  useEffect(() => {
+    const probe = document.createElement('audio') as SinkCapableAudio;
+    if (typeof probe.setSinkId !== 'function' || !navigator.mediaDevices?.enumerateDevices) return;
+    setSinkSupported(true);
+    let cancelled = false;
+    const refreshSinks = () => {
+      void navigator.mediaDevices.enumerateDevices()
+        .then(devices => { if (!cancelled) setAudioSinks(listRoomAudioSinks(devices)); })
+        .catch(() => { if (!cancelled) setSinkNotice('El navegador no permitió enumerar las salidas. Usa los ajustes del sistema.'); });
+    };
+    refreshSinks();
+    navigator.mediaDevices.addEventListener?.('devicechange', refreshSinks);
+    return () => {
+      cancelled = true;
+      navigator.mediaDevices.removeEventListener?.('devicechange', refreshSinks);
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current as SinkCapableAudio | null;
+    if (!source || !audio || typeof audio.setSinkId !== 'function') return;
+    let cancelled = false;
+    void audio.setSinkId(selectedSinkId)
+      .then(() => { if (!cancelled) setSinkNotice('Salida del navegador seleccionada.'); })
+      .catch(() => { if (!cancelled) setSinkNotice('No se pudo seleccionar esa salida. Configúrala desde el sistema operativo.'); });
+    return () => { cancelled = true; };
+  }, [source, selectedSinkId]);
 
   function changeCalibration(value: number) {
     setCalibrationMs(value);
@@ -176,6 +212,14 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
       onError={() => setError('No se pudo cargar el audio. Renueva el enlace temporal.')}
       aria-label="Audio de la sala"/>}
     {source && <button type="button" className="button small" onClick={()=>setSourceVersion(x=>x+1)}>Renovar enlace de audio</button>}
+    {sinkSupported && <div>
+      <label htmlFor="room-audio-sink">Salida física (navegador compatible)</label>
+      <select id="room-audio-sink" value={selectedSinkId} onChange={e => setSelectedSinkId(e.target.value)}>
+        <option value="default">Salida predeterminada</option>
+        {audioSinks.map(sink => <option key={sink.id} value={sink.id}>{sink.label}</option>)}
+      </select>
+      {sinkNotice && <p role="status">{sinkNotice}</p>}
+    </div>}
     <label htmlFor="room-output-kind">Perfil de salida de este navegador</label>
     <select id="room-output-kind" value={outputKind} onChange={e => setOutputKind(e.target.value as RoomOutputKind)}>
       <option value="device">Altavoz del teléfono / salida predeterminada</option>
@@ -188,7 +232,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
     <input id="room-calibration" type="range" min="-1000" max="1000" step="10" value={calibrationMs}
       onChange={e => changeCalibration(Number(e.target.value))}/>
     <p role="status">Desfase lógico estimado: {logicalDriftMs === null ? 'sin medición' : logicalDriftMs + ' ms'}. No equivale a desfase acústico medido.</p>
-    <p>El perfil se guarda únicamente en este navegador. Selecciona la bocina Bluetooth desde los ajustes del teléfono; cambiar este perfil no cambia la salida física. Calibra escuchando ambos dispositivos a volumen moderado.</p>
+    <p>El perfil de calibración se guarda en este navegador. Cuando la selección de salida no esté disponible, empareja la bocina Bluetooth en los ajustes del teléfono. El perfil de calibración por sí solo no cambia la salida física. Calibra escuchando ambos dispositivos a volumen moderado.</p>
     {error && <p className="account-error" role="alert">{error}</p>}
   </div>;
 }
