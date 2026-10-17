@@ -15,6 +15,7 @@ type Room = {
 type RoomList = { items: Room[] };
 type QueueItem = { id: string; trackId: string; title: string; artist: string; position: number };
 type RoomDetail = { room: Room; serverNowMs: number };
+type RoomMember = { userId: string; role: 'host' | 'listener'; email: string | null; joinedAt: string };
 
 export function RoomsPanel({ account, onAccount, onActivate }: { account: AccountApi; onAccount: () => void; onActivate: () => void }) {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -27,6 +28,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [clockMetrics, setClockMetrics] = useState<{ rttMs: number; samples: number } | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [members, setMembers] = useState<RoomMember[]>([]);
   const [cloudItems, setCloudItems] = useState<{ id: string; title: string; artist: string }[]>([]);
   const [selectedCloudId, setSelectedCloudId] = useState('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
@@ -106,6 +108,41 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     const timer = window.setInterval(() => { void refreshQueue(); }, 3000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshQueue]);
+
+  const refreshMembers = useCallback(async () => {
+    if (!selectedId || !account.user) { setMembers([]); return; }
+    try {
+      const result = await account.cloudRequest<{items:RoomMember[]}>('/v1/rooms/' + selectedId + '/members');
+      setMembers(result.items);
+    } catch { setMembers([]); }
+  }, [selectedId, account.user?.id, account.cloudRequest]);
+
+  useEffect(() => {
+    if (!selectedId || !account.user) { setMembers([]); return; }
+    void refreshMembers();
+    const timer = window.setInterval(() => { void refreshMembers(); }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [selectedId, account.user?.id, refreshMembers]);
+
+  function removeMember(member: RoomMember) {
+    if (!selected || !window.confirm('¿Expulsar a esta persona de la sala?')) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/members/' + member.userId, { method: 'DELETE' });
+      await refreshMembers(); await refreshSelected();
+      setNotice('Participante expulsado. Los enlaces de audio ya emitidos caducan como máximo en cinco minutos.');
+    });
+  }
+
+  function transferHost(member: RoomMember) {
+    if (!selected || !window.confirm('¿Transferir la administración de esta sala? Dejarás de ser anfitrión.')) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/transfer-host', {
+        method: 'POST', body: JSON.stringify({ memberId: member.userId }),
+      });
+      await refreshSelected(); await refreshMembers();
+      setNotice('Anfitrión transferido. Ahora eres participante.');
+    });
+  }
 
   function addToQueue() {
     if (!selected || !selectedCloudId || !rightsConfirmed) {
@@ -335,6 +372,21 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
             </>}
           </div>}
           <p className="disclosure">Cada teléfono reproduce una URL privada temporal de R2. La sincronización usa sondeo periódico y corrección de desfase; no garantiza precisión acústica ni reproducción con pantalla bloqueada.</p>
+        </div>
+      </section>}
+      {selected && selectedId===selected.id && <section className="content-section">
+        <div className="section-heading"><h2>Participantes</h2><span>{members.length} en la sala</span></div>
+        <div className="track-list glass">
+          {members.map(member => <div className="track-row" key={member.userId}>
+            <span className="track-descriptor">
+              <strong>{member.userId === account.user?.id ? 'Tú' : member.email ?? 'Participante ' + member.userId.slice(0, 8)}</strong>
+              <small>{member.role === 'host' ? 'Anfitrión' : 'Oyente'}</small>
+            </span>
+            {selected.ownerUserId === account.user?.id && member.userId !== account.user?.id && <>
+              <button type="button" className="button small" disabled={busy} onClick={() => transferHost(member)}>Hacer anfitrión</button>
+              <button type="button" className="button secondary small" disabled={busy} onClick={() => removeMember(member)}>Expulsar</button>
+            </>}
+          </div>)}
         </div>
       </section>}
       {selected && selectedId===selected.id && <section className="content-section">

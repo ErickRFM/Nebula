@@ -318,6 +318,94 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     } finally { client.release(); }
   });
 
+
+  // Membership visibility is restricted to participants. Only the host can
+  // see participant email addresses for moderation; listeners see pseudonymous IDs.
+  app.get('/v1/rooms/:id/members', { preHandler: requireAuth }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    if (!params.success) return reply.code(400).send(error('invalid_room_id'));
+    const result = await pool.query<{
+      userId: string; role: 'host' | 'listener'; joinedAt: Date; email: string | null;
+    }>(`
+      SELECT m.user_id AS "userId", m.role, m.joined_at AS "joinedAt",
+        CASE WHEN r.owner_user_id=$2 THEN u.email ELSE NULL END AS email
+      FROM rooms r
+      JOIN room_members viewer ON viewer.room_id=r.id AND viewer.user_id=$2
+      JOIN room_members m ON m.room_id=r.id
+      JOIN users u ON u.id=m.user_id
+      WHERE r.id=$1 AND r.status='active'
+      ORDER BY CASE WHEN m.role='host' THEN 0 ELSE 1 END, m.joined_at ASC
+      LIMIT 16
+    `, [params.data.id, request.principal!.userId]);
+    if (!result.rows.length) return reply.code(404).send(error('room_not_found'));
+    return { items: result.rows };
+  });
+
+  app.delete('/v1/rooms/:id/members/:memberId', {
+    preHandler: requireAuth, config: { rateLimit: { max: 15, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    const params = z.object({ id: z.string().uuid(), memberId: z.string().uuid() }).safeParse(request.params);
+    if (!params.success) return reply.code(400).send(error('invalid_room_member'));
+    const hostId = request.principal!.userId;
+    if (params.data.memberId === hostId) return reply.code(400).send(error('host_must_transfer_or_close'));
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const room = await client.query(
+        "SELECT id FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active' FOR UPDATE",
+        [params.data.id, hostId],
+      );
+      if (!room.rowCount) { await client.query('ROLLBACK'); return reply.code(404).send(error('room_not_found')); }
+      const removed = await client.query(
+        "DELETE FROM room_members WHERE room_id=$1 AND user_id=$2 AND role='listener' RETURNING user_id",
+        [params.data.id, params.data.memberId],
+      );
+      if (!removed.rowCount) { await client.query('ROLLBACK'); return reply.code(404).send(error('member_not_found')); }
+      await client.query('COMMIT');
+      return reply.code(204).send();
+    } catch (cause) { await client.query('ROLLBACK'); throw cause; }
+    finally { client.release(); }
+  });
+
+  app.post('/v1/rooms/:id/transfer-host', {
+    preHandler: requireAuth, config: { rateLimit: { max: 6, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    const params = roomId.safeParse(request.params);
+    const body = z.object({ memberId: z.string().uuid() }).safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send(error('invalid_host_transfer'));
+    const hostId = request.principal!.userId;
+    if (body.data.memberId === hostId) return reply.code(400).send(error('already_host'));
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const room = await client.query(
+        "SELECT id FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active' FOR UPDATE",
+        [params.data.id, hostId],
+      );
+      if (!room.rowCount) { await client.query('ROLLBACK'); return reply.code(404).send(error('room_not_found')); }
+      const target = await client.query(
+        "SELECT user_id FROM room_members WHERE room_id=$1 AND user_id=$2 AND role='listener' FOR UPDATE",
+        [params.data.id, body.data.memberId],
+      );
+      if (!target.rowCount) { await client.query('ROLLBACK'); return reply.code(404).send(error('member_not_found')); }
+      await client.query(
+        "UPDATE room_members SET role='listener' WHERE room_id=$1 AND user_id=$2 AND role='host'",
+        [params.data.id, hostId],
+      );
+      await client.query(
+        "UPDATE room_members SET role='host' WHERE room_id=$1 AND user_id=$2",
+        [params.data.id, body.data.memberId],
+      );
+      await client.query(
+        "UPDATE rooms SET owner_user_id=$2, revision=revision+1 WHERE id=$1",
+        [params.data.id, body.data.memberId],
+      );
+      await client.query('COMMIT');
+      return { ownerUserId: body.data.memberId };
+    } catch (cause) { await client.query('ROLLBACK'); throw cause; }
+    finally { client.release(); }
+  });
+
   app.post('/v1/rooms/:id/leave', { preHandler: requireAuth }, async (request, reply) => {
     const params = roomId.safeParse(request.params);
     if (!params.success) return reply.code(400).send(error('invalid_room_id'));

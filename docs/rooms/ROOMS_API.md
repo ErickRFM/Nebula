@@ -21,3 +21,13 @@ Migration `0005_rooms.sql` must be applied before deploying API code that uses t
 
 ## Not yet done
 No persistent realtime gateway, player integration, shared media authorization, device-specific timing or Bluetooth output control. Room snapshots are persisted but **Party Sound is not yet functional**. The web UI must not claim otherwise.
+
+## F12.8 — Participant moderation and host transfer
+
+| Method | Endpoint | Permission |
+|---|---|---|
+| GET | /v1/rooms/:id/members | Active participant; only host sees participant emails |
+| DELETE | /v1/rooms/:id/members/:memberId | Host; cannot kick self |
+| POST | /v1/rooms/:id/transfer-host | Host; target must be active listener |
+
+Host transfer locks the room and updates membership roles and `owner_user_id` atomically, incrementing the room revision. Old host loses privileged actions immediately. Kicking a listener removes their ability to request new signed R2 URLs; previously issued URLs may remain usable for up to 300 seconds. This is not instant revocation of audio already downloaded.
