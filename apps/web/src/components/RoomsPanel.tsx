@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
-import { expectedPositionMs } from '@nebula/room-sync';
+import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomAudioPlayer } from './RoomAudioPlayer';
 
 type Room = {
@@ -25,6 +25,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   const [code, setCode] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [clockMetrics, setClockMetrics] = useState<{ rttMs: number; samples: number } | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [cloudItems, setCloudItems] = useState<{ id: string; title: string; artist: string }[]>([]);
   const [selectedCloudId, setSelectedCloudId] = useState('');
@@ -46,9 +47,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   const refreshSelected = useCallback(async () => {
     if (!selectedId || !account.user) return;
     try {
-      const sentAt = Date.now();
       const result = await account.cloudRequest<RoomDetail>('/v1/rooms/' + encodeURIComponent(selectedId));
-      setClockOffsetMs(result.serverNowMs - (sentAt + Date.now()) / 2);
       setSelected(result.room);
     } catch {
       setSelected(null);
@@ -56,6 +55,34 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
       void refresh();
     }
   }, [selectedId, account.user?.id, account.cloudRequest, refresh]);
+
+  // Use multiple NTP-style probes rather than estimating clock skew from a
+  // single room snapshot. The lowest-RTT half of recent probes limits jitter.
+  useEffect(() => {
+    if (!selectedId || !account.user) return;
+    let cancelled = false;
+    const samples: ClockSample[] = [];
+    setClockMetrics(null);
+    setClockOffsetMs(0);
+    const probe = async () => {
+      try {
+        const clientSentMs = Date.now();
+        const result = await account.cloudRequest<{serverReceivedMs:number;serverSentMs:number}>('/v1/rooms/clock');
+        const clientReceivedMs = Date.now();
+        if (cancelled) return;
+        const sample = clockSample({ clientSentMs, clientReceivedMs, ...result });
+        if (!sample) return;
+        samples.push(sample);
+        if (samples.length > 12) samples.shift();
+        const offset = estimateClockOffset(samples);
+        if (offset !== null) setClockOffsetMs(offset);
+        setClockMetrics({ rttMs: Math.round(sample.roundTripMs), samples: samples.length });
+      } catch { if (!cancelled) setClockMetrics(null); }
+    };
+    void probe();
+    const timer = window.setInterval(() => { void probe(); }, 15_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [selectedId, account.user?.id, account.cloudRequest]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -281,6 +308,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
           <h2>{selected.name}</h2>
           <p>{selected.participantCount} participante(s) · {selected.ownerUserId===account.user.id?'Eres anfitrión':'Eres invitado'}</p>
           <p>Estado de sala sincronizado con PostgreSQL · revisión {selected.revision}.</p>
+          <p>Reloj: {clockMetrics ? 'RTT de red ' + clockMetrics.rttMs + ' ms · ' + clockMetrics.samples + ' muestras · offset estimado ' + Math.round(clockOffsetMs) + ' ms' : 'midiendo conexión…'}. Estas cifras no miden el retardo acústico.</p>
           {selected.ownerUserId===account.user.id && <button type="button" className="button small" disabled={busy} onClick={rotateCode}>Generar nuevo código</button>}
           {issuedCode && <div>
             <p>Código privado (se muestra una sola vez):</p>

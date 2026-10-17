@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { correctionForDrift, desiredPositionMs, type RoomTimeline } from '@nebula/room-sync';
 import type { AccountApi } from '../hooks/useAccount';
+import { readRoomOutputProfile, saveRoomOutputProfile, type RoomOutputKind } from '../lib/room-output-profile';
 
 export type SharedRoom = {
   id: string; revision: number; trackId: string | null; shareEnabled: boolean;
   playbackStatus: 'playing' | 'paused'; positionMs: number; effectiveAt: string;
 };
 type AudioResult = { url: string; track: { id: string; title: string; artist: string }; expiresInSeconds: number };
-const key = 'nebula:party-calibration-ms:v1';
 
 export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
   room: SharedRoom; account: AccountApi; clockOffsetMs: number; onActivate: () => void;
@@ -18,18 +18,32 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
   const [track, setTrack] = useState<AudioResult['track'] | null>(null);
   const [active, setActive] = useState(false);
   const [error, setError] = useState('');
+  const [outputKind, setOutputKind] = useState<RoomOutputKind>('device');
   const [calibrationMs, setCalibrationMs] = useState(0);
+  const [outputLatencyMs, setOutputLatencyMs] = useState(0);
+  const [logicalDriftMs, setLogicalDriftMs] = useState<number | null>(null);
   const [sourceVersion, setSourceVersion] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackKeyRef = useRef('');
   const resumeRef = useRef<{ position: number; wasPlaying: boolean } | null>(null);
 
+  // Profiles are intentionally local to this browser and audio route. Bluetooth
+  // output latency is not discoverable reliably from browser APIs.
   useEffect(() => {
-    try {
-      const saved = Number(localStorage.getItem(key));
-      if (Number.isFinite(saved)) setCalibrationMs(Math.max(-500, Math.min(500, saved)));
-    } catch { /* optional storage */ }
-  }, []);
+    const profile = readRoomOutputProfile(window.localStorage, outputKind);
+    setCalibrationMs(profile.calibrationMs);
+    setOutputLatencyMs(profile.outputLatencyMs);
+  }, [outputKind]);
+
+  function changeCalibration(value: number) {
+    setCalibrationMs(value);
+    saveRoomOutputProfile(window.localStorage, outputKind, { calibrationMs: value, outputLatencyMs });
+  }
+
+  function changeOutputLatency(value: number) {
+    setOutputLatencyMs(value);
+    saveRoomOutputProfile(window.localStorage, outputKind, { calibrationMs, outputLatencyMs: value });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +88,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
 
   function targetMs() {
     return desiredPositionMs(timeline, Date.now(), {
-      clockOffsetMs, outputLatencyMs: 0, calibrationMs,
+      clockOffsetMs, outputLatencyMs, calibrationMs,
     });
   }
 
@@ -104,7 +118,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   // room timeline primitives are stable values, not object identity.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.revision, room.trackId, room.playbackStatus, room.positionMs, room.effectiveAt, clockOffsetMs, calibrationMs, source, active]);
+  }, [room.revision, room.trackId, room.playbackStatus, room.positionMs, room.effectiveAt, clockOffsetMs, calibrationMs, outputLatencyMs, source, active]);
 
   useEffect(() => {
     if (!source || room.playbackStatus !== 'playing') return;
@@ -112,6 +126,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
       const audio = audioRef.current;
       if (!audio || audio.paused || audio.readyState < 1) return;
       const correction = correctionForDrift(audio.currentTime * 1000, targetMs(), true);
+      setLogicalDriftMs(Math.round(correction.errorMs));
       if (correction.kind === 'seek') {
         audio.currentTime = correction.targetPositionMs / 1000;
         audio.playbackRate = 1;
@@ -121,7 +136,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
     }, 1000);
     return () => window.clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, room.revision, room.playbackStatus, room.effectiveAt, room.positionMs, clockOffsetMs, calibrationMs]);
+  }, [source, room.revision, room.playbackStatus, room.effectiveAt, room.positionMs, clockOffsetMs, calibrationMs, outputLatencyMs]);
 
   function activated() {
     if (room.playbackStatus !== 'playing') {
@@ -161,14 +176,19 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
       onError={() => setError('No se pudo cargar el audio. Renueva el enlace temporal.')}
       aria-label="Audio de la sala"/>}
     {source && <button type="button" className="button small" onClick={()=>setSourceVersion(x=>x+1)}>Renovar enlace de audio</button>}
-    <label htmlFor="room-calibration">Compensación de salida: {calibrationMs} ms</label>
-    <input id="room-calibration" type="range" min="-500" max="500" step="10" value={calibrationMs}
-      onChange={e => {
-        const value = Number(e.target.value);
-        setCalibrationMs(value);
-        try { localStorage.setItem(key, String(value)); } catch { /* optional */ }
-      }}/>
-    <p>Conecta tu bocina Bluetooth desde los ajustes del teléfono. La calibración es manual; la sincronización acústica exacta todavía requiere pruebas físicas.</p>
+    <label htmlFor="room-output-kind">Perfil de salida de este navegador</label>
+    <select id="room-output-kind" value={outputKind} onChange={e => setOutputKind(e.target.value as RoomOutputKind)}>
+      <option value="device">Altavoz del teléfono / salida predeterminada</option>
+      <option value="bluetooth">Bocina o audífonos Bluetooth</option>
+    </select>
+    <label htmlFor="room-output-latency">Retardo estimado de la salida: {outputLatencyMs} ms</label>
+    <input id="room-output-latency" type="range" min="0" max="1000" step="10" value={outputLatencyMs}
+      onChange={e => changeOutputLatency(Number(e.target.value))}/>
+    <label htmlFor="room-calibration">Ajuste fino de sincronización: {calibrationMs} ms</label>
+    <input id="room-calibration" type="range" min="-1000" max="1000" step="10" value={calibrationMs}
+      onChange={e => changeCalibration(Number(e.target.value))}/>
+    <p role="status">Desfase lógico estimado: {logicalDriftMs === null ? 'sin medición' : logicalDriftMs + ' ms'}. No equivale a desfase acústico medido.</p>
+    <p>El perfil se guarda únicamente en este navegador. Selecciona la bocina Bluetooth desde los ajustes del teléfono; cambiar este perfil no cambia la salida física. Calibra escuchando ambos dispositivos a volumen moderado.</p>
     {error && <p className="account-error" role="alert">{error}</p>}
   </div>;
 }
