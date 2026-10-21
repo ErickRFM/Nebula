@@ -10,7 +10,7 @@ type CloudTrack = {
   id: string; title: string; artist: string; mimeType: string;
   byteSize: number; createdAt: string;
 };
-type CloudList = { items: CloudTrack[]; configured: boolean };
+type CloudList = { items: CloudTrack[]; pendingItems?: CloudTrack[]; configured: boolean };
 type UploadTicket = { id: string; uploadUrl: string; contentType: string; expiresInSeconds: number };
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -23,6 +23,7 @@ export function CloudLibrary({
   onPlay: (track: Track) => void;
 }) {
   const [items, setItems] = useState<CloudTrack[]>([]);
+  const [pendingItems,setPendingItems]=useState<CloudTrack[]>([]);
   const [configured, setConfigured] = useState(false);
   const [targetPlaylist, setTargetPlaylist] = useState('');
   const [busy, setBusy] = useState(false);
@@ -33,11 +34,12 @@ export function CloudLibrary({
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
-    if (!account.user) { setItems([]); setConfigured(false); return; }
+    if (!account.user) { setItems([]); setPendingItems([]); setConfigured(false); return; }
     setLoading(true);
     try {
       const result = await account.cloudRequest<CloudList>('/v1/library/cloud');
       setItems(result.items);
+      setPendingItems(result.pendingItems??[]);
       setConfigured(result.configured);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo consultar tu biblioteca en la nube.');
@@ -152,6 +154,7 @@ export function CloudLibrary({
       {busy && <div className="cloud-upload-progress"><progress max={100} value={uploadProgress??0} aria-label="Progreso de carga de música"/><span>{uploadProgress??0}%</span></div>}
       {!configured && !loading && <p className="disclosure">El almacenamiento R2 todavía no está disponible en la API.</p>}
       {loading && <p className="disclosure">Sincronizando tu biblioteca privada…</p>}
+      {pendingItems.length>0 && <div className="cloud-actions glass"><div><strong>Cargas pendientes ({pendingItems.length})</strong><p>Puedes limpiar intentos interrumpidos y volver a seleccionar tus archivos. No se muestran como canciones listas.</p></div><div>{pendingItems.map(item=><button key={item.id} type="button" className="button secondary small" disabled={busy} onClick={()=>{void account.cloudRequest('/v1/library/cloud/'+encodeURIComponent(item.id),{method:'DELETE'}).then(()=>refresh()).catch(()=>setError('No se pudo limpiar la carga pendiente.'));}}>Descartar {item.title}</button>)}</div></div>}
       {message && <p className="disclosure" role="status">{message}</p>}
       {error && <p className="account-error" role="alert">{error}</p>}
       {account.serverPlaylists.length>0 && <div className="cloud-actions glass"><label htmlFor="cloud-target-playlist">Añadir canciones a playlist de cuenta</label><select id="cloud-target-playlist" value={targetPlaylist} onChange={(event)=>setTargetPlaylist(event.target.value)}><option value="">Selecciona una playlist</option>{account.serverPlaylists.map((list)=><option key={list.id} value={list.id}>{list.name}</option>)}</select></div>}
