@@ -4,7 +4,7 @@ import type {AccountApi} from '../hooks/useAccount';
 import type {Track} from '../lib/catalog';
 
 type Item = {id:string; cloudTrackId:string|null; externalItemId:string|null};
-type Cloud = {id:string;title:string;artist:string;album?:string;genre?:string};
+type Cloud = {id:string;title:string;artist:string;album?:string;genre?:string;coverUrl?:string|null};
 type External = {id:string;title:string;artist:string;sourceUrl:string};
 export function AccountPlaylistTracks({account,playlistId,onPlay}:{
  account:AccountApi; playlistId:string; onPlay:(track:Track)=>void;
@@ -52,7 +52,7 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
    try{
      const result=await request<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play');
      onPlay({id:'cloud-'+item.id,title:item.title,artist:item.artist,album:item.album||'NÉBULA Cloud',
-       cover:'/art/orbita.svg',genre:item.genre||'Mi música',duration:'--:--',audioUrl:result.url,source:'external',
+       cover:item.coverUrl||'/art/orbita.svg',genre:item.genre||'Mi música',duration:'--:--',audioUrl:result.url,source:'external',
        signedAudioExpiresInSeconds:result.expiresInSeconds,
        renewAudioUrl:()=>request<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play')});
    }catch(err){setError(err instanceof Error?err.message:'No se pudo reproducir la canción.');}

@@ -8,10 +8,11 @@ import { putPrivateAudio } from '../lib/r2-upload';
 import { retrieveAuthorizedAudio } from '../lib/authorized-web-audio';
 import { readAudioMetadata } from '../lib/audio-metadata';
 import { hashAudioFile } from '../lib/audio-hash';
+import {embeddedCoverFile, validatedCoverFile} from '../lib/cloud-artwork';
 
 type CloudTrack = {
   id: string; title: string; artist: string; album?:string; genre?:string; mimeType: string;
-  byteSize: number; createdAt: string;
+  byteSize: number; createdAt: string; coverUrl?:string|null;
 };
 type CloudList = { pendingItems: CloudTrack[]; configured: boolean };
 type CloudSearchPage={items:CloudTrack[];nextCursor:string|null;hasMore:boolean};
@@ -42,6 +43,7 @@ export function CloudLibrary({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [coverFailures,setCoverFailures]=useState(0);
 
   const refresh = useCallback(async () => {
     if (!account.user) { setItems([]); setNextCursor(null); setPendingItems([]); setConfigured(false); return; }
@@ -76,6 +78,36 @@ export function CloudLibrary({
   }
 
 
+  async function uploadCover(itemId:string,file:File,controller:AbortController):Promise<void>{
+    if(!await validatedCoverFile(file))throw new Error('La portada debe ser PNG o JPEG real de 12 bytes a 256 KB.');
+    if(controller.signal.aborted)throw new Error('Carga cancelada.');
+    const base='/v1/library/cloud/'+encodeURIComponent(itemId);
+    const ticket=await account.cloudRequest<{uploadUrl:string;contentType:string}>(base+'/cover-ticket',{
+      method:'POST',body:JSON.stringify({contentType:file.type,size:file.size}),
+    });
+    await putPrivateAudio(ticket.uploadUrl,ticket.contentType,file,controller.signal,()=>{});
+    if(controller.signal.aborted)throw new Error('Carga cancelada.');
+    await account.cloudRequest(base+'/cover-complete',{
+      method:'POST',body:JSON.stringify({contentType:file.type,size:file.size}),
+    });
+  }
+
+  async function changeCover(itemId:string,file:File|undefined){
+    if(!file||busy)return;
+    const controller=new AbortController();
+    uploadController.current=controller;
+    setBusy(true);setError('');setCoverFailures(0);
+    try{
+      await uploadCover(itemId,file,controller);
+      setMessage('Portada guardada en R2. Se verá al actualizar la biblioteca.');
+      await refresh();
+    }catch(failure){
+      setError(failure instanceof Error?failure.message:'No se pudo guardar la portada.');
+    }finally{
+      uploadController.current=null;setBusy(false);
+    }
+  }
+
   async function uploadFiles(files:File[], controller=new AbortController()):Promise<boolean> {
     if (!files.length) return false;
     if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return false; }
@@ -84,6 +116,8 @@ export function CloudLibrary({
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
     let uploaded=0;
     let duplicates=0;
+    let artworkFailed=0;
+    setCoverFailures(0);
     try{
       for(const file of files){
         if(controller.signal.aborted)throw new Error('Carga cancelada.');
@@ -115,6 +149,14 @@ export function CloudLibrary({
           await account.cloudRequest('/v1/library/cloud/'+encodeURIComponent(ticket.id)+'/complete',{
             method:'POST',body:'{}',
           });
+          // Artwork is optional. A broken picture must not delete an uploaded song.
+          if(tags.coverDataUrl){
+            const picture=embeddedCoverFile(tags.coverDataUrl);
+            if(picture){
+              try{await uploadCover(ticket.id,picture,controller);}
+              catch{artworkFailed++;setCoverFailures(artworkFailed);}
+            }
+          }
           uploaded++;
         }catch(failure){
           // Revoke the pending ticket and delete an incomplete R2 object if present.
@@ -127,7 +169,7 @@ export function CloudLibrary({
           throw failure;
         }
       }
-      setMessage(uploaded+' canción(es) nuevas en tu nube; '+duplicates+' duplicado(s) omitidos.');
+      setMessage(uploaded+' canción(es) nuevas en tu nube; '+duplicates+' duplicado(s) omitidos.'+(artworkFailed?' '+artworkFailed+' portada(s) pendientes.':''));
       return true;
     }catch(failure){
       setError(failure instanceof Error?failure.message:'Error al subir canciones.');
@@ -176,7 +218,7 @@ export function CloudLibrary({
         artist: item.artist,
         album: item.album||'NÉBULA Cloud',
         genre: item.genre||'Mi música',
-        cover: artwork[0],
+        cover: item.coverUrl||artwork[0],
         duration: '--:--',
         audioUrl: result.url,
         source: 'external',
@@ -261,18 +303,25 @@ export function CloudLibrary({
       {loading && <p className="disclosure">Sincronizando tu biblioteca privada…</p>}
       {pendingItems.length>0 && <div className="cloud-actions glass"><div><strong>Cargas pendientes ({pendingItems.length})</strong><p>Puedes limpiar intentos interrumpidos y volver a seleccionar tus archivos. No se muestran como canciones listas.</p></div><div>{pendingItems.map(item=><button key={item.id} type="button" className="button secondary small" disabled={busy} onClick={()=>{void account.cloudRequest('/v1/library/cloud/'+encodeURIComponent(item.id),{method:'DELETE'}).then(()=>refresh()).catch(()=>setError('No se pudo limpiar la carga pendiente.'));}}>Descartar {item.title}</button>)}</div></div>}
       {message && <p className="disclosure" role="status">{message}</p>}
+      {coverFailures>0 && <p className="disclosure">Puedes cambiar las portadas pendientes individualmente, sin repetir la carga de audio.</p>}
       {error && <p className="account-error" role="alert">{error}</p>}
       {account.serverPlaylists.length>0 && <div className="cloud-actions glass"><label htmlFor="cloud-target-playlist">Añadir canciones a playlist de cuenta</label><select id="cloud-target-playlist" value={targetPlaylist} onChange={(event)=>setTargetPlaylist(event.target.value)}><option value="">Selecciona una playlist</option>{account.serverPlaylists.map((list)=><option key={list.id} value={list.id}>{list.name}</option>)}</select></div>}
       <div className="track-list glass">
         {!items.length ? <p className="empty-note">Tu nube todavía no tiene canciones. Sube un MP3 o FLAC para empezar.</p> :
           items.map((item) => <div className="track-row" key={item.id}>
             <button type="button" className="track-main" disabled={busy} onClick={() => { void play(item); }}>
-              <span className="cloud-track-icon"><Play size={17}/></span>
+              {item.coverUrl?<img className="cloud-track-cover" src={item.coverUrl} alt="" loading="lazy" referrerPolicy="no-referrer"/>:<span className="cloud-track-icon"><Play size={17}/></span>}
               <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {(item.byteSize / 1048576).toFixed(1)} MB</small></span>
             </button>
             <span className="track-album">{item.album||'NÉBULA Cloud'}</span>
             <button type="button" className="button small" disabled={busy} aria-pressed={account.accountFavorites.some(f=>f.cloudTrackId===item.id)} onClick={()=>{void account.toggleAccountFavorite('cloud',item.id).then(ok=>{if(ok)setMessage('Favoritos de cuenta actualizados.');else setError('No se pudo guardar el favorito.');});}}>{account.accountFavorites.some(f=>f.cloudTrackId===item.id)?'♥ Favorito':'♡ Favorito'}</button>
             {account.serverPlaylists.length>0 && <button type="button" className="button small" disabled={busy || !targetPlaylist} onClick={()=>{void account.addAccountPlaylistItem(targetPlaylist,'cloud',item.id).then((ok)=>{if(ok)setMessage('Canción añadida a la playlist de tu cuenta.');else setError('No fue posible añadir esta canción a la playlist.');});}}>Añadir a lista</button>}
+            <label className={'button secondary small'+(busy?' cloud-disabled':'')}>
+              Cambiar portada
+              <input type="file" className="file-input" accept="image/png,image/jpeg" disabled={busy}
+                aria-label={'Elegir portada PNG o JPEG para '+item.title}
+                onChange={e=>{const file=e.target.files?.[0];e.target.value='';void changeCover(item.id,file);}}/>
+            </label>
             <button type="button" className="button secondary small" disabled={busy} aria-label={'Descargar '+item.title+' de mi nube'} onClick={()=>{void download(item);}}><Download size={15}/> Descargar</button>
             <button type="button" className="icon-button" disabled={busy} title="Eliminar de R2"
               aria-label={'Eliminar ' + item.title + ' de la nube'} onClick={() => { void remove(item); }}>

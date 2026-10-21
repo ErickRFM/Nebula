@@ -5,7 +5,7 @@ import type {AccountApi} from '../hooks/useAccount';
 import type {Track} from '../lib/catalog';
 import {artwork} from '../lib/catalog';
 
-type CloudTrack={id:string;title:string;artist:string;album?:string;genre?:string;byteSize:number;createdAt:string};
+type CloudTrack={id:string;title:string;artist:string;album?:string;genre?:string;byteSize:number;createdAt:string;coverUrl?:string|null};
 type SearchPage={items:CloudTrack[];nextCursor:string|null;hasMore:boolean};
 const PAGE_SIZE=25;
 
@@ -59,7 +59,7 @@ export function CloudSearchResults({query,account,onAccount,onPlay}:{
       const url=new URL(result.url);
       if(url.protocol!=='https:')throw new Error('URL temporal de audio insegura.');
       onPlay({id:'cloud-'+item.id,title:item.title,artist:item.artist,album:item.album||'NÉBULA Cloud',
-        genre:item.genre||'Mi música',cover:artwork[0],duration:'--:--',audioUrl:url.toString(),source:'external',
+        genre:item.genre||'Mi música',cover:item.coverUrl||artwork[0],duration:'--:--',audioUrl:url.toString(),source:'external',
         signedAudioExpiresInSeconds:result.expiresInSeconds,
         renewAudioUrl:()=>account.cloudRequest<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play')});
     }catch(cause){setError(cause instanceof Error?cause.message:'No fue posible reproducir la canción privada.');}
@@ -74,7 +74,7 @@ export function CloudSearchResults({query,account,onAccount,onPlay}:{
       loading?<div className="search-start glass" role="status">Buscando en tu nube…</div>:
       items.length===0&&!error?<p className="empty-note glass">No encontramos pistas coincidentes en tu nube. Sube música desde Biblioteca.</p>:
       <div className="track-list glass">{items.map(item=><div className="track-row" key={item.id}>
-        <span className="cloud-track-icon"><Cloud size={17}/></span>
+        {item.coverUrl?<img className="cloud-track-cover" src={item.coverUrl} alt="" loading="lazy" referrerPolicy="no-referrer"/>:<span className="cloud-track-icon"><Cloud size={17}/></span>}
         <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {item.album||'NÉBULA Cloud'}</small></span>
         <button type="button" className="button secondary small" disabled={playingId!==null} onClick={()=>{void play(item);}}><Play size={15}/>{playingId===item.id?'Abriendo…':'Reproducir'}</button>
       </div>)}</div>}

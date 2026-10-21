@@ -598,3 +598,9 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .room-acoustic-qa .room-qa-result strong{width:100%}
 .room-acoustic-qa .room-qa-result span{font-size:.79rem}
 @media(max-width:760px){.room-qa-fields{grid-template-columns:1fr}.room-acoustic-qa .room-qa-result{display:grid;gap:10px}}
+
+/* Cloud R2 private album art. Images are short-lived signed GETs, never public objects. */
+.cloud-track-cover{display:block;width:44px;height:44px;min-width:44px;aspect-ratio:1;object-fit:cover;border-radius:11px;background:rgba(175,148,220,.14);border:1px solid var(--edge)}
+.cloud-library .track-row>label.button{cursor:pointer;position:relative;flex:none}
+.cloud-library .track-row .track-main{min-width:120px}
+@media(max-width:760px){.cloud-library .track-row>label.button{flex:1;min-width:125px}.cloud-track-cover{width:39px;height:39px;min-width:39px}}

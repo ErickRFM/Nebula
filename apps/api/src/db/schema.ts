@@ -85,6 +85,7 @@ export const cloudTracks = pgTable('cloud_tracks', {
   album: varchar('album', { length: 200 }).notNull().default('Archivos importados'),
   genre: varchar('genre', { length: 120 }).notNull().default('Mis canciones'),
   sha256: varchar('sha256', { length: 64 }),
+  coverObjectKey: text('cover_object_key'),
   mimeType: varchar('mime_type', { length: 80 }).notNull(),
   byteSize: integer('byte_size').notNull(),
   status: varchar('status', { length: 16 }).notNull().default('pending'),
