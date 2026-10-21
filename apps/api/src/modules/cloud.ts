@@ -70,7 +70,8 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     maxBytes: MAX_CLOUD_AUDIO_BYTES,
   }));
 
-  app.get('/v1/library/cloud', { preHandler: requireAuth }, async (request) => {
+  app.get('/v1/library/cloud', { preHandler: requireAuth }, async (request,reply) => {
+    reply.header('Cache-Control','no-store');
     const items = await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.userId, request.principal!.userId), eq(cloudTracks.status, 'ready')))
       .orderBy(desc(cloudTracks.createdAt)).limit(500);
@@ -80,7 +81,8 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     return { items:items.map(signedCover), pendingItems:pendingItems.map(signedCover), configured: Boolean(readR2Settings()) };
   });
 
-  app.get('/v1/library/cloud/pending',{preHandler:requireAuth},async(request)=>{
+  app.get('/v1/library/cloud/pending',{preHandler:requireAuth},async(request,reply)=>{
+    reply.header('Cache-Control','no-store');
     const pendingItems=await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'pending')))
       .orderBy(desc(cloudTracks.createdAt),desc(cloudTracks.id)).limit(50);
@@ -184,7 +186,7 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
 
   // Artwork is a separate short-lived signed R2 object. The owner can only
   // attach it to a ready track within their own namespace.
-  app.post('/v1/library/cloud/:id/cover-ticket',{preHandler:requireAuth},async(request,reply)=>{
+  app.post('/v1/library/cloud/:id/cover-ticket',{preHandler:requireAuth,config:{rateLimit:{max:30,timeWindow:'1 minute'}}},async(request,reply)=>{
     const settings=readR2Settings();
     if(!settings)return reply.code(503).send({error:'storage_not_configured'});
     const params=idInput.safeParse(request.params);
@@ -219,7 +221,10 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
       return reply.code(422).send({error:'cover_mismatch'});
     await db.update(cloudTracks).set({coverObjectKey:key})
       .where(and(eq(cloudTracks.id,track.id),eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'ready')));
-    if(track.coverObjectKey && track.coverObjectKey!==key)void deleteR2Object(settings,track.coverObjectKey).catch(()=>{});
+    if(track.coverObjectKey && track.coverObjectKey!==key){
+      try{await deleteR2Object(settings,track.coverObjectKey);}
+      catch{app.log.warn({trackId:track.id},'Previous private cover cleanup failed after replacement');}
+    }
     reply.header('Cache-Control','no-store');
     return {coverUrl:presignR2(settings,'GET',key,3600)};
   });
