@@ -50,23 +50,37 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
   const [targetPlaylist,setTargetPlaylist]=useState('');
   const [enabled,setEnabled]=useState<Record<string,boolean>>({});
   const searchAbort=useRef<AbortController|null>(null);
+  const tokenRef=useRef(account.accessToken);
+  tokenRef.current=account.accessToken;
 
-  const loadSaved=useCallback(async()=>{
-    if(!account.accessToken || !apiConfigured) {setSaved([]);return;}
+  const loadSaved=useCallback(async(signal?:AbortSignal)=>{
+    const token=account.accessToken;
+    if(!token || !apiConfigured) {setSaved([]);return;}
     try {
-      const response=await fetch(apiBase+'/v1/library/external',{headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store'});
-      if(response.ok) setSaved((await response.json()).items as SavedTrack[]);
+      const response=await fetch(apiBase+'/v1/library/external',{headers:{Authorization:'Bearer '+token},cache:'no-store',signal});
+      if(response.ok){
+        const data=await response.json();
+        if(!signal?.aborted && tokenRef.current===token)setSaved(Array.isArray(data.items)?data.items:[]);
+      }
     } catch { /* Discovery still works if saved list is temporarily unavailable. */ }
   },[account.accessToken]);
 
-  useEffect(()=>{void loadSaved();},[loadSaved]);
   useEffect(()=>{
-    if(!account.accessToken || !apiConfigured) return;
+    const controller=new AbortController();
+    void loadSaved(controller.signal);
+    return ()=>controller.abort();
+  },[loadSaved]);
+  useEffect(()=>{
+    const token=account.accessToken;
+    if(!token || !apiConfigured){setEnabled({});return;}
+    const controller=new AbortController();
     void fetch(apiBase+'/v1/discovery/providers',{
-      headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',
+      headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal,
     }).then(r=>r.ok?r.json():null).then((data)=>{
-      if(data?.providers) setEnabled(Object.fromEntries((data.providers as {id:string;enabled:boolean}[]).map(x=>[x.id,x.enabled])));
+      if(!controller.signal.aborted&&tokenRef.current===token&&data?.providers)
+        setEnabled(Object.fromEntries((data.providers as {id:string;enabled:boolean}[]).map(x=>[x.id,x.enabled])));
     }).catch(()=>{});
+    return ()=>controller.abort();
   },[account.accessToken]);
 
   async function searchRemote(q:string,nextPage=1) {
