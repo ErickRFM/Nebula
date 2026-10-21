@@ -301,6 +301,10 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       expect(new URL(ticket.json().uploadUrl).searchParams.get('X-Amz-SignedHeaders')).toBe('content-type;host');
       const strangerList = await app.inject({ method: 'GET', url: '/v1/library/cloud', headers: headers(b.token) });
       expect(strangerList.json().items).toEqual([]);
+      expect(strangerList.json().pendingItems).toEqual([]);
+      const pendingMine=await app.inject({method:'GET',url:'/v1/library/cloud',
+        headers:{...headers(a.token),'x-forwarded-for':'198.51.100.74'}});
+      expect(pendingMine.json().pendingItems.some((item:{id:string})=>item.id===id)).toBe(true);
       await pool.query("UPDATE cloud_tracks SET status='ready' WHERE id=$1", [id]);
       const mine = await app.inject({ method: 'GET', url: '/v1/library/cloud', headers: headers(a.token) });
       expect(mine.json().items.some((item: { id: string }) => item.id === id)).toBe(true);
