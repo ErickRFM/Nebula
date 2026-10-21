@@ -237,13 +237,14 @@ export function useLocalAudio(): Player {
       }));
       setTracks(previous=>[...added.map(x=>x.track),...previous]);
       userQueueRef.current=null;
+      // selectTrack clears stale player notices; select before reporting import success.
+      selectTrack(added[0].track);
       setNotice('Guardando tus canciones en este dispositivo…');
       const results=await Promise.allSettled(added.map(item=>saveSong(item.record)));
       const saved=results.filter(result=>result.status==='fulfilled').length;
       setNotice(saved===added.length
         ? added.length+' canción(es) guardadas en este navegador con sus metadatos disponibles.'
         : saved+' de '+added.length+' guardadas; las demás solo estarán disponibles hasta cerrar esta sesión.');
-      selectTrack(added[0].track);
     })().catch(()=>{
       setNotice('No se pudieron procesar algunos archivos. Intenta de nuevo con un lote más pequeño.');
     });
