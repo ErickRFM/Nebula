@@ -460,3 +460,129 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
   .cloud-search .track-row>.button{width:100%}
   .cloud-actions>label.button{width:100%;justify-content:center}
 }
+
+
+/* NÉBULA V2 · Unified matte surfaces, real-first library and accessible controls.
+ * Existing Cosmic Glass components remain canonical; no parallel UI framework. */
+:root{
+ --nebula-surface:rgba(25,28,53,.88);
+ --nebula-raised:rgba(51,47,86,.66);
+ --nebula-ring:#e0bdff;
+ --nebula-radius:18px;
+ --nebula-on-accent:#1d1235;
+}
+.nebula-shell{max-width:1900px;gap:20px}
+.nebula-shell:before{background:radial-gradient(ellipse at 15% 8%,rgba(99,67,154,.25),transparent 42%),radial-gradient(ellipse at 87% 20%,rgba(36,77,132,.20),transparent 45%),linear-gradient(130deg,#0a0c1a,#10152b 56%,#090d1c)}
+.background-orb{opacity:.16;filter:blur(94px)}
+.glass{background:linear-gradient(145deg,rgba(35,36,67,.81),rgba(20,24,49,.78));border:1px solid rgba(204,196,245,.15);box-shadow:0 18px 45px rgba(2,5,18,.24),inset 0 1px 0 rgba(255,255,255,.055);-webkit-backdrop-filter:blur(18px) saturate(115%);backdrop-filter:blur(18px) saturate(115%)}
+.sidebar{gap:19px;padding:24px 17px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#645481 transparent}
+.brand{letter-spacing:.13em}
+.side-links,.side-collection{gap:5px}
+.nav-item{min-height:44px;transition:background .18s ease,color .18s ease}
+.nav-item:not(.selected):hover{background:rgba(165,133,236,.12)}
+.nav-item.selected{background:linear-gradient(100deg,rgba(180,146,248,.25),rgba(66,61,115,.25));box-shadow:inset 3px 0 0 #c5a6ff}
+.sidebar-footer{line-height:1.5}
+.topbar{background:linear-gradient(105deg,rgba(42,40,75,.79),rgba(23,30,61,.79));z-index:8}
+.main-area{max-width:1450px;padding:26px 6px 145px}
+.page-description,.room-form-note,.search-section-note{line-height:1.65}
+.section-heading{min-height:35px;align-items:flex-end}
+.section-heading h2{letter-spacing:-.025em}
+.button{min-height:43px;transition:transform .15s ease,filter .15s ease,background-color .15s ease,box-shadow .15s ease}
+.button:not(:disabled):active,.quick-action:not(:disabled):active{transform:scale(.985)}
+.button.primary{background:linear-gradient(110deg,#c9b0ff,#e2b7ef);color:var(--nebula-on-accent);box-shadow:0 9px 25px rgba(143,113,219,.25)}
+.button.secondary{background:rgba(178,164,233,.095);border-color:rgba(210,193,255,.23)}
+.button.secondary:hover{background:rgba(178,164,233,.18)}
+:where(button,a,input,select,textarea,[role="switch"]):focus-visible{outline:3px solid var(--nebula-ring);outline-offset:3px}
+label.button:has(.file-input:focus-visible){outline:3px solid var(--nebula-ring);outline-offset:4px}
+input,textarea,select{accent-color:#c7a7ff}
+input::placeholder,textarea::placeholder{opacity:1;color:#aba7c6}
+input:disabled,select:disabled,textarea:disabled{cursor:not-allowed;opacity:.58}
+.hero{min-height:286px;padding:clamp(24px,3.5vw,45px);background:radial-gradient(circle at 80% 15%,rgba(179,120,210,.24),transparent 37%),linear-gradient(118deg,rgba(61,42,112,.91),rgba(31,45,81,.89));border:1px solid rgba(218,200,255,.22);overflow:hidden}
+.hero .hero-planet{opacity:.42;right:-10px;top:4px;transform:scale(.9)}
+.hero h1{max-width:610px;margin:12px 0 10px;line-height:1.1}
+.hero p{max-width:485px}
+.hero-copy{max-width:640px}
+.hero-actions{margin-top:19px}
+.quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-top:18px}
+.quick-action{display:flex;align-items:center;gap:12px;min-width:0;min-height:94px;border-radius:18px;padding:16px;text-align:left;color:var(--ink);transition:background .15s ease,transform .15s ease,border-color .15s ease}
+.quick-action:hover{background:linear-gradient(120deg,rgba(87,69,139,.58),rgba(34,43,80,.83));border-color:rgba(208,178,250,.4)}
+.quick-icon{display:grid;place-items:center;flex:none;width:47px;height:47px;border-radius:14px;background:rgba(191,154,254,.14);color:#e1caff}
+.quick-action>span:nth-child(2){flex:1;min-width:0;display:grid;gap:5px}
+.quick-action strong{font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quick-action small{font-size:.73rem;color:#c0bcda;line-height:1.4}
+.quick-action>svg:last-child{flex:none;color:#bca7e8}
+.music-empty{min-height:114px;display:flex;align-items:center;gap:15px;padding:21px;border-radius:19px;color:var(--ink)}
+.music-empty>div{flex:1;min-width:0}
+.music-empty strong{font-size:.95rem}.music-empty p{margin:4px 0 0;color:#b7b6d3;font-size:.79rem}
+.music-empty-icon{display:grid;place-items:center;background:rgba(198,164,254,.12);border:1px solid var(--edge);border-radius:13px;padding:12px;flex:none}
+.music-empty>button{margin-left:auto;flex:none}
+.album-card{background:var(--nebula-surface);padding:10px 10px 14px;transition:transform .17s ease,border-color .17s ease,background .17s ease}
+.album-card:hover{transform:translateY(-2px);border-color:rgba(207,174,255,.42);background:rgba(45,44,80,.83)}
+.album-card .album-cover-wrap{border-radius:11px}
+.track-row{min-width:0;transition:background .15s ease}
+.track-main:focus-visible,.room-entry-main:focus-visible{outline-offset:-3px;border-radius:9px}
+.track-row .track-descriptor{flex:1;min-width:0}
+.track-list{background:rgba(24,26,50,.65);border:1px solid rgba(192,179,230,.13)}
+.track-row:not(:last-child){border-bottom:1px solid rgba(206,189,245,.075)}
+.chip{min-height:36px;transition:background .15s ease}
+.chip:hover:not(.active):not(:disabled){background:rgba(200,166,255,.16)}
+.chip.active{background:#d4b6ff;color:#1d1236}
+.mini-player{background:linear-gradient(112deg,rgba(42,39,75,.98),rgba(21,31,58,.97));border-color:rgba(201,176,251,.26);box-shadow:0 13px 44px #0008}
+.mini-track{overflow:hidden}
+.mini-seek{position:absolute;left:2px;right:2px;bottom:-5px;width:calc(100% - 4px);height:14px;margin:0;opacity:.01;z-index:3;cursor:pointer}
+.mini-seek:focus-visible{opacity:1;bottom:-13px;accent-color:#dbbaff}
+.mini-progress{pointer-events:none;border-radius:0 9px 9px 0}
+.settings-panel,.auth-card,.cloud-actions,.authorized-web-import{border-radius:var(--nebula-radius)}
+.setting-row{min-width:0;gap:15px}
+.setting-row>div{min-width:0}
+.settings-panel .toggle{flex:none}
+.room-hero>div{width:100%;max-width:1050px}
+.rooms-page .room-hero>div>div{background:rgba(17,21,48,.26);border:1px solid rgba(201,183,252,.13);border-radius:15px;padding:13px 16px;margin:12px 0}
+.rooms-page .room-hero input[type="checkbox"]{width:18px;height:18px;flex:none}
+.rooms-page .room-hero select{margin:8px 0 14px}
+.rooms-page .room-hero .disclosure{font-size:.76rem}
+.cloud-library .cloud-actions,.authorized-web-import{gap:13px}
+.explore-card,.room-card,.playlist-entry,.room-entry{transition:border-color .15s ease,background-color .15s ease}
+.explore-card:hover,.playlist-entry:hover{border-color:rgba(216,186,255,.35)}
+html.nebula-high-contrast{--bg:#030307;--ink:#fff;--muted:#dedbeb;--edge:rgba(255,255,255,.38);--glass:#101019;--cyan:#88f5ff;--nebula-ring:#ffe59b}
+html.nebula-high-contrast body{background:#030307}
+html.nebula-high-contrast .nebula-shell:before{background:#030307}
+html.nebula-high-contrast .background-orb{display:none}
+html.nebula-high-contrast .glass,html.nebula-high-contrast .sidebar,html.nebula-high-contrast .topbar,html.nebula-high-contrast .mini-player,html.nebula-high-contrast .track-list{background:#101019;border-color:rgba(255,255,255,.45);box-shadow:none}
+html.nebula-high-contrast .hero{background:#171329;border-color:#e6d4ff}
+html.nebula-high-contrast .hero-planet{opacity:.2}
+html.nebula-high-contrast :is(.nav-item,.page-description,.track-descriptor small,.room-form-note,.search-section-note,.quick-action small,.disclosure,.empty-note){color:#edeafa}
+html.nebula-high-contrast .nav-item.selected{background:#35304e;box-shadow:inset 4px 0 0 #ffe59b}
+html.nebula-high-contrast .chip{border-color:#e8d5ff;color:#fff}
+html.nebula-high-contrast .chip.active{background:#ffe59b;color:#12100e}
+html.nebula-high-contrast .button.primary{background:#ffe59b;color:#12100e}
+html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff}
+@media(max-width:1250px){.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-action:last-child{grid-column:1/-1}}
+@media(max-width:760px){
+ .nebula-shell{padding:0}.main-area{padding:21px 15px 165px}
+ .glass{-webkit-backdrop-filter:blur(11px);backdrop-filter:blur(11px)}
+ .topbar{background:rgba(17,19,39,.97)}
+ .hero{min-height:252px;border-radius:19px;padding:25px 19px}
+ .hero .hero-planet{right:-118px;opacity:.23;transform:scale(.75)}
+ .hero-copy{max-width:100%}.hero h1{max-width:360px;font-size:clamp(1.9rem,8vw,2.7rem)}
+ .hero p{max-width:370px}.hero-actions{gap:8px}
+ .quick-grid{grid-template-columns:1fr;gap:8px;margin-top:12px}
+ .quick-action{min-height:74px;padding:11px 13px}.quick-action:last-child{grid-column:auto}
+ .quick-icon{width:41px;height:41px;border-radius:12px}
+ .music-empty{flex-wrap:wrap;padding:18px}
+ .music-empty>button{margin-left:0;width:100%}
+ .album-grid{gap:10px}
+ .bottom-nav{gap:0;justify-content:space-between;padding-inline:6px;overflow-x:auto;scrollbar-width:none}
+ .bottom-nav button{flex:1 0 54px;min-width:54px;min-height:50px}
+ .mini-player{bottom:calc(73px + env(safe-area-inset-bottom));left:9px;right:9px}
+ .mini-track{max-width:calc(100% - 135px)}.mini-track small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mini-seek{height:15px}
+ .settings-panel,.cloud-actions,.authorized-web-import{min-width:0}
+}
+@media(max-width:410px){.bottom-nav button{font-size:.57rem;min-width:51px}.bottom-nav button svg{width:19px}.hero-actions .button{flex:1}.quick-action small{font-size:.7rem}}
+@media(prefers-contrast:more){:root{--edge:rgba(255,255,255,.33);--muted:#ece7fa} .button.secondary{border-color:#f0e4ff}}
+@media(prefers-reduced-motion:reduce){.album-card,.button,.quick-action,.nav-item,.chip,.track-row{transition:none!important}}
+
+/* Mobile settings remain discoverable after the compact navigation change. */
+.mobile-only{display:none}
+@media(max-width:760px){.mobile-only{display:inline-grid}}
