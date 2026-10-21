@@ -230,7 +230,7 @@ export function useLocalAudio(): Player {
         urlsRef.current.set(id,url);
         const record:SavedSong={
           id,title:tags.title,artist:tags.artist,album:tags.album,genre:tags.genre,
-          duration:'--:--',cover:artwork[index%artwork.length],mimeType:file.type,blob:file,
+          duration:'--:--',cover:tags.coverDataUrl??artwork[index%artwork.length],mimeType:file.type,blob:file,
           createdAt:Date.now()+index,
         };
         return {record,track:songToTrack(record,url)};
