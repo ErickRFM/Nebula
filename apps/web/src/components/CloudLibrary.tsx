@@ -51,8 +51,8 @@ export function CloudLibrary({
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function uploadFiles(files:File[], controller=new AbortController()) {
-    if (!files.length) return;
+  async function uploadFiles(files:File[], controller=new AbortController()):Promise<boolean> {
+    if (!files.length) return false;
     if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return; }
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
@@ -87,9 +87,11 @@ export function CloudLibrary({
         }
       }
       setMessage(uploaded+' canción(es) guardadas en tu nube privada.');
+      return true;
     }catch(failure){
       setError(failure instanceof Error?failure.message:'Error al subir canciones.');
       if(uploaded)setMessage(uploaded+' canción(es) se guardaron correctamente.');
+      return false;
     }finally{
       uploadController.current=null;
       setUploadProgress(null);
@@ -114,8 +116,8 @@ export function CloudLibrary({
     try {
       const file=await retrieveAuthorizedAudio(remoteAudioUrl,controller.signal,pct=>setUploadProgress(pct));
       if(controller.signal.aborted)throw new Error('Carga cancelada.');
-      await uploadFiles([file],controller);
-      setRemoteAudioUrl('');setImportAuthorized(false);
+      const complete=await uploadFiles([file],controller);
+      if(complete){setRemoteAudioUrl('');setImportAuthorized(false);}
     }catch(failure){
       setError(failure instanceof Error?failure.message:'No se pudo importar el audio.');
     }finally{
