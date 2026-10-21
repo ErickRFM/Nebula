@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { nextIndex, previousIndex, type PlaybackState, type RepeatMode } from '@nebula/player-core';
 import { artwork, demoTracks, type Track } from '../lib/catalog';
 import { deleteSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack, type SavedSong } from '../lib/local-library';
+import { readAudioMetadata } from '../lib/audio-metadata';
 
 export type Player = {
   tracks: Track[];
@@ -215,27 +216,37 @@ export function useLocalAudio(): Player {
 
   const importFiles = useCallback((input: FileList | File[] | null) => {
     const selected = input ? Array.from(input) : [];
-    const files = selected.filter((file) => file.type.startsWith('audio/') || /\.(mp3|m4a|wav|ogg|flac|aac|opus)$/i.test(file.name));
+    const files = selected.filter(file=>file.type.startsWith('audio/') || /\.(mp3|m4a|wav|ogg|flac|aac|opus)$/i.test(file.name));
     if (!files.length) { setNotice('Selecciona archivos de audio compatibles (MP3, M4A, WAV, OGG, FLAC, etc.).'); return; }
-    const candidates = files.filter((file) => file.size > 0 && file.size <= MAX_AUDIO_BYTES).slice(0, 50);
+    const candidates = files.filter(file=>file.size>0 && file.size<=MAX_AUDIO_BYTES);
     if (!candidates.length) { setNotice('Los archivos deben ser de audio, no estar vacíos y pesar como máximo 100 MB cada uno.'); return; }
-    const added = candidates.map((file, index): { track: Track; record: SavedSong } => {
-      const id = 'local-' + crypto.randomUUID();
-      const url = URL.createObjectURL(file);
-      urlsRef.current.set(id, url);
-      const record: SavedSong = { id, title:file.name.replace(/\.[^.]+$/, ''), artist:'Mi música local', album:'Archivos importados', genre:'Mis canciones', duration:'--:--', cover:artwork[index % artwork.length], mimeType:file.type, blob:file, createdAt:Date.now()+index };
-      return {record,track:songToTrack(record,url)};
-    });
-    setTracks((previous) => [...added.map((x)=>x.track),...previous]);
-    userQueueRef.current = null;
-    setNotice('Guardando tus canciones en este dispositivo…');
-    void Promise.allSettled(added.map((item)=>saveSong(item.record))).then((results) => {
-      const saved = results.filter((r)=>r.status==='fulfilled').length;
+    if (candidates.length>50) { setNotice('Puedes importar hasta 50 archivos locales por lote. Selecciona menos canciones; no omitiremos archivos sin avisarte.'); return; }
+    setNotice('Leyendo etiquetas de tus canciones…');
+    void (async()=>{
+      const added=await Promise.all(candidates.map(async(file,index):Promise<{track:Track;record:SavedSong}>=>{
+        const tags=await readAudioMetadata(file);
+        const id='local-'+crypto.randomUUID();
+        const url=URL.createObjectURL(file);
+        urlsRef.current.set(id,url);
+        const record:SavedSong={
+          id,title:tags.title,artist:tags.artist,album:tags.album,genre:tags.genre,
+          duration:'--:--',cover:artwork[index%artwork.length],mimeType:file.type,blob:file,
+          createdAt:Date.now()+index,
+        };
+        return {record,track:songToTrack(record,url)};
+      }));
+      setTracks(previous=>[...added.map(x=>x.track),...previous]);
+      userQueueRef.current=null;
+      setNotice('Guardando tus canciones en este dispositivo…');
+      const results=await Promise.allSettled(added.map(item=>saveSong(item.record)));
+      const saved=results.filter(result=>result.status==='fulfilled').length;
       setNotice(saved===added.length
-        ? added.length + ' canción(es) guardadas en este navegador. También funcionan sin internet.'
-        : saved + ' de ' + added.length + ' guardadas; las demás solo estarán disponibles hasta cerrar esta sesión.');
+        ? added.length+' canción(es) guardadas en este navegador con sus metadatos disponibles.'
+        : saved+' de '+added.length+' guardadas; las demás solo estarán disponibles hasta cerrar esta sesión.');
+      selectTrack(added[0].track);
+    })().catch(()=>{
+      setNotice('No se pudieron procesar algunos archivos. Intenta de nuevo con un lote más pequeño.');
     });
-    selectTrack(added[0].track);
   }, [selectTrack]);
 
   const removeLocalTrack = useCallback(async (id: string): Promise<boolean> => {
