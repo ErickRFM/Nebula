@@ -62,6 +62,15 @@ describe('Cloudflare R2 private signed URLs', () => {
     expect(presignR2(settings,'GET',key,300,undefined,now)).not.toBe(signed.href);
   });
 
+  it('signs only private PNG or JPEG artwork objects with the exact content type',()=>{
+    const cover=key.replace('.mp3','.png');
+    const put=new URL(presignR2(settings,'PUT',cover,600,'image/png',new Date('2026-10-16T12:00:00Z')));
+    expect(put.searchParams.get('X-Amz-SignedHeaders')).toBe('content-type;host');
+    expect(new URL(presignR2(settings,'GET',cover,3600)).searchParams.get('X-Amz-Expires')).toBe('3600');
+    expect(()=>presignR2(settings,'PUT',cover,600,'image/svg+xml')).toThrow('invalid_signed_content_type');
+    expect(()=>presignR2(settings,'PUT',cover,600,'image/gif')).toThrow('invalid_signed_content_type');
+  });
+
   it('allows only supported audio filename extensions', () => {
     expect(audioMimeForFilename('Mi canción.MP3')).toBe('audio/mpeg');
     expect(audioMimeForFilename('recording.flac')).toBe('audio/flac');
