@@ -582,3 +582,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 @media(max-width:410px){.bottom-nav button{font-size:.57rem;min-width:51px}.bottom-nav button svg{width:19px}.hero-actions .button{flex:1}.quick-action small{font-size:.7rem}}
 @media(prefers-contrast:more){:root{--edge:rgba(255,255,255,.33);--muted:#ece7fa} .button.secondary{border-color:#f0e4ff}}
 @media(prefers-reduced-motion:reduce){.album-card,.button,.quick-action,.nav-item,.chip,.track-row{transition:none!important}}
+
+/* Mobile settings remain discoverable after the compact navigation change. */
+.mobile-only{display:none}
+@media(max-width:760px){.mobile-only{display:inline-grid}}
