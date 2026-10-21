@@ -78,7 +78,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
        placeholder="Buscar videos musicales en YouTube"/>
      <button className="button secondary small" type="submit" disabled={searching||query.trim().length<2}>{searching?'Buscando…':'Buscar videos'}</button>
-   </form> : !youtubeReady ? <p className="search-source-hint" role="status">{!account.accessToken?"Inicia sesión para consultar YouTube desde NÉBULA.":"YouTube no está habilitado en NÉBULA en este momento. Puedes consultar otros catálogos."}</p> : null}
+   </form> : !youtubeReady ? <p className="search-source-hint">{!account.accessToken?"Inicia sesión para consultar YouTube desde NÉBULA.":"YouTube no está habilitado en NÉBULA en este momento. Puedes consultar otros catálogos."}</p> : null}
    {embedded&&!youtubeReady&&(initialQuery??'').trim().length>=2&&<p className="disclosure">
      <a href={'https://www.youtube.com/results?search_query='+encodeURIComponent((initialQuery??'').trim())}
        target="_blank" rel="noopener noreferrer">Buscar «{(initialQuery??'').trim()}» en la web de YouTube</a>
