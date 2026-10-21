@@ -6,6 +6,7 @@ import type { Track } from '../lib/catalog';
 import { artwork } from '../lib/catalog';
 import { putPrivateAudio } from '../lib/r2-upload';
 import { retrieveAuthorizedAudio } from '../lib/authorized-web-audio';
+import { readAudioMetadata } from '../lib/audio-metadata';
 
 type CloudTrack = {
   id: string; title: string; artist: string; mimeType: string;
@@ -15,6 +16,8 @@ type CloudList = { items: CloudTrack[]; pendingItems?: CloudTrack[]; configured:
 type UploadTicket = { id: string; uploadUrl: string; contentType: string; expiresInSeconds: number };
 
 const MAX_BYTES = 100 * 1024 * 1024;
+// The API permits 20 upload reservations per minute for an authenticated account.
+const MAX_BATCH_FILES = 20;
 const supported = /\.(mp3|m4a|wav|ogg|opus|flac|aac)$/i;
 
 export function CloudLibrary({
@@ -54,18 +57,21 @@ export function CloudLibrary({
   async function uploadFiles(files:File[], controller=new AbortController()):Promise<boolean> {
     if (!files.length) return false;
     if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return false; }
+    if(files.length>MAX_BATCH_FILES){setError('Seleccionaste '+files.length+' archivos. El máximo por lote es '+MAX_BATCH_FILES+' para evitar límites del servidor. Divide la carpeta en varios lotes; no se omitirá ninguna canción silenciosamente.');return false;}
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
     let uploaded=0;
     try{
-      for(const file of files.slice(0,20)){
+      for(const file of files){
         if(controller.signal.aborted)throw new Error('Carga cancelada.');
         if(!supported.test(file.name)||file.size<1||file.size>MAX_BYTES)
           throw new Error('Archivo no compatible: '+file.name+'. Usa MP3, M4A, WAV, OGG, OPUS, FLAC o AAC, máximo 100 MB.');
         setUploadProgress(0);
-        setMessage('Subiendo '+(uploaded+1)+' de '+Math.min(files.length,20)+': '+file.name);
+        setMessage('Subiendo '+(uploaded+1)+' de '+files.length+': '+file.name);
+        const tags=await readAudioMetadata(file);
+        if(controller.signal.aborted)throw new Error('Carga cancelada.');
         const ticket=await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads',{
-          method:'POST',body:JSON.stringify({filename:file.name,size:file.size}),
+          method:'POST',body:JSON.stringify({filename:file.name,size:file.size,title:tags.title,artist:tags.artist}),
         });
         try{
           if(controller.signal.aborted)throw new Error('Carga cancelada.');
@@ -179,13 +185,19 @@ export function CloudLibrary({
       <div className="cloud-actions glass">
         <div>
           <strong>Biblioteca privada</strong>
-          <p>Sube tus propios archivos de audio. Solo tu cuenta puede acceder a ellos.</p>
+          <p>Sube tus canciones o una carpeta (máximo 20 archivos por lote). Leemos etiquetas MP3 en tu dispositivo; el audio va directo al R2 privado.</p>
         </div>
         <label className={'button primary small' + (busy || !configured ? ' cloud-disabled' : '')}>
           <CloudUpload size={17}/> {busy ? 'Subiendo…' : 'Subir a la nube'}
           <input className="file-input" type="file" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac"
             disabled={busy || !configured} onChange={(event) => { void upload(event); }}
             aria-label="Subir canciones privadas a Cloudflare R2"/>
+        </label>
+        <label className={'button secondary small'+(busy || !configured ? ' cloud-disabled' : '')}>
+          Importar carpeta
+          <input className="file-input" type="file" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac"
+            ref={element=>{if(element){element.setAttribute('webkitdirectory','');element.setAttribute('directory','');}}}
+            disabled={busy||!configured} onChange={event=>{void upload(event);}} aria-label="Importar una carpeta de música propia a R2"/>
         </label>
         {busy && <button className="button secondary small" type="button" onClick={()=>uploadController.current?.abort()}>Cancelar carga</button>}
       </div>
