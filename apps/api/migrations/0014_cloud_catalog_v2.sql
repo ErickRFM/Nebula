@@ -4,17 +4,8 @@ ALTER TABLE public.cloud_tracks
   ADD COLUMN IF NOT EXISTS genre varchar(120) NOT NULL DEFAULT 'Mis canciones',
   ADD COLUMN IF NOT EXISTS sha256 varchar(64);
 
-DO $nebula$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname='cloud_tracks_sha256_hex' AND conrelid='public.cloud_tracks'::regclass
-  ) THEN
-    ALTER TABLE public.cloud_tracks
-      ADD CONSTRAINT cloud_tracks_sha256_hex CHECK (sha256 IS NULL OR sha256 ~ '^[0-9a-f]{64}
-
--- Two users may upload the same file. Only identical files belonging to one
--- user must be rejected. Pending uploads also reserve hashes to avoid races.
+-- Zod validates lowercase SHA-256 at the API boundary; uniqueness is
+-- enforced below without a non-idempotent ALTER ADD CONSTRAINT.
 CREATE UNIQUE INDEX IF NOT EXISTS cloud_tracks_owner_sha256_unique
   ON public.cloud_tracks (user_id, sha256) WHERE sha256 IS NOT NULL;
 
