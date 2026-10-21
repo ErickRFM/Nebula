@@ -12,12 +12,45 @@ async function navigate(page: Page, name: string) {
 
 test('navigation and search work', async ({page}) => {
   await page.goto('/');
-  await expect(page.getByText('La música se siente', {exact:false})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/Todo comienza con una canción/})).toBeVisible();
   await navigate(page,'Buscar');
   await expect(page.getByRole('heading',{name:'¿Qué quieres escuchar?'})).toBeVisible();
   await page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'}).fill('Frecuencia');
-  await expect(page.getByText('Frecuencia azul')).toBeVisible();
-  await expect(page.getByText('Ecos de neón')).toHaveCount(0);
+  await expect(page.getByText('No hay coincidencias entre tus archivos locales.',{exact:false})).toBeVisible();
+  await expect(page.getByText('Frecuencia azul')).toHaveCount(0);
+});
+
+test('keyboard search, real albums and accessible contrast settings', async ({page}) => {
+  await page.goto('/');
+  await page.keyboard.press('ControlOrMeta+k');
+  const input=page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'});
+  await expect(input).toBeFocused();
+  await input.fill('Música importada');
+  await expect(page.locator('.search-page')).toBeVisible();
+  const desktop=page.getByRole('navigation',{name:'Navegación principal'});
+  if(await desktop.isVisible()) await navigate(page,'Ajustes');
+  else await page.getByRole('button',{name:'Ajustes',exact:true}).click();
+  const contrast=page.getByRole('switch',{name:'Contraste alto'});
+  await contrast.click();
+  await expect(contrast).toHaveAttribute('aria-checked','true');
+  await expect(page.locator('html')).toHaveClass(/nebula-high-contrast/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/nebula-high-contrast/);
+});
+
+test('personal albums reflect imported music, not illustrative mixes', async ({page}) => {
+  await page.goto('/');
+  await navigate(page,'Biblioteca');
+  await page.getByRole('button',{name:'Álbumes'}).click();
+  await expect(page.locator('.album-grid .album-card')).toHaveCount(0);
+  const pcm=Buffer.alloc(44+8820);
+  pcm.write('RIFF',0);pcm.writeUInt32LE(pcm.length-8,4);pcm.write('WAVE',8);
+  pcm.write('fmt ',12);pcm.writeUInt32LE(16,16);pcm.writeUInt16LE(1,20);
+  pcm.writeUInt16LE(1,22);pcm.writeUInt32LE(44100,24);pcm.writeUInt32LE(88200,28);
+  pcm.writeUInt16LE(2,32);pcm.writeUInt16LE(16,34);pcm.write('data',36);pcm.writeUInt32LE(pcm.length-44,40);
+  await page.locator('input[type=file]').setInputFiles({name:'album-real.wav',mimeType:'audio/wav',buffer:pcm});
+  await expect(page.locator('.album-grid .album-card').filter({hasText:'Archivos importados'})).toBeVisible();
+  await expect(page.getByText('Selecciones de ejemplo')).toHaveCount(0);
 });
 
 test('playlist creation persists after reloading', async ({page}) => {
