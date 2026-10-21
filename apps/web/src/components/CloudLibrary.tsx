@@ -1,10 +1,11 @@
 'use client';
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Cloud, CloudOff, CloudUpload, Download, Play, Trash2 } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
 import { artwork } from '../lib/catalog';
 import { putPrivateAudio } from '../lib/r2-upload';
+import { retrieveAuthorizedAudio } from '../lib/authorized-web-audio';
 
 type CloudTrack = {
   id: string; title: string; artist: string; mimeType: string;
@@ -26,6 +27,8 @@ export function CloudLibrary({
   const [pendingItems,setPendingItems]=useState<CloudTrack[]>([]);
   const [configured, setConfigured] = useState(false);
   const [targetPlaylist, setTargetPlaylist] = useState('');
+  const [remoteAudioUrl,setRemoteAudioUrl]=useState('');
+  const [importAuthorized,setImportAuthorized]=useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress,setUploadProgress]=useState<number|null>(null);
   const uploadController=useRef<AbortController|null>(null);
@@ -48,12 +51,9 @@ export function CloudLibrary({
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function upload(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = '';
+  async function uploadFiles(files:File[], controller=new AbortController()) {
     if (!files.length) return;
     if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return; }
-    const controller=new AbortController();
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
     let uploaded=0;
@@ -95,6 +95,31 @@ export function CloudLibrary({
       setUploadProgress(null);
       await refresh();
       setBusy(false);
+    }
+  }
+
+  async function upload(event: ChangeEvent<HTMLInputElement>) {
+    const files=Array.from(event.target.files??[]);
+    event.target.value='';
+    await uploadFiles(files);
+  }
+
+  async function importFromWeb(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if(busy||!configured||!account.user)return;
+    if(!importAuthorized){setError('Confirma que puedes descargar y guardar este audio.');return;}
+    const controller=new AbortController();
+    uploadController.current=controller;
+    setBusy(true);setUploadProgress(0);setError('');setMessage('Recibiendo el archivo de audio autorizado…');
+    try {
+      const file=await retrieveAuthorizedAudio(remoteAudioUrl,controller.signal,pct=>setUploadProgress(pct));
+      if(controller.signal.aborted)throw new Error('Carga cancelada.');
+      await uploadFiles([file],controller);
+      setRemoteAudioUrl('');setImportAuthorized(false);
+    }catch(failure){
+      setError(failure instanceof Error?failure.message:'No se pudo importar el audio.');
+    }finally{
+      if(uploadController.current===controller){uploadController.current=null;setUploadProgress(null);setBusy(false);}
     }
   }
 
@@ -162,6 +187,24 @@ export function CloudLibrary({
         </label>
         {busy && <button className="button secondary small" type="button" onClick={()=>uploadController.current?.abort()}>Cancelar carga</button>}
       </div>
+      <form className="authorized-web-import glass" onSubmit={event=>{void importFromWeb(event);}}>
+        <div><strong>Importar un archivo de audio desde la web</strong>
+          <p>Pega el enlace HTTPS directo de un MP3, FLAC u otro audio permitido, no la URL de una página, video de YouTube ni un convertidor. La descarga ocurre en tu navegador y la subida en tu R2 privado.</p>
+        </div>
+        <label htmlFor="authorized-audio-url">URL directa del archivo</label>
+        <input id="authorized-audio-url" type="url" required value={remoteAudioUrl}
+          onChange={event=>setRemoteAudioUrl(event.target.value)}
+          placeholder="https://sitio-permitido.example/musica/mi-cancion.mp3" disabled={busy||!configured}
+          aria-describedby="authorized-audio-help"/>
+        <label className="authorized-web-confirm">
+          <input type="checkbox" checked={importAuthorized} onChange={event=>setImportAuthorized(event.target.checked)}
+            disabled={busy||!configured}/>
+          Confirmo que puedo descargar y almacenar este archivo en mi biblioteca privada.
+        </label>
+        <button type="submit" className="button primary small"
+          disabled={busy||!configured||!remoteAudioUrl.trim()||!importAuthorized}>Importar a NÉBULA Cloud</button>
+        <p id="authorized-audio-help" className="disclosure">Máximo 100 MB; la fuente debe permitir CORS. No se evitan protecciones, publicidad ni restricciones del proveedor.</p>
+      </form>
       {busy && <div className="cloud-upload-progress"><progress max={100} value={uploadProgress??0} aria-label="Progreso de carga de música"/><span>{uploadProgress??0}%</span></div>}
       {!configured && !loading && <p className="disclosure">El almacenamiento R2 todavía no está disponible en la API.</p>}
       {loading && <p className="disclosure">Sincronizando tu biblioteca privada…</p>}
