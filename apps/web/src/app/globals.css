@@ -306,3 +306,10 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .cloud-track-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:rgba(160,124,255,.16);color:var(--accent)}
 .cloud-library .disclosure svg{vertical-align:middle;margin-right:5px}
 @media(max-width:720px){.cloud-actions{align-items:flex-start;flex-direction:column}.cloud-actions .button{width:100%;justify-content:center}}
+
+/* Keep long external track names readable without pushing player controls away. */
+.player-title{min-width:0;align-items:flex-start}
+.player-title>div{min-width:0;flex:1}
+.player-title h1{overflow-wrap:anywhere;word-break:normal;font-size:clamp(1.5rem,2.55vw,2.45rem);line-height:1.16;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.side-collection .nav-item{width:100%;text-align:left;font:inherit;border:0;background:transparent;cursor:pointer}
+.side-collection .nav-item:focus-visible{outline:2px solid var(--accent,#bda0ff);outline-offset:2px}
