@@ -24,6 +24,12 @@ function update(path, search, replacement) {
 }
 update(files.rootGradle, "classpath 'com.android.tools.build:gradle:",
   "classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.0'\n        classpath 'com.android.tools.build:gradle:");
+update(files.rootGradle, "com.android.tools.build:gradle:8.7.2",
+  "com.android.tools.build:gradle:8.11.1");
+update(join(android, 'variables.gradle'), "compileSdkVersion = 35", "compileSdkVersion = 36");
+update(join(android, 'gradle/wrapper/gradle-wrapper.properties'),
+  'gradle-8.11.1-', 'gradle-8.13-');
+
 update(files.appGradle, "apply plugin: 'com.android.application'",
   "apply plugin: 'com.android.application'\napply plugin: 'org.jetbrains.kotlin.android'");
 update(files.appGradle, "    implementation project(':capacitor-android')",
