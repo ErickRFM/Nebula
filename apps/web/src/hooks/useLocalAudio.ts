@@ -4,6 +4,7 @@ import { nextIndex, previousIndex, type PlaybackState, type RepeatMode } from '@
 import { artwork, demoTracks, type Track } from '../lib/catalog';
 import { deleteSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack, type SavedSong } from '../lib/local-library';
 import { readAudioMetadata } from '../lib/audio-metadata';
+import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
 
 export type Player = {
   tracks: Track[];
@@ -49,6 +50,7 @@ export function useLocalAudio(): Player {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlsRef = useRef<Map<string, string>>(new Map());
   const nextRef = useRef<() => void>(() => {});
+  const checkpointWriteRef=useRef(0);
   const queueRef = useRef<Track[]>([]);
   const signedTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
   const signedRenewRef = useRef<(()=>void)|null>(null);
@@ -84,6 +86,27 @@ export function useLocalAudio(): Player {
         return songToTrack(song,url);
       });
       setTracks((previous) => [...playable, ...previous.filter((t)=>!t.audioUrl || !playable.some((p)=>p.id===t.id))]);
+      const checkpoint=readCheckpoint(localStorage);
+      const resume=checkpoint && playable.find(t=>t.id===checkpoint.trackId);
+      if(resume?.audioUrl){
+        const queue=checkpoint.queueIds.map(id=>playable.find(t=>t.id===id)).filter((t):t is Track=>Boolean(t));
+        userQueueRef.current=queue.length?queue:null;
+        currentRef.current=resume.id;
+        setCurrentId(resume.id);
+        setTime(checkpoint.time);
+        setState('paused');
+        const audio=audioRef.current;
+        if(audio){
+          audio.pause();
+          audio.src=resume.audioUrl;
+          audio.addEventListener('loadedmetadata',()=>{
+            if(currentRef.current!==resume.id)return;
+            try{audio.currentTime=Math.min(checkpoint.time,Math.max(0,audio.duration-0.1));}
+            catch{/* Safari may reject seeks before enough data is loaded */}
+          },{once:true});
+          audio.load();
+        }
+      }
       setLoadingLibrary(false);
     }).catch(() => {
       if (active) { setLoadingLibrary(false); setNotice('Tu navegador no permite abrir la biblioteca guardada. Puedes reproducir archivos durante esta sesión.'); }
@@ -96,8 +119,19 @@ export function useLocalAudio(): Player {
     audio.preload = 'metadata';
     audio.volume = volume;
     audioRef.current = audio;
+    const persist=()=>{
+      const id=currentRef.current;
+      if(!id?.startsWith('local-'))return;
+      saveCheckpoint(localStorage,{
+        trackId:id,time:audio.currentTime||0,
+        queueIds:queueRef.current.filter(t=>t.id.startsWith('local-')).map(t=>t.id),
+        savedAt:Date.now(),
+      });
+      checkpointWriteRef.current=Date.now();
+    };
     const onTime = () => {
       setTime(audio.currentTime || 0);
+      if(Date.now()-checkpointWriteRef.current>5000)persist();
       if ('mediaSession' in navigator && audio.duration && Number.isFinite(audio.duration)) {
         try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate, position: audio.currentTime }); }
         catch { /* Some browsers do not support position state for the current asset. */ }
@@ -105,7 +139,7 @@ export function useLocalAudio(): Player {
     };
     const onDuration = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
     const onPlay = () => { setState('playing'); setNotice(''); };
-    const onPause = () => setState((old) => old === 'ended' || old === 'error' ? old : 'paused');
+    const onPause = () => {persist();setState((old) => old === 'ended' || old === 'error' ? old : 'paused');};
     const onWaiting = () => setState('buffering');
     const onError = () => {
       // Signed R2 URLs may expire while the listener is mounted. A private
