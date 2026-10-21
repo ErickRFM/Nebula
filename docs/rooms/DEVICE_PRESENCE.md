@@ -12,7 +12,7 @@ A device has a browser-generated random UUID scoped to an account. Room membersh
 
 ## Deployment prerequisites
 
-Run `npm run db:migrate` with the project's authorized database connection before releasing the new endpoints. Migration `0008_room_devices.sql` is additive; there is no new database. CI integration tests use `NEBULA_TEST_DATABASE_URL`.
+Run `npm run db:migrate` with the project's authorized database connection before releasing the new endpoints. Migration `0010_room_devices.sql` is additive; there is no new database. CI integration tests use `NEBULA_TEST_DATABASE_URL`.
 
 ## Non-goals of this change
 
