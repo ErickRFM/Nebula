@@ -45,4 +45,30 @@ describe('client-only audio tags',()=>{
     expect(await readAudioMetadata(malformed)).toMatchObject({title:'Tema',artist:'Grupo'});
     expect(await readAudioMetadata(named('Track.flac',[new Uint8Array(10)]))).toMatchObject({title:'Track'});
   });
+  it('reads FLAC Vorbis comments as album artist and title',async()=>{
+    const encode=new TextEncoder();
+    const u32=(value:number)=>new Uint8Array([value&255,(value>>8)&255,(value>>16)&255,(value>>24)&255]);
+    const comments=['TITLE=Un cielo azul','ARTIST=Grupo del Río','ALBUM=Mi álbum','GENRE=Rock'];
+    const payload:Uint8Array[]=[u32(0),u32(comments.length)];
+    for(const tag of comments){const bytes=encode.encode(tag);payload.push(u32(bytes.length),bytes);}
+    const length=payload.reduce((sum,x)=>sum+x.length,0);
+    const header=new Uint8Array([102,76,97,67,0x84,(length>>16)&255,(length>>8)&255,length&255]);
+    const tags=await readAudioMetadata(named('fallback.flac',[header,...payload].map(part=>Uint8Array.from(part).buffer as ArrayBuffer)));
+    expect(tags).toMatchObject({title:'Un cielo azul',artist:'Grupo del Río',album:'Mi álbum',genre:'Rock'});
+  });
+  it('reads small M4A iTunes atoms without decoding the audio track',async()=>{
+    const enc=new TextEncoder();
+    const be=(value:number)=>new Uint8Array([(value>>>24)&255,(value>>>16)&255,(value>>>8)&255,value&255]);
+    const atom=(label:string,payload:Uint8Array):Uint8Array=>{
+      const result=new Uint8Array(8+payload.length);
+      result.set(be(result.length));result.set(new Uint8Array([...label].map(c=>c.charCodeAt(0)&255)),4);
+      result.set(payload,8);return result;
+    };
+    const data=atom('data',new Uint8Array([0,0,0,1,0,0,0,0,...enc.encode('Noche de Luna')]));
+    const name=atom(String.fromCharCode(169)+'nam',data);
+    const container=atom('moov',atom('udta',atom('meta',new Uint8Array([0,0,0,0,...atom('ilst',name)]))));
+    const tags=await readAudioMetadata(named('fallback.m4a',[Uint8Array.from(container).buffer as ArrayBuffer]));
+    expect(tags.title).toBe('Noche de Luna');
+  });
+
 });

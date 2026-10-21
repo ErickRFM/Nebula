@@ -393,6 +393,52 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(missing.json().error).toBe('missing_client_header');
   });
 
+  it('searches a large owner-scoped cloud library with collision-safe cursors and private hashes', async()=>{
+    const a=await register('cloud-search-a','198.51.100.199');
+    const b=await register('cloud-search-b','198.51.100.200');
+    const ownerId=(await pool.query<{id:string}>('SELECT id FROM users WHERE email=$1',[a.email])).rows[0].id;
+    const outsiderId=(await pool.query<{id:string}>('SELECT id FROM users WHERE email=$1',[b.email])).rows[0].id;
+    const ids=Array.from({length:4},()=>randomUUID());
+    for(let i=0;i<4;i++){
+      await pool.query(`INSERT INTO cloud_tracks(id,user_id,object_key,title,artist,album,genre,mime_type,byte_size,status,sha256,created_at)
+        VALUES ($1,$2,$3,$4,'Artista Único','Álbum Real','Indie','audio/mpeg',128,'ready',$5,'2026-10-20T12:00:00Z')`,
+        [ids[i],ownerId,'users/'+ownerId+'/'+ids[i]+'.mp3','Canción Nebulosa '+i,String(i).padStart(64,'a')]);
+    }
+    await pool.query(`INSERT INTO cloud_tracks(id,user_id,object_key,title,artist,album,genre,mime_type,byte_size,status)
+      VALUES ($1,$2,$3,'Canción Nebulosa ajena','Artista','Álbum','Pop','audio/mpeg',128,'ready')`,
+      [randomUUID(),outsiderId,'users/'+outsiderId+'/outside.mp3']);
+    const auth={authorization:'Bearer '+a.token};
+    const unauthorized=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=nebulo'});
+    expect(unauthorized.statusCode).toBe(401);
+    const first=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=cancion&limit=2',headers:auth});
+    expect(first.statusCode).toBe(200);
+    expect(first.json().items).toHaveLength(2);
+    expect(first.json().hasMore).toBe(true);
+    expect(first.json().items[0].album).toBe('Álbum Real');
+    const cursor=first.json().nextCursor as string;
+    const second=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=cancion&limit=2&cursor='+encodeURIComponent(cursor),headers:auth});
+    expect(second.statusCode).toBe(200);
+    expect(second.json().items).toHaveLength(2);
+    expect(second.json().hasMore).toBe(false);
+    const results=[...first.json().items,...second.json().items].map((row:{id:string})=>row.id);
+    expect(new Set(results).size).toBe(4);
+    expect(results.sort()).toEqual(ids.sort());
+    const invalid=await app.inject({method:'GET',url:'/v1/library/cloud/search?limit=2&cursor=invalid',headers:auth});
+    expect(invalid.statusCode).toBe(400);
+    const wild=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=%25',headers:auth});
+    expect(wild.statusCode).toBe(400);
+    const forbidden=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=Nebulosa',headers:{authorization:'Bearer '+b.token}});
+    expect(forbidden.json().items).toHaveLength(1); // only the other account's song
+    await expect(pool.query(`INSERT INTO cloud_tracks(id,user_id,object_key,title,artist,mime_type,byte_size,status,sha256)
+      VALUES ($1,$2,$3,'Duplicate','Artista','audio/mpeg',128,'pending',$4)`,
+      [randomUUID(),ownerId,'users/'+ownerId+'/dup.mp3',String(0).padStart(64,'a')])).rejects.toMatchObject({code:'23505'});
+    // The same digest in another account must be permitted.
+    const guestId=randomUUID();
+    await pool.query(`INSERT INTO cloud_tracks(id,user_id,object_key,title,artist,mime_type,byte_size,status,sha256)
+      VALUES ($1,$2,$3,'Same bytes','Artista','audio/mpeg',128,'ready',$4)`,
+      [guestId,outsiderId,'users/'+outsiderId+'/'+guestId+'.mp3',String(0).padStart(64,'a')]);
+  });
+
   it('logs out and revokes the session access token', async () => {
     const logout = await app.inject({ method: 'POST', url: '/v1/auth/logout', headers: { authorization: 'Bearer ' + memberToken, 'x-nebula-client': 'test' } });
     expect(logout.statusCode).toBe(204);

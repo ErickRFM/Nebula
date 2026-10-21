@@ -1,18 +1,20 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Cloud, CloudOff, CloudUpload, Download, Play, Trash2 } from 'lucide-react';
-import type { AccountApi } from '../hooks/useAccount';
+import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
 import { artwork } from '../lib/catalog';
 import { putPrivateAudio } from '../lib/r2-upload';
 import { retrieveAuthorizedAudio } from '../lib/authorized-web-audio';
 import { readAudioMetadata } from '../lib/audio-metadata';
+import { hashAudioFile } from '../lib/audio-hash';
 
 type CloudTrack = {
-  id: string; title: string; artist: string; mimeType: string;
+  id: string; title: string; artist: string; album?:string; genre?:string; mimeType: string;
   byteSize: number; createdAt: string;
 };
-type CloudList = { items: CloudTrack[]; pendingItems?: CloudTrack[]; configured: boolean };
+type CloudList = { pendingItems: CloudTrack[]; configured: boolean };
+type CloudSearchPage={items:CloudTrack[];nextCursor:string|null;hasMore:boolean};
 type UploadTicket = { id: string; uploadUrl: string; contentType: string; expiresInSeconds: number };
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -27,6 +29,8 @@ export function CloudLibrary({
   onPlay: (track: Track) => void;
 }) {
   const [items, setItems] = useState<CloudTrack[]>([]);
+  const [nextCursor,setNextCursor]=useState<string|null>(null);
+  const [moreBusy,setMoreBusy]=useState(false);
   const [pendingItems,setPendingItems]=useState<CloudTrack[]>([]);
   const [configured, setConfigured] = useState(false);
   const [targetPlaylist, setTargetPlaylist] = useState('');
@@ -40,11 +44,15 @@ export function CloudLibrary({
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
-    if (!account.user) { setItems([]); setPendingItems([]); setConfigured(false); return; }
+    if (!account.user) { setItems([]); setNextCursor(null); setPendingItems([]); setConfigured(false); return; }
     setLoading(true);
     try {
-      const result = await account.cloudRequest<CloudList>('/v1/library/cloud');
-      setItems(result.items);
+      const [result,page]=await Promise.all([
+        account.cloudRequest<CloudList>('/v1/library/cloud/pending'),
+        account.cloudRequest<CloudSearchPage>('/v1/library/cloud/search?limit=50'),
+      ]);
+      setItems(page.items);
+      setNextCursor(page.nextCursor);
       setPendingItems(result.pendingItems??[]);
       setConfigured(result.configured);
     } catch (failure) {
@@ -53,6 +61,20 @@ export function CloudLibrary({
   }, [account.user?.id, account.cloudRequest]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  async function loadMore(){
+    if(!nextCursor||loading||moreBusy)return;
+    setMoreBusy(true);setError('');
+    try{
+      const page=await account.cloudRequest<CloudSearchPage>('/v1/library/cloud/search?limit=50&cursor='+encodeURIComponent(nextCursor));
+      setItems(current=>{
+        const existing=new Set(current.map(item=>item.id));
+        return [...current,...page.items.filter(item=>!existing.has(item.id))];
+      });
+      setNextCursor(page.nextCursor);
+    }catch(failure){setError(failure instanceof Error?failure.message:'No se pudieron cargar más canciones.');}
+    finally{setMoreBusy(false);}
+  }
+
 
   async function uploadFiles(files:File[], controller=new AbortController()):Promise<boolean> {
     if (!files.length) return false;
@@ -61,6 +83,7 @@ export function CloudLibrary({
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
     let uploaded=0;
+    let duplicates=0;
     try{
       for(const file of files){
         if(controller.signal.aborted)throw new Error('Carga cancelada.');
@@ -69,10 +92,22 @@ export function CloudLibrary({
         setUploadProgress(0);
         setMessage('Subiendo '+(uploaded+1)+' de '+files.length+': '+file.name);
         const tags=await readAudioMetadata(file);
+        setMessage('Calculando huella SHA-256 para evitar duplicados: '+file.name);
+        const sha256=await hashAudioFile(file,controller.signal);
         if(controller.signal.aborted)throw new Error('Carga cancelada.');
-        const ticket=await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads',{
-          method:'POST',body:JSON.stringify({filename:file.name,size:file.size,title:tags.title,artist:tags.artist}),
-        });
+        let ticket:UploadTicket;
+        try{
+          ticket=await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads',{
+            method:'POST',body:JSON.stringify({filename:file.name,size:file.size,title:tags.title,artist:tags.artist,album:tags.album,genre:tags.genre,sha256}),
+          });
+        }catch(failure){
+          if(failure instanceof ApiRequestError && failure.status===409){
+            duplicates++;
+            setMessage(file.name+' ya estaba en tu nube; omitiendo duplicado ('+duplicates+').');
+            continue;
+          }
+          throw failure;
+        }
         try{
           if(controller.signal.aborted)throw new Error('Carga cancelada.');
           await putPrivateAudio(ticket.uploadUrl,ticket.contentType,file,controller.signal,setUploadProgress);
@@ -92,11 +127,11 @@ export function CloudLibrary({
           throw failure;
         }
       }
-      setMessage(uploaded+' canción(es) guardadas en tu nube privada.');
+      setMessage(uploaded+' canción(es) nuevas en tu nube; '+duplicates+' duplicado(s) omitidos.');
       return true;
     }catch(failure){
       setError(failure instanceof Error?failure.message:'Error al subir canciones.');
-      if(uploaded)setMessage(uploaded+' canción(es) se guardaron correctamente.');
+      if(uploaded||duplicates)setMessage(uploaded+' canción(es) nuevas; '+duplicates+' duplicado(s) detectados antes del error.');
       return false;
     }finally{
       uploadController.current=null;
@@ -134,17 +169,19 @@ export function CloudLibrary({
   async function play(item: CloudTrack) {
     setError('');
     try {
-      const result = await account.cloudRequest<{ url: string }>('/v1/library/cloud/' + encodeURIComponent(item.id) + '/play');
+      const result = await account.cloudRequest<{ url: string; expiresInSeconds:number }>('/v1/library/cloud/' + encodeURIComponent(item.id) + '/play');
       onPlay({
         id: 'cloud-' + item.id,
         title: item.title,
         artist: item.artist,
-        album: 'NÉBULA Cloud',
-        genre: 'Mi música',
+        album: item.album||'NÉBULA Cloud',
+        genre: item.genre||'Mi música',
         cover: artwork[0],
         duration: '--:--',
         audioUrl: result.url,
         source: 'external',
+        signedAudioExpiresInSeconds:result.expiresInSeconds,
+        renewAudioUrl:()=>account.cloudRequest<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play'),
       });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo reproducir la canción.');
@@ -177,7 +214,7 @@ export function CloudLibrary({
   return <section className="content-section cloud-library">
     <div className="section-heading">
       <h2><Cloud size={21}/> Mi música en la nube</h2>
-      <span className="server-pill">{items.length} canciones · Cloudflare R2</span>
+      <span className="server-pill">{items.length}{nextCursor?'+':''} canciones · Cloudflare R2</span>
     </div>
     {!account.configured || !account.user ? <div className="disclosure">
       <CloudOff size={18}/> Inicia sesión en Cuenta para guardar y escuchar tus canciones desde cualquier dispositivo.
@@ -233,7 +270,7 @@ export function CloudLibrary({
               <span className="cloud-track-icon"><Play size={17}/></span>
               <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {(item.byteSize / 1048576).toFixed(1)} MB</small></span>
             </button>
-            <span className="track-album">NÉBULA Cloud</span>
+            <span className="track-album">{item.album||'NÉBULA Cloud'}</span>
             <button type="button" className="button small" disabled={busy} aria-pressed={account.accountFavorites.some(f=>f.cloudTrackId===item.id)} onClick={()=>{void account.toggleAccountFavorite('cloud',item.id).then(ok=>{if(ok)setMessage('Favoritos de cuenta actualizados.');else setError('No se pudo guardar el favorito.');});}}>{account.accountFavorites.some(f=>f.cloudTrackId===item.id)?'♥ Favorito':'♡ Favorito'}</button>
             {account.serverPlaylists.length>0 && <button type="button" className="button small" disabled={busy || !targetPlaylist} onClick={()=>{void account.addAccountPlaylistItem(targetPlaylist,'cloud',item.id).then((ok)=>{if(ok)setMessage('Canción añadida a la playlist de tu cuenta.');else setError('No fue posible añadir esta canción a la playlist.');});}}>Añadir a lista</button>}
             <button type="button" className="button secondary small" disabled={busy} aria-label={'Descargar '+item.title+' de mi nube'} onClick={()=>{void download(item);}}><Download size={15}/> Descargar</button>
@@ -243,7 +280,8 @@ export function CloudLibrary({
             </button>
           </div>)}
       </div>
-      <p className="disclosure">La música se almacena en un bucket privado. Los enlaces de reproducción expiran automáticamente.</p>
+      {nextCursor&&<button type="button" className="button secondary small" disabled={loading||moreBusy||busy} onClick={()=>{void loadMore();}}>{moreBusy?'Cargando…':'Mostrar más canciones'}</button>}
+      <p className="disclosure">La música se almacena en un bucket privado. Los enlaces de reproducción expiran automáticamente y se renuevan para la pista activa.</p>
     </>}
   </section>;
 }

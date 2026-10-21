@@ -3,6 +3,9 @@ export type Track = {
   cover: string; duration: string; audioUrl?: string;
   /** Temporary external player entry; never persisted to IndexedDB. */
   source?: 'external';
+  /** Transient token-scoped resolver for the user's own R2 track; never stored. */
+  renewAudioUrl?: () => Promise<{url:string;expiresInSeconds:number}>;
+  signedAudioExpiresInSeconds?:number;
 };
 export const artwork = ['/art/orbita.svg','/art/frecuencia.svg','/art/neon.svg','/art/aurora.svg','/art/nocturno.svg','/art/estelar.svg'];
 export const demoTracks: Track[] = [
