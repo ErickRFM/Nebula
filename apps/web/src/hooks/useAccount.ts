@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type Role = 'owner' | 'member';
 export type AccountUser = { id: string; email: string; role?: Role };
@@ -77,6 +77,9 @@ export function useAccount() {
   // The access token stays in memory only. The refresh token lives in an HttpOnly cookie
   // and is never readable from JavaScript.
   const [accessToken,setAccessToken]=useState<string|null>(null);
+  // Prevent late HTTP responses from one account from populating a different session.
+  const accessTokenRef=useRef<string|null>(null);
+  accessTokenRef.current=accessToken;
   const [busy,setBusy]=useState(false);
   const [restoring,setRestoring]=useState(true);
   const [registrationOpen,setRegistrationOpen]=useState(false);
@@ -101,7 +104,7 @@ export function useAccount() {
     (async()=>{
       try {
         const data=await requestJson<{accessToken:string}>('/v1/auth/refresh',{method:'POST',body:'{}'});
-        if(!cancelled && data.accessToken) setAccessToken(data.accessToken);
+        if(!cancelled && data.accessToken) {accessTokenRef.current=data.accessToken;setAccessToken(data.accessToken);}
       } catch { /* no active session */ }
       finally { if(!cancelled) setRestoring(false); }
     })();
@@ -124,16 +127,15 @@ export function useAccount() {
     setPlaylistsBusy(true);
     try {
       const data=await requestJson<{items:ServerPlaylist[]}>('/v1/playlists',{},token);
-      setServerPlaylists(data.items);
-      setError('');
-    } catch(err) {setError(err instanceof Error?err.message:'No se pudo obtener la biblioteca de cuenta.');}
-    finally {setPlaylistsBusy(false);}
+      if(accessTokenRef.current===token){setServerPlaylists(data.items);setError('');}
+    } catch(err) {if(accessTokenRef.current===token)setError(err instanceof Error?err.message:'No se pudo obtener la biblioteca de cuenta.');}
+    finally {if(accessTokenRef.current===token)setPlaylistsBusy(false);}
   },[]);
 
   const loadSessions=useCallback(async (token:string)=>{
     try {
       const data=await requestJson<{items:AccountSession[]}>('/v1/auth/sessions',{},token);
-      setSessions(data.items);
+      if(accessTokenRef.current===token)setSessions(data.items);
     } catch { /* sessions are best-effort */ }
   },[]);
 
@@ -149,6 +151,7 @@ export function useAccount() {
         method:'POST',body:JSON.stringify({email:email.trim().toLowerCase(),password}),
       });
       if(!data.accessToken||!data.user?.id) throw new Error('El servidor devolvió una respuesta de sesión inválida.');
+      accessTokenRef.current=data.accessToken;
       setAccessToken(data.accessToken);
       setUser(data.user);
       return true;
@@ -163,7 +166,7 @@ export function useAccount() {
         method:'POST',body:JSON.stringify({token:token.trim(),email:email.trim().toLowerCase(),password}),
       });
       if(!data.accessToken||!data.user?.id) throw new Error('La invitación devolvió una sesión inválida.');
-      setAccessToken(data.accessToken);setUser(data.user);
+      accessTokenRef.current=data.accessToken;setAccessToken(data.accessToken);setUser(data.user);
       return true;
     } catch(err) {setError(err instanceof Error?err.message:'No se pudo aceptar la invitación.');return false;}
     finally {setBusy(false);}
@@ -172,7 +175,8 @@ export function useAccount() {
   const logout=useCallback(async()=>{
     try { await requestJson<unknown>('/v1/auth/logout',{method:'POST'},accessToken ?? undefined); }
     catch { /* clear locally even if the server is unreachable */ }
-    setAccessToken(null);setUser(null);setServerPlaylists([]);setSessions([]);setError('');
+    accessTokenRef.current=null;
+    setAccessToken(null);setUser(null);setServerPlaylists([]);setAccountFavorites([]);setSessions([]);setError('');
   },[accessToken]);
 
   const revokeSession=useCallback(async (id:string):Promise<boolean>=>{
@@ -200,7 +204,7 @@ export function useAccount() {
     setPlaylistsBusy(true);setError('');
     try {
       const data=await requestJson<{playlist:ServerPlaylist}>('/v1/playlists',{method:'POST',body:JSON.stringify({name})},accessToken);
-      setServerPlaylists((current)=>[data.playlist,...current]);
+      if(accessTokenRef.current===accessToken)setServerPlaylists((current)=>[data.playlist,...current]);
       return true;
     } catch(err) {setError(err instanceof Error?err.message:'No se pudo crear la playlist.');return false;}
     finally {setPlaylistsBusy(false);}
@@ -211,7 +215,7 @@ export function useAccount() {
     setPlaylistsBusy(true);setError('');
     try {
       await requestJson<unknown>('/v1/playlists/'+encodeURIComponent(id),{method:'DELETE'},accessToken);
-      setServerPlaylists((current)=>current.filter((item)=>item.id!==id));
+      if(accessTokenRef.current===accessToken)setServerPlaylists((current)=>current.filter((item)=>item.id!==id));
       return true;
     } catch(err) {setError(err instanceof Error?err.message:'No se pudo eliminar la playlist.');return false;}
     finally {setPlaylistsBusy(false);}
@@ -237,7 +241,7 @@ export function useAccount() {
 
   const refreshAccountFavorites=useCallback(async(token:string)=>{
     const response=await requestJson<{items:AccountFavorite[]}>('/v1/library/favorites',{},token);
-    setAccountFavorites(response.items);
+    if(accessTokenRef.current===token)setAccountFavorites(response.items);
   },[]);
   useEffect(()=>{
     if(!accessToken){setAccountFavorites([]);return;}
