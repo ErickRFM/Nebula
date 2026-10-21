@@ -1,4 +1,4 @@
-export type AudioProviderId = 'jamendo' | 'openverse' | 'audius';
+export type AudioProviderId = 'jamendo' | 'openverse' | 'audius' | 'internetarchive';
 
 export interface ExternalTrack {
   id: string;

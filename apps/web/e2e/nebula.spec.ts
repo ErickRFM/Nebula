@@ -105,6 +105,7 @@ test('private explorer saves a real provider reference, not an audio file',async
   await page.getByRole('button',{name:'Crear mi cuenta'}).click();
   await expect(page.getByText('Sesión activa')).toBeVisible();
   await navigate(page,'Explorar');
+  await expect(page.getByRole('button',{name:'Internet Archive'})).toBeVisible();
   await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('noche');
   await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
   await expect(page.getByText('Noche de prueba')).toBeVisible();

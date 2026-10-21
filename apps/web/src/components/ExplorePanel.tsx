@@ -6,7 +6,7 @@ import type { AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
 import { MetadataLookup } from './MetadataLookup';
 
-type Provider = 'all'|'jamendo'|'openverse'|'audius';
+type Provider = 'all'|'jamendo'|'openverse'|'audius'|'internetarchive';
 interface RemoteTrack {
   id:string;provider:Exclude<Provider,'all'>;externalId:string;
   title:string;artist:string;album:string|null;durationSeconds:number|null;
@@ -22,6 +22,7 @@ const apiConfigured=Boolean(apiBase) || process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_
 const providerNames:{id:Provider;label:string}[]=[
   {id:'all',label:'Todas'}, {id:'jamendo',label:'Jamendo'},
   {id:'openverse',label:'Openverse'}, {id:'audius',label:'Audius'},
+  {id:'internetarchive',label:'Internet Archive'},
 ];
 const keyOf=(item:SavedTrack)=>item.provider+':'+item.externalId;
 const isSafe=(url:string|null):url is string=>{
@@ -171,7 +172,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
       </button>)}</div>
       {notice && <p className="explore-notice" role="status">{notice}</p>}
       {failed.length>0 && <p className="explore-notice">Algunas fuentes no respondieron: {failed.join(', ')}.</p>}
-      {!embedded && !searched && <div className="explore-empty glass"><Headphones size={33}/><strong>Empieza por una búsqueda</strong><span>Jamendo, Openverse y Audius, según disponibilidad.</span></div>}
+      {!embedded && !searched && <div className="explore-empty glass"><Headphones size={33}/><strong>Empieza por una búsqueda</strong><span>Jamendo, Openverse, Audius e Internet Archive, según disponibilidad.</span></div>}
       {searched && !busy && tracks.length===0 && <div className="explore-empty glass">No encontramos canciones. Prueba otro término o proveedor.</div>}
       <div className="explore-grid">{tracks.map(item=>{
         const id=keyOf(item);
