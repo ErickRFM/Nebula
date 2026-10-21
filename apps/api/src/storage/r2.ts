@@ -8,6 +8,7 @@ export type R2Settings = {
 };
 
 export const MAX_CLOUD_AUDIO_BYTES = 100 * 1024 * 1024;
+export const MAX_CLOUD_ARTWORK_BYTES = 256 * 1024;
 
 export function readR2Settings(env: NodeJS.ProcessEnv = process.env): R2Settings | null {
   const accountId = env.R2_ACCOUNT_ID?.trim() ?? '';
@@ -46,7 +47,7 @@ export function presignR2(
   if (expiresSeconds < 1 || expiresSeconds > 3600 || !Number.isInteger(expiresSeconds)) {
     throw new Error('invalid_presign_ttl');
   }
-  if (!/^audio\/[a-z0-9.+-]+$/.test(contentType ?? 'audio/mpeg') || (method !== 'PUT' && contentType)) {
+  if (!/^(?:audio\/[a-z0-9.+-]+|image\/(?:jpeg|png))$/.test(contentType ?? 'audio/mpeg') || (method !== 'PUT' && contentType)) {
     throw new Error('invalid_signed_content_type');
   }
   if (downloadFilename && (method !== 'GET' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,159}$/.test(downloadFilename))) {
