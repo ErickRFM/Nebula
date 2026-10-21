@@ -88,7 +88,7 @@ export function useLocalAudio(): Player {
       setTracks((previous) => [...playable, ...previous.filter((t)=>!t.audioUrl || !playable.some((p)=>p.id===t.id))]);
       const checkpoint=readCheckpoint(localStorage);
       const resume=checkpoint && playable.find(t=>t.id===checkpoint.trackId);
-      if(resume?.audioUrl){
+      if(checkpoint && resume?.audioUrl){
         const queue=checkpoint.queueIds.map(id=>playable.find(t=>t.id===id)).filter((t):t is Track=>Boolean(t));
         userQueueRef.current=queue.length?queue:null;
         currentRef.current=resume.id;
