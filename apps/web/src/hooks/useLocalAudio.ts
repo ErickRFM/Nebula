@@ -100,10 +100,13 @@ export function useLocalAudio(): Player {
       }
     };
     const onDuration = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    const onPlay = () => setState('playing');
-    const onPause = () => setState((old) => old === 'ended' ? old : 'paused');
+    const onPlay = () => { setState('playing'); setNotice(''); };
+    const onPause = () => setState((old) => old === 'ended' || old === 'error' ? old : 'paused');
     const onWaiting = () => setState('buffering');
-    const onError = () => { setState('error'); setNotice('No se pudo reproducir este archivo. Revisa su formato.'); };
+    const onError = () => {
+      setState('error');
+      setNotice('El navegador no pudo cargar el audio. La fuente puede estar caída, bloqueada o usar un formato incompatible. Prueba otra pista.');
+    };
     const onEnded = () => { setState('ended'); nextRef.current(); };
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('durationchange', onDuration);
@@ -145,9 +148,16 @@ export function useLocalAudio(): Player {
     audio.pause();
     audio.src = track.audioUrl;
     audio.load();
-    void audio.play().catch(() => {
-      setState('paused');
-      setNotice('Pulsa reproducir para iniciar el audio o comprueba la compatibilidad del archivo.');
+    void audio.play().catch((error: unknown) => {
+      if (audioRef.current !== audio || audio.src !== track.audioUrl) return;
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        setState('paused');
+        setNotice('El navegador bloqueó el inicio automático. Pulsa Reproducir para escuchar.');
+        return;
+      }
+      setState('error');
+      setNotice('No fue posible iniciar esta pista. Comprueba la disponibilidad del audio o intenta con otra.');
     });
   }, []);
 

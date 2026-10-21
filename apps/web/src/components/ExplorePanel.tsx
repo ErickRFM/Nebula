@@ -115,7 +115,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
       genre:item.provider,duration:item.durationSeconds?Math.floor(item.durationSeconds/60)+':'+String(item.durationSeconds%60).padStart(2,'0'):'--:--',
       audioUrl:item.streamUrl,source:'external',
     });
-    setNotice('Reproduciendo desde '+item.provider+'. El audio externo puede estar sujeto a disponibilidad o límites del proveedor.');
+    setNotice('Pista enviada al reproductor. La carga depende de la disponibilidad del proveedor; comprueba el estado del reproductor.');
   }
 
   async function save(item:RemoteTrack) {
