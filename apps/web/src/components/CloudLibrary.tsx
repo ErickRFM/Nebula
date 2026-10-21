@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Cloud, CloudOff, CloudUpload, Play, Trash2 } from 'lucide-react';
+import { Cloud, CloudOff, CloudUpload, Download, Play, Trash2 } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
 import { artwork } from '../lib/catalog';
@@ -118,6 +118,17 @@ export function CloudLibrary({
     }
   }
 
+  async function download(item: CloudTrack) {
+    setError('');
+    try {
+      const ticket=await account.cloudRequest<{url:string;filename:string}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/download');
+      // Signed R2 GET carries attachment Content-Disposition; no audio travels through Vercel.
+      window.location.assign(ticket.url);
+    } catch(failure) {
+      setError(failure instanceof Error?failure.message:'No fue posible descargar tu archivo.');
+    }
+  }
+
   async function remove(item: CloudTrack) {
     if (!window.confirm('¿Eliminar ' + item.title + ' de tu nube privada?')) return;
     setBusy(true); setError(''); setMessage('');
@@ -168,6 +179,7 @@ export function CloudLibrary({
             <span className="track-album">NÉBULA Cloud</span>
             <button type="button" className="button small" disabled={busy} aria-pressed={account.accountFavorites.some(f=>f.cloudTrackId===item.id)} onClick={()=>{void account.toggleAccountFavorite('cloud',item.id).then(ok=>{if(ok)setMessage('Favoritos de cuenta actualizados.');else setError('No se pudo guardar el favorito.');});}}>{account.accountFavorites.some(f=>f.cloudTrackId===item.id)?'♥ Favorito':'♡ Favorito'}</button>
             {account.serverPlaylists.length>0 && <button type="button" className="button small" disabled={busy || !targetPlaylist} onClick={()=>{void account.addAccountPlaylistItem(targetPlaylist,'cloud',item.id).then((ok)=>{if(ok)setMessage('Canción añadida a la playlist de tu cuenta.');else setError('No fue posible añadir esta canción a la playlist.');});}}>Añadir a lista</button>}
+            <button type="button" className="button secondary small" disabled={busy} aria-label={'Descargar '+item.title+' de mi nube'} onClick={()=>{void download(item);}}><Download size={15}/> Descargar</button>
             <button type="button" className="icon-button" disabled={busy} title="Eliminar de R2"
               aria-label={'Eliminar ' + item.title + ' de la nube'} onClick={() => { void remove(item); }}>
               <Trash2 size={17}/>
