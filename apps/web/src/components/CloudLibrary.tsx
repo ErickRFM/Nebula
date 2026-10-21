@@ -53,7 +53,7 @@ export function CloudLibrary({
 
   async function uploadFiles(files:File[], controller=new AbortController()):Promise<boolean> {
     if (!files.length) return false;
-    if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return; }
+    if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return false; }
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
     let uploaded=0;
