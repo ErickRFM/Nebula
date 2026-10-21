@@ -63,6 +63,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
    }catch(err){setVideos([]);setError(err instanceof Error?err.message:'Error de búsqueda.');}
    finally{setSearching(false);}
  }
+ if(embedded&&(initialQuery??'').trim().length<2&&!active)return null;
  return <section className="content-section external-bridges" aria-label="Reproductor musical de YouTube y SoundCloud">
    <div className="section-heading"><h2>{embedded?'Videos musicales de YouTube':'Reproductores externos'}</h2></div>
    <p className="page-description">{embedded?'Resultados por nombre obtenidos por el backend de NÉBULA. Toca un video para reproducirlo aquí.':'Escucha enlaces compatibles con los reproductores oficiales de YouTube o SoundCloud sin importar archivos a tu nube.'}</p>
@@ -77,7 +78,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
        placeholder="Buscar videos musicales en YouTube"/>
      <button className="button secondary small" type="submit" disabled={searching||query.trim().length<2}>{searching?'Buscando…':'Buscar videos'}</button>
-   </form> : !youtubeReady ? <p className="disclosure">La búsqueda automática de YouTube requiere YOUTUBE_API_KEY en el servidor. La búsqueda de Jamendo, Openverse y Audius sigue disponible por separado.</p> : null}
+   </form> : !youtubeReady ? <p className="search-source-hint">{!account.accessToken?"Inicia sesión para consultar YouTube desde NÉBULA.":"YouTube no está habilitado en NÉBULA en este momento. Puedes consultar otros catálogos."}</p> : null}
    {embedded&&!youtubeReady&&(initialQuery??'').trim().length>=2&&<p className="disclosure">
      <a href={'https://www.youtube.com/results?search_query='+encodeURIComponent((initialQuery??'').trim())}
        target="_blank" rel="noopener noreferrer">Buscar «{(initialQuery??'').trim()}» en la web de YouTube</a>

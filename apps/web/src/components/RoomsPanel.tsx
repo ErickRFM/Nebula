@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
+import { Copy, Headphones, Music2, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomDevicesPanel } from './RoomDevicesPanel';
@@ -36,6 +36,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   const [selectedCloudId, setSelectedCloudId] = useState('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loadingRooms, setLoadingRooms] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -50,13 +51,14 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!account.user) { setRooms([]); setSelected(null); return; }
+    if (!account.user) { setRooms([]); setSelected(null); setLoadingRooms(false); return; }
+    setLoadingRooms(true);
     try {
       const result = await account.cloudRequest<RoomList>('/v1/rooms');
       setRooms(result.items);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudieron cargar las salas.');
-    }
+    } finally { setLoadingRooms(false); }
   }, [account.user?.id, account.cloudRequest]);
 
   const refreshSelected = useCallback(async () => {
@@ -349,12 +351,13 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     });
   }
 
-  return <section className="content-section">
+  return <section className="content-section rooms-page">
     <div className="heading-with-action">
       <div>
         <div className="eyebrow">ESCUCHA EN COMPAÑÍA</div>
         <h1 className="page-title">Salas NÉBULA</h1>
-        <p className="page-description">Crea salas privadas, invita participantes y prepara una escucha compartida.</p>
+        <p className="page-description">Crea tu espacio, invita a tus amigos y escuchen música juntos.</p>
+        <div className="rooms-overview"><span><RadioTower size={14}/> {rooms.length} {rooms.length===1?"sala":"salas"}</span><span><Users size={14}/> Acceso privado</span><span><Headphones size={14}/> Audio autorizado</span></div>
       </div>
       <RadioTower size={28} aria-hidden="true"/>
     </div>
@@ -366,39 +369,41 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
       {error && <p className="account-error" role="alert">{error}</p>}
       {notice && <p className="disclosure" role="status">{notice}</p>}
       <div className="room-grid">
-        <div className="room-card glass">
-          <Plus size={23}/><h3>Crear sala</h3>
-          <label htmlFor="room-name">Nombre</label>
-          <input id="room-name" value={name} maxLength={80} placeholder="Fiesta en casa" onChange={e=>setName(e.target.value)}/>
-          <label htmlFor="room-mode">Modo</label>
-          <select id="room-mode" value={mode} onChange={e=>setMode(e.target.value as 'listening' | 'party')}>
-            <option value="listening">Escucha compartida</option>
-            <option value="party">Party Sound (en desarrollo)</option>
-          </select>
-          <button type="button" className="button primary small" disabled={busy || !name.trim()} onClick={create}>Crear sala</button>
-        </div>
-        <div className="room-card glass">
-          <Users size={23}/><h3>Unirse con invitación</h3>
-          <label htmlFor="room-code">Código privado</label>
-          <input id="room-code" value={code} autoComplete="off" placeholder="Pega el código de invitación" onChange={e=>setCode(e.target.value)}/>
-          <button type="button" className="button primary small" disabled={busy || code.trim().length < 20} onClick={join}>Unirme</button>
-        </div>
+        <section className="room-card glass" aria-labelledby="room-create-heading">
+          <div className="room-card-header"><span className="room-card-icon"><Plus size={21}/></span><div><h2 id="room-create-heading">Crear sala</h2><p>Inicia una sesión privada de escucha.</p></div></div>
+          <form className="room-form" onSubmit={event=>{event.preventDefault();create();}}>
+            <div className="room-field"><label htmlFor="room-name">Nombre</label><input id="room-name" value={name} maxLength={80} placeholder="Ej. Fiesta en casa" autoComplete="off" onChange={e=>setName(e.target.value)} required/></div>
+            <div className="room-field"><label htmlFor="room-mode">Modo de sala</label><select id="room-mode" value={mode} onChange={e=>setMode(e.target.value as 'listening'|'party')}><option value="listening">Escucha compartida</option><option value="party">Party Sound (beta)</option></select></div>
+            <p className="room-form-note">Cada participante activa su propia salida de audio.</p>
+            <button type="submit" className="button primary" disabled={busy||!name.trim()}><Plus size={16}/> Crear sala</button>
+          </form>
+        </section>
+        <section className="room-card glass" aria-labelledby="room-join-heading">
+          <div className="room-card-header"><span className="room-card-icon"><Users size={21}/></span><div><h2 id="room-join-heading">Unirse a una sala</h2><p>Entra con una invitación privada.</p></div></div>
+          <form className="room-form" onSubmit={event=>{event.preventDefault();join();}}>
+            <div className="room-field"><label htmlFor="room-code">Código privado</label><input id="room-code" value={code} autoComplete="off" spellCheck={false} placeholder="Pega aquí tu código privado" onChange={e=>setCode(e.target.value)}/></div>
+            <p className="room-form-note">También puedes abrir el enlace compartido por el anfitrión.</p>
+            <button type="submit" className="button secondary" disabled={busy||code.trim().length<20}>Unirme</button>
+          </form>
+        </section>
       </div>
-      <section className="content-section">
-        <div className="section-heading"><h2>Mis salas</h2>
-          <button type="button" className="icon-button" aria-label="Actualizar salas" onClick={()=>{void refresh();}}><RefreshCw size={18}/></button>
+      <section className="content-section rooms-list-section">
+        <div className="section-heading"><div><h2>Mis salas</h2><p className="room-section-description">Tus sesiones y salas compartidas.</p></div>
+          <button type="button" className="icon-button glass-chip" disabled={loadingRooms} aria-label="Actualizar salas" onClick={()=>{void refresh();}}><RefreshCw size={18}/></button>
         </div>
-        <div className="track-list glass">
-          {!rooms.length ? <p className="empty-note">Todavía no participas en ninguna sala.</p> :
-            rooms.map(room=><div className="track-row" key={room.id}>
-              <button className="track-main" type="button" onClick={()=>{setSelectedId(room.id);setIssuedCode('');}}>
-                <span className="track-descriptor"><strong>{room.name}</strong>
-                  <small>{room.mode==='party'?'Party Sound':'Escucha compartida'} · {room.participantCount} participante(s)</small>
-                </span>
-              </button>
-              <button className="icon-button" type="button" aria-label={'Salir o cerrar '+room.name} onClick={()=>leaveOrClose(room)}><X size={17}/></button>
-            </div>)}
-        </div>
+        {loadingRooms&&!rooms.length ? <div className="room-empty glass" role="status"><p>Actualizando tus salas…</p></div> :
+          !rooms.length ? <div className="room-empty glass">
+            <span className="room-empty-icon"><Music2 size={27}/></span><h3>Aquí comienza tu próxima sesión</h3>
+            <p>Aún no participas en ninguna sala. Crea una, selecciona música de tu biblioteca e invita a tus amigos.</p>
+            <button type="button" className="button secondary small" onClick={()=>document.getElementById('room-name')?.focus()}>Crear mi primera sala</button>
+          </div> : <div className="rooms-list glass">{rooms.map(room=><div className={'room-entry '+(selectedId===room.id?'is-selected':'')} key={room.id}>
+            <button className="room-entry-main" type="button" aria-pressed={selectedId===room.id} onClick={()=>{setSelectedId(room.id);setIssuedCode('');}}>
+              <span className="room-entry-icon"><RadioTower size={20}/></span>
+              <span className="room-entry-detail"><strong>{room.name}</strong><small>{room.mode==='party'?'Party Sound · beta':'Escucha compartida'} · {room.participantCount} {room.participantCount===1?'participante':'participantes'}</small></span>
+              <span className="room-entry-state">{room.ownerUserId===account.user?.id?'Anfitrión':'Invitado'}</span>
+            </button>
+            <button className="icon-button" type="button" disabled={busy} aria-label={'Salir o cerrar '+room.name} onClick={()=>leaveOrClose(room)}><X size={17}/></button>
+          </div>)}</div>}
       </section>
       {selected && selectedId === selected.id && <section className="room-hero glass">
         <div>

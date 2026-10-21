@@ -44,9 +44,17 @@ export function registerRoomEventRoutes(app: FastifyInstance, pool: Pool): void 
     const initial = await fetchSnapshot();
     if (!initial) return reply.code(404).send({ error: 'room_not_found' });
 
+    // Streaming directly on reply.raw bypasses Fastify's CORS reply headers.
+    // Forward the approved @fastify/cors values, never reflect request Origin.
+    const approvedHeaders: Record<string, string> = {};
+    for (const name of ['access-control-allow-origin', 'access-control-allow-credentials', 'vary'] as const) {
+      const value = reply.getHeader(name);
+      if (typeof value === 'string') approvedHeaders[name] = value;
+    }
     reply.hijack();
     const out = reply.raw;
     out.writeHead(200, {
+      ...approvedHeaders,
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-store, no-transform',
       'X-Accel-Buffering': 'no',
