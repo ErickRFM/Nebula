@@ -145,6 +145,39 @@ test('MusicBrainz lookup displays reviewed matches without importing audio',asyn
   await expect(page.getByText('Banda E2E', {exact:false})).toBeVisible();
 });
 
+test('Buscar plays official YouTube search results without pasting links',async({page})=>{
+  test.skip(!process.env.NEBULA_TEST_DATABASE_URL||!process.env.NEXT_PUBLIC_API_URL,'Requires disposable account API');
+  const password='NebulaTestPassword123!';
+  const email='youtube-auto-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
+  const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
+  try{
+    const salt=randomBytes(16).toString('hex');
+    const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
+    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
+  }finally{await pool.end();}
+  await page.route('**/v1/discovery/youtube/config',async route=>{
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:true})});
+  });
+  await page.route('**/v1/discovery/youtube?**',async route=>{
+    expect(new URL(route.request().url()).searchParams.get('q')).toBe('Rola automatica');
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      items:[{videoId:'dQw4w9WgXcQ',title:'Rola encontrada E2E',artist:'Canal de prueba',thumbnail:null,
+        sourceUrl:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}]
+    })});
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button',{name:'Entrar'}).click();
+  await expect(page.getByText('Sesión activa')).toBeVisible();
+  await navigate(page,'Buscar');
+  await page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'}).fill('Rola automatica');
+  await expect(page.getByText('Rola encontrada E2E')).toBeVisible({timeout:15000});
+  await page.getByRole('button',{name:'Reproducir video'}).click();
+  await expect(page.getByTitle('Reproductor oficial de YouTube')).toHaveAttribute('src',/youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+});
+
 test('private rooms can be created, joined and closed across two accounts', async ({ page, browser }) => {
   const api = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
   test.skip(!api || !process.env.NEBULA_TEST_DATABASE_URL, 'Requires disposable PostgreSQL-backed API');
