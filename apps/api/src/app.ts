@@ -15,6 +15,7 @@ import { MusicBrainzMetadata } from './metadata/musicbrainz.js';
 import { loadConfig } from './config.js';
 import { createGuards, registerAdminRoutes, registerAuthRoutes } from './modules/auth.js';
 import { registerCloudRoutes } from './modules/cloud.js';
+import { registerFavoriteRoutes } from './modules/favorites.js';
 import { registerRoomRoutes } from './modules/rooms.js';
 import { classifyDatabaseFailure, describeDatabaseConnectionShape } from './db/diagnostics.js';
 import './types.js';
@@ -94,6 +95,7 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   registerAuthRoutes(app, { db, config });
   registerAdminRoutes(app, { db });
   registerCloudRoutes(app, db);
+  registerFavoriteRoutes(app, db);
   registerRoomRoutes(app, pool);
 
   app.get('/v1/me', { preHandler: requireAuth }, async (request, reply) => {
