@@ -1,15 +1,16 @@
 'use client';
-import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Cloud, CloudOff, CloudUpload, Play, Trash2 } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
 import { artwork } from '../lib/catalog';
+import { putPrivateAudio } from '../lib/r2-upload';
 
 type CloudTrack = {
   id: string; title: string; artist: string; mimeType: string;
   byteSize: number; createdAt: string;
 };
-type CloudList = { items: CloudTrack[]; configured: boolean };
+type CloudList = { items: CloudTrack[]; pendingItems?: CloudTrack[]; configured: boolean };
 type UploadTicket = { id: string; uploadUrl: string; contentType: string; expiresInSeconds: number };
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -22,19 +23,23 @@ export function CloudLibrary({
   onPlay: (track: Track) => void;
 }) {
   const [items, setItems] = useState<CloudTrack[]>([]);
+  const [pendingItems,setPendingItems]=useState<CloudTrack[]>([]);
   const [configured, setConfigured] = useState(false);
   const [targetPlaylist, setTargetPlaylist] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadProgress,setUploadProgress]=useState<number|null>(null);
+  const uploadController=useRef<AbortController|null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
-    if (!account.user) { setItems([]); setConfigured(false); return; }
+    if (!account.user) { setItems([]); setPendingItems([]); setConfigured(false); return; }
     setLoading(true);
     try {
       const result = await account.cloudRequest<CloudList>('/v1/library/cloud');
       setItems(result.items);
+      setPendingItems(result.pendingItems??[]);
       setConfigured(result.configured);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo consultar tu biblioteca en la nube.');
@@ -48,39 +53,46 @@ export function CloudLibrary({
     event.target.value = '';
     if (!files.length) return;
     if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return; }
-    setBusy(true); setError(''); setMessage('');
-    let uploaded = 0;
-    try {
-      for (const file of files.slice(0, 20)) {
-        if (!supported.test(file.name) || file.size < 1 || file.size > MAX_BYTES) {
-          throw new Error('Archivo no compatible: ' + file.name + '. Usa MP3, M4A, WAV, OGG, OPUS, FLAC o AAC, máximo 100 MB.');
-        }
-        setMessage('Subiendo ' + (uploaded + 1) + ' de ' + Math.min(files.length, 20) + ': ' + file.name);
-        const ticket = await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads', {
-          method: 'POST',
-          body: JSON.stringify({ filename: file.name, size: file.size }),
+    const controller=new AbortController();
+    uploadController.current=controller;
+    setBusy(true);setError('');setMessage('');setUploadProgress(0);
+    let uploaded=0;
+    try{
+      for(const file of files.slice(0,20)){
+        if(controller.signal.aborted)throw new Error('Carga cancelada.');
+        if(!supported.test(file.name)||file.size<1||file.size>MAX_BYTES)
+          throw new Error('Archivo no compatible: '+file.name+'. Usa MP3, M4A, WAV, OGG, OPUS, FLAC o AAC, máximo 100 MB.');
+        setUploadProgress(0);
+        setMessage('Subiendo '+(uploaded+1)+' de '+Math.min(files.length,20)+': '+file.name);
+        const ticket=await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads',{
+          method:'POST',body:JSON.stringify({filename:file.name,size:file.size}),
         });
-        let response: Response;
-        try {
-          response = await fetch(ticket.uploadUrl, {
-            method: 'PUT',
-            body: file,
-            headers: { 'Content-Type': ticket.contentType },
+        try{
+          if(controller.signal.aborted)throw new Error('Carga cancelada.');
+          await putPrivateAudio(ticket.uploadUrl,ticket.contentType,file,controller.signal,setUploadProgress);
+          if(controller.signal.aborted)throw new Error('Carga cancelada.');
+          await account.cloudRequest('/v1/library/cloud/'+encodeURIComponent(ticket.id)+'/complete',{
+            method:'POST',body:'{}',
           });
-        } catch {
-          throw new Error('Cloudflare bloqueó la subida. Revisa la política CORS del bucket R2.');
+          uploaded++;
+        }catch(failure){
+          // Revoke the pending ticket and delete an incomplete R2 object if present.
+          await account.cloudRequest('/v1/library/cloud/'+encodeURIComponent(ticket.id),{method:'DELETE'}).catch(()=>{});
+          if(controller.signal.aborted)throw new Error('Carga cancelada.');
+          if(failure instanceof Error&&failure.message.startsWith('r2_upload_http_'))
+            throw new Error('R2 rechazó la subida de '+file.name+' (HTTP '+failure.message.split('_').pop()+').');
+          if(failure instanceof Error&&failure.message==='r2_upload_network_failed')
+            throw new Error('Falló la conexión de subida. Revisa tu red y la política CORS del bucket R2.');
+          throw failure;
         }
-        if (!response.ok) throw new Error('R2 rechazó la subida de ' + file.name + ' (HTTP ' + response.status + ').');
-        await account.cloudRequest('/v1/library/cloud/' + encodeURIComponent(ticket.id) + '/complete', {
-          method: 'POST', body: '{}',
-        });
-        uploaded++;
       }
-      setMessage(uploaded + ' canción(es) guardadas en tu nube privada.');
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Error al subir canciones.');
-      if (uploaded) setMessage(uploaded + ' canción(es) se guardaron correctamente.');
-    } finally {
+      setMessage(uploaded+' canción(es) guardadas en tu nube privada.');
+    }catch(failure){
+      setError(failure instanceof Error?failure.message:'Error al subir canciones.');
+      if(uploaded)setMessage(uploaded+' canción(es) se guardaron correctamente.');
+    }finally{
+      uploadController.current=null;
+      setUploadProgress(null);
       await refresh();
       setBusy(false);
     }
@@ -137,9 +149,12 @@ export function CloudLibrary({
             disabled={busy || !configured} onChange={(event) => { void upload(event); }}
             aria-label="Subir canciones privadas a Cloudflare R2"/>
         </label>
+        {busy && <button className="button secondary small" type="button" onClick={()=>uploadController.current?.abort()}>Cancelar carga</button>}
       </div>
+      {busy && <div className="cloud-upload-progress"><progress max={100} value={uploadProgress??0} aria-label="Progreso de carga de música"/><span>{uploadProgress??0}%</span></div>}
       {!configured && !loading && <p className="disclosure">El almacenamiento R2 todavía no está disponible en la API.</p>}
       {loading && <p className="disclosure">Sincronizando tu biblioteca privada…</p>}
+      {pendingItems.length>0 && <div className="cloud-actions glass"><div><strong>Cargas pendientes ({pendingItems.length})</strong><p>Puedes limpiar intentos interrumpidos y volver a seleccionar tus archivos. No se muestran como canciones listas.</p></div><div>{pendingItems.map(item=><button key={item.id} type="button" className="button secondary small" disabled={busy} onClick={()=>{void account.cloudRequest('/v1/library/cloud/'+encodeURIComponent(item.id),{method:'DELETE'}).then(()=>refresh()).catch(()=>setError('No se pudo limpiar la carga pendiente.'));}}>Descartar {item.title}</button>)}</div></div>}
       {message && <p className="disclosure" role="status">{message}</p>}
       {error && <p className="account-error" role="alert">{error}</p>}
       {account.serverPlaylists.length>0 && <div className="cloud-actions glass"><label htmlFor="cloud-target-playlist">Añadir canciones a playlist de cuenta</label><select id="cloud-target-playlist" value={targetPlaylist} onChange={(event)=>setTargetPlaylist(event.target.value)}><option value="">Selecciona una playlist</option>{account.serverPlaylists.map((list)=><option key={list.id} value={list.id}>{list.name}</option>)}</select></div>}

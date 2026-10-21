@@ -39,7 +39,10 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const items = await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.userId, request.principal!.userId), eq(cloudTracks.status, 'ready')))
       .orderBy(desc(cloudTracks.createdAt)).limit(500);
-    return { items, configured: Boolean(readR2Settings()) };
+    const pendingItems = await db.select(projection).from(cloudTracks)
+      .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'pending')))
+      .orderBy(desc(cloudTracks.createdAt)).limit(50);
+    return { items, pendingItems, configured: Boolean(readR2Settings()) };
   });
 
   app.post('/v1/library/cloud/uploads', {
