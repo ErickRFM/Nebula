@@ -53,7 +53,7 @@ describe('Internet Archive keyless audio adapter',()=>{
     const {provider}=mockProvider({
       unknown:{identifier:'missing_license'},
       private:{identifier:'private_record'},
-      invalid:{identifier:'malicious_id'},
+      invalid:{identifier:'../malicious_id'},
       safe:{identifier:'open_record'},
     },{
       missing_license:item(),
