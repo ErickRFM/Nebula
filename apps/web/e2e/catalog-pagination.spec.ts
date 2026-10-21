@@ -7,62 +7,29 @@ async function navigate(page:Page,name:string){
  const mobile=page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name,exact:true});
  if(await desktop.isVisible())await desktop.click();else await mobile.click();
 }
-
-test('catalog supports more pages without duplicates and resets results on provider change',async({page})=>{
- test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Requires disposable API and PostgreSQL');
+test('catalog paginates without duplicates and resets results on provider change',async({page})=>{
+ test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Requires disposable PostgreSQL API');
  const track=(id:number)=>({
-   id:'jamendo:'+id,provider:'jamendo',externalId:String(id),title:'Pista paginada '+id,
-   artist:'Artista E2E',album:null,durationSeconds:120,artworkUrl:null,
-   sourceUrl:'https://www.jamendo.com/track/'+id,licenseUrl:null,
-   canStream:false,canDownload:false,canStorePrivateCopy:false,streamUrl:null,
+  id:'jamendo:'+id,provider:'jamendo',externalId:String(id),title:'Pista paginada '+id,
+  artist:'Artista E2E',album:null,durationSeconds:120,artworkUrl:null,
+  sourceUrl:'https://www.jamendo.com/track/'+id,licenseUrl:null,
+  canStream:false,canDownload:false,canStorePrivateCopy:false,streamUrl:null,
  });
  const pages:number[]=[];
  await page.route('**/v1/discovery/search?**',async route=>{
-   const current=Number(new URL(route.request().url()).searchParams.get('page')??'1');
-   pages.push(current);
-   const items=current===1?Array.from({length:12},(_,i)=>track(5001+i)):current===2?[track(5012),track(5013)]:[];
-   await route.fulfill({status:200,contentType:'application/json',
-     body:JSON.stringify({items,failedProviders:[],disabledProviders:[]})});
+  const current=Number(new URL(route.request().url()).searchParams.get('page')??'1');
+  pages.push(current);
+  const items=current===1?Array.from({length:12},(_,i)=>track(5001+i)):current===2?[track(5012),track(5013)]:[];
+  await route.fulfill({status:200,contentType:'application/json',
+   body:JSON.stringify({items,failedProviders:[],disabledProviders:[]})});
  });
- const email='catalog-pages-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
  const password='NebulaTestPassword123!';
+ const email='catalog-pages-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
  const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
  try{
-   const salt=randomBytes(16).toString('hex');
-   const hash='scrypt
- await expect(page.getByText('Sesión activa')).toBeVisible();
- await navigate(page,'Explorar');
- await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('paginada');
- await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
- await expect(page.locator('.explore-card')).toHaveCount(12);
- await page.getByRole('button',{name:'Cargar más canciones'}).click();
- await expect(page.locator('.explore-card')).toHaveCount(13);
- await expect(page.getByText('Pista paginada 5012')).toHaveCount(1);
- await expect(page.getByText('Pista paginada 5013')).toBeVisible();
- await expect(page.getByRole('button',{name:'Cargar más canciones'})).toHaveCount(0);
- expect(pages).toEqual([1,2]);
- await page.getByRole('button',{name:'Internet Archive'}).click();
- await expect(page.locator('.explore-card')).toHaveCount(0);
- await expect(page.getByRole('button',{name:'Cargar más canciones'})).toHaveCount(0);
-});
-+salt+'
- await expect(page.getByText('Sesión activa')).toBeVisible();
- await navigate(page,'Explorar');
- await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('paginada');
- await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
- await expect(page.locator('.explore-card')).toHaveCount(12);
- await page.getByRole('button',{name:'Cargar más canciones'}).click();
- await expect(page.locator('.explore-card')).toHaveCount(13);
- await expect(page.getByText('Pista paginada 5012')).toHaveCount(1);
- await expect(page.getByText('Pista paginada 5013')).toBeVisible();
- await expect(page.getByRole('button',{name:'Cargar más canciones'})).toHaveCount(0);
- expect(pages).toEqual([1,2]);
- await page.getByRole('button',{name:'Internet Archive'}).click();
- await expect(page.locator('.explore-card')).toHaveCount(0);
- await expect(page.getByRole('button',{name:'Cargar más canciones'})).toHaveCount(0);
-});
-+scryptSync(password,salt,64).toString('hex');
-   await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
+  const salt=randomBytes(16).toString('hex');
+  const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
+  await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
  }finally{await pool.end();}
  await page.goto('/');
  await page.getByRole('button',{name:'Mi cuenta'}).click();
