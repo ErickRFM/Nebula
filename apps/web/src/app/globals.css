@@ -586,3 +586,15 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 /* Mobile settings remain discoverable after the compact navigation change. */
 .mobile-only{display:none}
 @media(max-width:760px){.mobile-only{display:inline-grid}}
+
+
+/* Room physical QA: opt-in local-only stereo reference evidence. */
+.room-acoustic-qa .room-card{padding:clamp(18px,2.5vw,28px);display:grid;gap:15px}
+.room-acoustic-qa .room-card>p{margin:0;max-width:900px;color:#c9c3de;font-size:.82rem}
+.room-qa-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.room-qa-fields label{display:grid;gap:7px;font-size:.79rem;color:#e1daee}
+.room-qa-fields input,.room-acoustic-qa input[type=file]{width:100%;min-width:0;min-height:43px;border:1px solid rgba(207,192,251,.26);border-radius:12px;background:rgba(9,12,35,.48);color:var(--ink);padding:10px}
+.room-acoustic-qa .room-qa-result{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:14px;border:1px solid rgba(200,177,247,.26);border-radius:14px;background:rgba(88,66,124,.15)}
+.room-acoustic-qa .room-qa-result strong{width:100%}
+.room-acoustic-qa .room-qa-result span{font-size:.79rem}
+@media(max-width:760px){.room-qa-fields{grid-template-columns:1fr}.room-acoustic-qa .room-qa-result{display:grid;gap:10px}}
