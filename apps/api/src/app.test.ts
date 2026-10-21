@@ -44,9 +44,9 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     return response.cookies.find((entry) => entry.name === name)?.value ?? '';
   }
 
-  async function register(prefix: string) {
+  async function register(prefix: string, clientIp?: string) {
     const email = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`;
-    const result = await app.inject({ method: 'POST', url: '/v1/auth/register', payload: { email, password: PASSWORD } });
+    const result = await app.inject({ method: 'POST', url: '/v1/auth/register', headers: clientIp ? {'x-forwarded-for': clientIp} : undefined, payload: { email, password: PASSWORD } });
     expect(result.statusCode).toBe(201);
     return { email, token: result.json().accessToken as string };
   }
@@ -131,8 +131,8 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
   });
 
   it('persists playlist references and blocks cross-account membership access', async () => {
-    const owner = await register('playlist-item-owner');
-    const stranger = await register('playlist-item-stranger');
+    const owner = await register('playlist-item-owner','198.51.100.71');
+    const stranger = await register('playlist-item-stranger','198.51.100.71');
     const header = (token: string) => ({ authorization: 'Bearer ' + token, 'x-forwarded-for': '198.51.100.71' });
     const playlist = await app.inject({method:'POST',url:'/v1/playlists',headers:header(owner.token),payload:{name:'Favoritas de nube'}});
     expect(playlist.statusCode).toBe(201);
