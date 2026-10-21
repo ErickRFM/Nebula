@@ -216,6 +216,36 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect((await app.inject({method:'DELETE',url:itemUrl+'/'+itemId,headers:header(owner.token)})).statusCode).toBe(204);
   });
 
+  it('allows owner-scoped Internet Archive metadata references, not third-party hosts',async()=>{
+    const owner=await register('archive-reference','198.51.100.90');
+    const stranger=await register('archive-outsider','198.51.100.91');
+    const headers=(token:string,ip:string)=>({authorization:'Bearer '+token,'x-forwarded-for':ip});
+    const body={
+      provider:'internetarchive',externalId:'d6dbfca5e1d500ffa4b94988e6aab3193123b427',
+      title:'Public-domain recording',artist:'Open archive',
+      sourceUrl:'https://archive.org/details/open_record_2026',
+      licenseUrl:'https://creativecommons.org/publicdomain/zero/1.0/',
+    };
+    const ownerHeaders=headers(owner.token,'198.51.100.90');
+    const first=await app.inject({method:'POST',url:'/v1/library/external',headers:ownerHeaders,payload:body});
+    expect(first.statusCode).toBe(201);
+    const duplicate=await app.inject({method:'POST',url:'/v1/library/external',headers:ownerHeaders,payload:body});
+    expect(duplicate.statusCode).toBe(200);
+    const invalid=await app.inject({method:'POST',url:'/v1/library/external',headers:ownerHeaders,
+      payload:{...body,sourceUrl:'https://archive.org.evil.example/details/open_record_2026'}});
+    expect(invalid.statusCode).toBe(400);
+    const others=await app.inject({method:'GET',url:'/v1/library/external',headers:headers(stranger.token,'198.51.100.91')});
+    expect(others.json().items.some((item:{externalId:string})=>item.externalId===body.externalId)).toBe(false);
+    const mine=await app.inject({method:'GET',url:'/v1/library/external',headers:ownerHeaders});
+    expect(mine.json().items.some((item:{externalId:string})=>item.externalId===body.externalId)).toBe(true);
+    const denied=await app.inject({method:'DELETE',url:'/v1/library/external/internetarchive/'+body.externalId,
+      headers:headers(stranger.token,'198.51.100.91')});
+    expect(denied.statusCode).toBe(404);
+    const deleted=await app.inject({method:'DELETE',url:'/v1/library/external/internetarchive/'+body.externalId,
+      headers:ownerHeaders});
+    expect(deleted.statusCode).toBe(204);
+  });
+
   it('stores external references only for the owner and de-duplicates saves', async () => {
     const owner = await register('reference-owner');
     const stranger = await register('reference-stranger');
