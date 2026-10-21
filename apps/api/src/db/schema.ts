@@ -95,3 +95,11 @@ export const playlistItems = pgTable('playlist_items', {
   externalItemId: uuid('external_item_id').references(() => externalLibraryItems.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('playlist_items_playlist_created').on(t.playlistId, t.createdAt, t.id)]);
+
+export const favoriteItems = pgTable('favorite_items', {
+ id: uuid('id').primaryKey(),
+ userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+ cloudTrackId: uuid('cloud_track_id').references(() => cloudTracks.id, { onDelete: 'cascade' }),
+ externalItemId: uuid('external_item_id').references(() => externalLibraryItems.id, { onDelete: 'cascade' }),
+ createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('favorite_items_owner_created').on(t.userId, t.createdAt)]);

@@ -130,6 +130,31 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(disabled.json().disabledProviders).toContain('jamendo');
   });
 
+  it('synchronizes per-account favorite references without leaking them', async () => {
+    const owner=await register('favorite-owner','198.51.100.72');
+    const stranger=await register('favorite-stranger','198.51.100.72');
+    const h=(token:string)=>({authorization:'Bearer '+token,'x-forwarded-for':'198.51.100.72'});
+    const saved=await app.inject({method:'POST',url:'/v1/library/external',headers:h(owner.token),payload:{
+      provider:'jamendo',externalId:'favorites-728',title:'Pista de prueba',artist:'Demo',
+      sourceUrl:'https://www.jamendo.com/track/728',
+    }});
+    expect([200,201]).toContain(saved.statusCode);
+    const library=await app.inject({method:'GET',url:'/v1/library/external',headers:h(owner.token)});
+    const trackId=(library.json().items as {id:string;externalId:string}[]).find(x=>x.externalId==='favorites-728')!.id;
+    const url='/v1/library/favorites';
+    const blocked=await app.inject({method:'POST',url,headers:h(stranger.token),payload:{source:'external',trackId}});
+    expect(blocked.statusCode).toBe(404);
+    expect((await app.inject({method:'POST',url,headers:h(owner.token),payload:{source:'external',trackId}})).statusCode).toBe(201);
+    expect((await app.inject({method:'POST',url,headers:h(owner.token),payload:{source:'external',trackId}})).statusCode).toBe(200);
+    const mine=await app.inject({method:'GET',url,headers:h(owner.token)});
+    expect(mine.json().items).toHaveLength(1);
+    const favoriteId=mine.json().items[0].id as string;
+    const other=await app.inject({method:'GET',url,headers:h(stranger.token)});
+    expect(other.json().items).toHaveLength(0);
+    expect((await app.inject({method:'DELETE',url:url+'/'+favoriteId,headers:h(stranger.token)})).statusCode).toBe(404);
+    expect((await app.inject({method:'DELETE',url:url+'/'+favoriteId,headers:h(owner.token)})).statusCode).toBe(204);
+  });
+
   it('persists playlist references and blocks cross-account membership access', async () => {
     const owner = await register('playlist-item-owner','198.51.100.71');
     const stranger = await register('playlist-item-stranger','198.51.100.71');

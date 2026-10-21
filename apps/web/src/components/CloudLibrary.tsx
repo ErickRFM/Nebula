@@ -151,6 +151,7 @@ export function CloudLibrary({
               <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {(item.byteSize / 1048576).toFixed(1)} MB</small></span>
             </button>
             <span className="track-album">NÉBULA Cloud</span>
+            <button type="button" className="button small" disabled={busy} aria-pressed={account.accountFavorites.some(f=>f.cloudTrackId===item.id)} onClick={()=>{void account.toggleAccountFavorite('cloud',item.id).then(ok=>{if(ok)setMessage('Favoritos de cuenta actualizados.');else setError('No se pudo guardar el favorito.');});}}>{account.accountFavorites.some(f=>f.cloudTrackId===item.id)?'♥ Favorito':'♡ Favorito'}</button>
             {account.serverPlaylists.length>0 && <button type="button" className="button small" disabled={busy || !targetPlaylist} onClick={()=>{void account.addAccountPlaylistItem(targetPlaylist,'cloud',item.id).then((ok)=>{if(ok)setMessage('Canción añadida a la playlist de tu cuenta.');else setError('No fue posible añadir esta canción a la playlist.');});}}>Añadir a lista</button>}
             <button type="button" className="icon-button" disabled={busy} title="Eliminar de R2"
               aria-label={'Eliminar ' + item.title + ' de la nube'} onClick={() => { void remove(item); }}>

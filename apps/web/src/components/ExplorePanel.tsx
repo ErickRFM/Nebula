@@ -14,7 +14,7 @@ interface RemoteTrack {
   canStream:boolean;canDownload:boolean;canStorePrivateCopy:false;streamUrl:string|null;
 }
 interface SavedTrack {
-  provider:Exclude<Provider,'all'>;externalId:string;title:string;artist:string;
+  id:string;provider:Exclude<Provider,'all'>;externalId:string;title:string;artist:string;
   artworkUrl:string|null;sourceUrl:string;licenseUrl:string|null;
 }
 const apiBase=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'') ?? '';
@@ -42,6 +42,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
   const [searched,setSearched]=useState(false);
   const [failed,setFailed]=useState<string[]>([]);
   const [saving,setSaving]=useState<string|null>(null);
+  const [targetPlaylist,setTargetPlaylist]=useState('');
   const [enabled,setEnabled]=useState<Record<string,boolean>>({});
   const searchAbort=useRef<AbortController|null>(null);
 
@@ -199,6 +200,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
       })}</div>
       {!embedded && <section className="content-section">
         <div className="section-heading"><h2>Mi colección externa</h2><span className="server-pill">{saved.length} referencias</span></div>
+        {account.serverPlaylists.length>0 && saved.length>0 && <label className="disclosure">Playlist de cuenta <select aria-label="Seleccionar playlist de cuenta" value={targetPlaylist} onChange={e=>setTargetPlaylist(e.target.value)}><option value="">Seleccionar</option>{account.serverPlaylists.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
         {saved.length===0?<div className="explore-empty glass"><Bookmark size={25}/><strong>Aún no hay canciones externas guardadas</strong><span>Busca música y elige «Guardar» para encontrarla aquí cuando vuelvas a iniciar sesión.</span></div>:
           <div className="track-list glass">{saved.map(item=><div className="track-row" key={keyOf(item)}>
             <span className="track-descriptor" style={{flex:1}}>
@@ -206,6 +208,8 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
               <small>{item.artist} · {item.provider}</small>
             </span>
             {isSafe(item.sourceUrl) && <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={'Ver fuente de '+item.title}><ExternalLink size={18}/></a>}
+            <button type="button" className="button secondary small" aria-pressed={account.accountFavorites.some(f=>f.externalItemId===item.id)} onClick={()=>{void account.toggleAccountFavorite('external',item.id).then(ok=>setNotice(ok?'Favoritos sincronizados.':'No se pudo cambiar el favorito.'));}}>{account.accountFavorites.some(f=>f.externalItemId===item.id)?'♥':'♡'} Favorito</button>
+            {account.serverPlaylists.length>0 && <button type="button" className="button secondary small" disabled={!targetPlaylist} onClick={()=>{void account.addAccountPlaylistItem(targetPlaylist,'external',item.id).then(ok=>setNotice(ok?'Referencia añadida a tu playlist.':'No fue posible añadirla.'));}}>Añadir a lista</button>}
             <button type="button" className="icon-button" disabled={saving===keyOf(item)} aria-label={'Quitar '+item.title+' de la colección'} onClick={()=>void removeSavedReference(item)}><Bookmark size={18}/></button>
           </div>)}</div>}
       </section>}

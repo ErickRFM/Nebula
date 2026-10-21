@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 export type Role = 'owner' | 'member';
 export type AccountUser = { id: string; email: string; role?: Role };
 export type ServerPlaylist = { id: string; name: string; createdAt: string };
+export type AccountFavorite={id:string;cloudTrackId:string|null;externalItemId:string|null};
 export type AccountSession = {
   id: string;
   userAgent: string | null;
@@ -81,6 +82,7 @@ export function useAccount() {
   const [registrationOpen,setRegistrationOpen]=useState(false);
   const [error,setError]=useState('');
   const [serverPlaylists,setServerPlaylists]=useState<ServerPlaylist[]>([]);
+  const [accountFavorites,setAccountFavorites]=useState<AccountFavorite[]>([]);
   const [playlistsBusy,setPlaylistsBusy]=useState(false);
   const [sessions,setSessions]=useState<AccountSession[]>([]);
 
@@ -233,6 +235,28 @@ export function useAccount() {
     return requestJson('/v1/playlists/'+encodeURIComponent(playlistId)+'/items',{},accessToken);
   },[accessToken]);
 
+  const refreshAccountFavorites=useCallback(async(token:string)=>{
+    const response=await requestJson<{items:AccountFavorite[]}>('/v1/library/favorites',{},token);
+    setAccountFavorites(response.items);
+  },[]);
+  useEffect(()=>{
+    if(!accessToken){setAccountFavorites([]);return;}
+    void refreshAccountFavorites(accessToken).catch(()=>{});
+  },[accessToken,refreshAccountFavorites]);
+  const toggleAccountFavorite=useCallback(async(source:'cloud'|'external',trackId:string):Promise<boolean>=>{
+    if(!accessToken)return false;
+    const match=accountFavorites.find(f=>source==='cloud'?f.cloudTrackId===trackId:f.externalItemId===trackId);
+    try{
+      if(match)await requestJson('/v1/library/favorites/'+encodeURIComponent(match.id),{method:'DELETE'},accessToken);
+      else await requestJson('/v1/library/favorites',{method:'POST',body:JSON.stringify({source,trackId})},accessToken);
+      await refreshAccountFavorites(accessToken);
+      return true;
+    }catch(err){
+      setError(err instanceof Error?err.message:'No se pudo cambiar el favorito.');
+      return false;
+    }
+  },[accessToken,accountFavorites,refreshAccountFavorites]);
+
   const cloudRequest=useCallback(async <T,>(path:string,init:RequestInit={}):Promise<T>=>{
     if(!accessToken) throw new Error('Inicia sesión para usar tu biblioteca privada.');
     return requestJson<T>(path,init,accessToken);
@@ -240,7 +264,7 @@ export function useAccount() {
 
   return {
     configured:isAccountApiConfigured,user,accessToken,busy,restoring,error,registrationOpen,
-    serverPlaylists,playlistsBusy,sessions,login,acceptInvite,logout,
+    serverPlaylists,accountFavorites,toggleAccountFavorite,playlistsBusy,sessions,login,acceptInvite,logout,
     revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,addAccountPlaylistItem,getAccountPlaylistItems,cloudRequest,setError,
   };
 }
