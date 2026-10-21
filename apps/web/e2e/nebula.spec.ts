@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './auth-test';
 import { Pool } from 'pg';
 import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 
@@ -118,7 +118,7 @@ test('account login keeps a persistent private session', async ({page, request})
 });
 
 test('private explorer saves a real provider reference, not an audio file',async({page})=>{
-  test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs local API with disposable PostgreSQL');
+  test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Needs local API with disposable PostgreSQL');
   await page.route('**/v1/discovery/search?**',async route=>{
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
       failedProviders:[],disabledProviders:[],
@@ -129,13 +129,19 @@ test('private explorer saves a real provider reference, not an audio file',async
         canStream:false,canDownload:false,canStorePrivateCopy:false,streamUrl:null}]
     })});
   });
+  const password='NebulaTestPassword123!';
+  const email='explore-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
+  const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
+  try{
+    const salt=randomBytes(16).toString('hex');
+    const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
+    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
+  }finally{await pool.end();}
   await page.goto('/');
   await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
-  const email='explore-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
   await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
-  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button',{name:'Entrar'}).click();
   await expect(page.getByText('Sesión activa')).toBeVisible();
   await navigate(page,'Explorar');
   await expect(page.getByRole('button',{name:'Internet Archive'})).toBeVisible();
@@ -151,7 +157,7 @@ test('private explorer saves a real provider reference, not an audio file',async
 });
 
 test('MusicBrainz lookup displays reviewed matches without importing audio',async({page})=>{
-  test.skip(!process.env.NEXT_PUBLIC_API_URL,'API not configured');
+  test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Needs local API with disposable PostgreSQL');
   await page.route('**/v1/metadata/musicbrainz?**',async route=>{
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
       source:'musicbrainz',audioAvailable:false,
@@ -164,13 +170,19 @@ test('MusicBrainz lookup displays reviewed matches without importing audio',asyn
       }]
     })});
   });
+  const password='NebulaTestPassword123!';
+  const email='mb-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
+  const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
+  try{
+    const salt=randomBytes(16).toString('hex');
+    const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
+    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
+  }finally{await pool.end();}
   await page.goto('/');
   await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await page.getByRole('button',{name:'¿No tienes cuenta? Regístrate'}).click();
-  const email='mb-'+Date.now()+Math.random().toString(36).slice(2)+'@example.test';
   await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill('NebulaTestPassword123!');
-  await page.getByRole('button',{name:'Crear mi cuenta'}).click();
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button',{name:'Entrar'}).click();
   await expect(page.getByText('Sesión activa')).toBeVisible();
   await navigate(page,'Explorar');
   await page.getByRole('textbox',{name:'Buscar metadatos musicales'}).fill('banda');

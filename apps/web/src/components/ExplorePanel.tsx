@@ -5,6 +5,7 @@ import { Bookmark, Check, ExternalLink, Headphones, Search, WifiOff } from 'luci
 import type { AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
 import { MetadataLookup } from './MetadataLookup';
+import { appendUniqueTracks, canLoadMore } from '../lib/catalog-pagination';
 
 type Provider = 'all'|'jamendo'|'openverse'|'audius'|'internetarchive';
 interface RemoteTrack {
@@ -41,60 +42,85 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState('');
   const [searched,setSearched]=useState(false);
+  const [searchPage,setSearchPage]=useState(0);
+  const [hasMore,setHasMore]=useState(false);
+  const [activeQuery,setActiveQuery]=useState('');
   const [failed,setFailed]=useState<string[]>([]);
   const [saving,setSaving]=useState<string|null>(null);
   const [targetPlaylist,setTargetPlaylist]=useState('');
   const [enabled,setEnabled]=useState<Record<string,boolean>>({});
   const searchAbort=useRef<AbortController|null>(null);
+  const tokenRef=useRef(account.accessToken);
+  tokenRef.current=account.accessToken;
 
-  const loadSaved=useCallback(async()=>{
-    if(!account.accessToken || !apiConfigured) {setSaved([]);return;}
+  const loadSaved=useCallback(async(signal?:AbortSignal)=>{
+    const token=account.accessToken;
+    if(!token || !apiConfigured) {setSaved([]);return;}
     try {
-      const response=await fetch(apiBase+'/v1/library/external',{headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store'});
-      if(response.ok) setSaved((await response.json()).items as SavedTrack[]);
+      const response=await fetch(apiBase+'/v1/library/external',{headers:{Authorization:'Bearer '+token},cache:'no-store',signal});
+      if(response.ok){
+        const data=await response.json();
+        if(!signal?.aborted && tokenRef.current===token)setSaved(Array.isArray(data.items)?data.items:[]);
+      }
     } catch { /* Discovery still works if saved list is temporarily unavailable. */ }
   },[account.accessToken]);
 
-  useEffect(()=>{void loadSaved();},[loadSaved]);
   useEffect(()=>{
-    if(!account.accessToken || !apiConfigured) return;
+    const controller=new AbortController();
+    void loadSaved(controller.signal);
+    return ()=>controller.abort();
+  },[loadSaved]);
+  useEffect(()=>{
+    const token=account.accessToken;
+    if(!token || !apiConfigured){setEnabled({});return;}
+    const controller=new AbortController();
     void fetch(apiBase+'/v1/discovery/providers',{
-      headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',
+      headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal,
     }).then(r=>r.ok?r.json():null).then((data)=>{
-      if(data?.providers) setEnabled(Object.fromEntries((data.providers as {id:string;enabled:boolean}[]).map(x=>[x.id,x.enabled])));
+      if(!controller.signal.aborted&&tokenRef.current===token&&data?.providers)
+        setEnabled(Object.fromEntries((data.providers as {id:string;enabled:boolean}[]).map(x=>[x.id,x.enabled])));
     }).catch(()=>{});
+    return ()=>controller.abort();
   },[account.accessToken]);
 
-  async function searchRemote(q:string) {
+  async function searchRemote(q:string,nextPage=1) {
     searchAbort.current?.abort();
-    if(q.length<2){setTracks([]);setSearched(false);setBusy(false);return;}
-    if(!account.accessToken || !apiConfigured){setTracks([]);setBusy(false);setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
+    if(q.length<2){setTracks([]);setSearched(false);setBusy(false);setSearchPage(0);setHasMore(false);setActiveQuery('');return;}
+    if(!account.accessToken || !apiConfigured){setTracks([]);setBusy(false);setHasMore(false);setSearchPage(0);setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
     const controller=new AbortController();
     searchAbort.current=controller;
     setBusy(true);setNotice('');setFailed([]);setSearched(true);
+    if(nextPage===1){setActiveQuery(q);setSearchPage(0);setHasMore(false);setTracks([]);}
     try {
-      const params=new URLSearchParams({q,provider,limit:'12',page:'1'});
+      const params=new URLSearchParams({q,provider,limit:'12',page:String(nextPage)});
       const response=await fetch(apiBase+'/v1/discovery/search?'+params.toString(),{
         headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',signal:controller.signal,
       });
       if(!response.ok) throw new Error(response.status===401?'La sesión caducó; vuelve a iniciar sesión.':'No fue posible consultar los proveedores.');
       const json=await response.json();
       if(controller.signal.aborted) return;
-      setTracks(Array.isArray(json.items)?json.items:[]);
+      const incoming:RemoteTrack[]=Array.isArray(json.items)?json.items:[];
+      setTracks(previous=>appendUniqueTracks(nextPage===1?[]:previous,incoming));
+      setSearchPage(nextPage);
+      setHasMore(canLoadMore(incoming.length,nextPage,12));
       setFailed(Array.isArray(json.failedProviders)?json.failedProviders:[]);
       if(json.disabledProviders?.length) setNotice('Algunas fuentes no están disponibles; mostramos los resultados de las que respondieron.');
     } catch(e) {
       if(controller.signal.aborted) return;
-      setTracks([]);
+      if(nextPage===1){setTracks([]);setHasMore(false);setSearchPage(0);}
       setNotice(e instanceof Error?e.message:'Ocurrió un error al buscar.');
     } finally {if(searchAbort.current===controller) {searchAbort.current=null;setBusy(false);} }
   }
 
   useEffect(()=>{
+    if(!account.accessToken){searchAbort.current?.abort();setTracks([]);setHasMore(false);setSearchPage(0);setSaved([]);setEnabled({});}
+  },[account.accessToken]);
+
+  useEffect(()=>{
     if(!embedded) return;
     const q=(initialQuery??'').trim();
     searchAbort.current?.abort();
-    if(q.length<2){setTracks([]);setSearched(false);setNotice('');setBusy(false);return;}
+    if(q.length<2){setTracks([]);setSearched(false);setNotice('');setBusy(false);setHasMore(false);setSearchPage(0);setActiveQuery('');return;}
     const timer=setTimeout(()=>{void searchRemote(q);},400);
     return ()=>{clearTimeout(timer);searchAbort.current?.abort();};
   },[embedded,initialQuery,provider,account.accessToken]);
@@ -163,11 +189,11 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
     </div> : <>
       {!embedded && <form onSubmit={(event)=>{event.preventDefault();void searchRemote(query.trim());}} className="explore-form glass">
         <Search size={19}/><label className="sr-only" htmlFor="catalog-query">Buscar canciones externas</label>
-        <input id="catalog-query" placeholder="Busca por artista, canción o género" value={query} maxLength={100} onChange={e=>setQuery(e.target.value)}/>
+        <input id="catalog-query" placeholder="Busca por artista, canción o género" value={query} maxLength={100} onChange={e=>{searchAbort.current?.abort();setQuery(e.target.value);setTracks([]);setHasMore(false);setSearchPage(0);setSearched(false);setBusy(false);}}/>
         <button type="submit" className="button primary small" disabled={busy}>{busy?'Buscando…':'Buscar'}</button>
       </form>}
       <div className="chip-row">{providerNames.map(x=><button type="button" key={x.id}
-        className={'chip '+(provider===x.id?'active':'')} disabled={x.id!=='all'&&enabled[x.id]===false} aria-pressed={provider===x.id} onClick={()=>setProvider(x.id)}>
+        className={'chip '+(provider===x.id?'active':'')} disabled={x.id!=='all'&&enabled[x.id]===false} aria-pressed={provider===x.id} onClick={()=>{searchAbort.current?.abort();setProvider(x.id);setTracks([]);setSearched(false);setHasMore(false);setSearchPage(0);setBusy(false);}}>
         {x.label}{x.id!=='all'&&enabled[x.id]===false?' · no disponible':''}
       </button>)}</div>
       {notice && <p className="explore-notice" role="status">{notice}</p>}
@@ -200,6 +226,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
           </div>
         </article>;
       })}</div>
+      {searched&&tracks.length>0&&<div className="catalog-pagination" role="group" aria-label="Páginas del catálogo"><span className="disclosure">{tracks.length} resultados mostrados · página {searchPage} de hasta 20</span>{hasMore&&<button type="button" className="button secondary small" disabled={busy} onClick={()=>{void searchRemote(activeQuery,searchPage+1);}}>{busy?'Cargando más…':'Cargar más canciones'}</button>}</div>}
       {!embedded && <section className="content-section">
         <div className="section-heading"><h2>Mi colección externa</h2><span className="server-pill">{saved.length} referencias</span></div>
         {account.serverPlaylists.length>0 && saved.length>0 && <label className="disclosure">Playlist de cuenta <select aria-label="Seleccionar playlist de cuenta" value={targetPlaylist} onChange={e=>setTargetPlaylist(e.target.value)}><option value="">Seleccionar</option>{account.serverPlaylists.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
