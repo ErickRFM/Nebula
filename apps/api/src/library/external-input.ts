@@ -25,6 +25,6 @@ export const externalInput=z.object({
     ctx.addIssue({code:'custom',path:['sourceUrl'],message:'invalid_audius_source'});
 });
 export const externalDelete=z.object({
-  provider:z.enum(['jamendo','openverse','audius']),
+  provider:z.enum(['jamendo','openverse','audius','internetarchive']),
   externalId:z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
 });
