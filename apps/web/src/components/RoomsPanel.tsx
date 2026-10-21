@@ -5,6 +5,7 @@ import { Copy, Headphones, Music2, Plus, RadioTower, RefreshCw, Users, X } from 
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomDevicesPanel } from './RoomDevicesPanel';
+import { RoomAcousticQaPanel } from './RoomAcousticQaPanel';
 import { RoomRequestsPanel } from './RoomRequestsPanel';
 import { useRoomEventStream } from '../lib/room-event-stream';
 import { buildRoomInviteLink, roomInviteFromHash } from '../lib/room-invite-link';
@@ -472,6 +473,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
       </section>}
       {selected && selectedId===selected.id && <RoomRequestsPanel roomId={selected.id} hostId={selected.ownerUserId} account={account}/>}
       {selected && selectedId===selected.id && <RoomDevicesPanel room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>}
+      {selected && selectedId===selected.id && <RoomAcousticQaPanel/>}
     </>}
   </section>;
 }
