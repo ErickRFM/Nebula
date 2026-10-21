@@ -148,7 +148,7 @@ export function useLocalAudio(): Player {
   shuffleRef.current = shuffle;
   repeatRef.current = repeat;
 
-  const renewSignedTrack=useCallback(async(track:Track)=>{
+  const renewSignedTrack: (track:Track)=>Promise<void> = useCallback(async(track:Track)=>{
     const renew=track.renewAudioUrl;
     if(!renew || currentRef.current!==track.id)return;
     const audio=audioRef.current;
