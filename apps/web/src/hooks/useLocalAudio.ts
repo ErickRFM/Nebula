@@ -50,6 +50,9 @@ export function useLocalAudio(): Player {
   const urlsRef = useRef<Map<string, string>>(new Map());
   const nextRef = useRef<() => void>(() => {});
   const queueRef = useRef<Track[]>([]);
+  const signedTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const signedRenewRef = useRef<(()=>void)|null>(null);
+  const signedFailuresRef = useRef(0);
   const userQueueRef = useRef<Track[] | null>(null);
   const currentRef = useRef<string | null>(null);
   const shuffleRef = useRef(false);
@@ -105,8 +108,17 @@ export function useLocalAudio(): Player {
     const onPause = () => setState((old) => old === 'ended' || old === 'error' ? old : 'paused');
     const onWaiting = () => setState('buffering');
     const onError = () => {
+      // Signed R2 URLs may expire while the listener is mounted. A private
+      // resolver is only available for the owner's own cloud entries.
+      if(signedRenewRef.current && signedFailuresRef.current<2){
+        signedFailuresRef.current++;
+        setState('buffering');
+        setNotice('Renovando el enlace privado de reproducción…');
+        signedRenewRef.current();
+        return;
+      }
       setState('error');
-      setNotice('El navegador no pudo cargar el audio. La fuente puede estar caída, bloqueada o usar un formato incompatible. Prueba otra pista.');
+      setNotice('El navegador no pudo cargar el audio. Revisa tu red, el formato o renueva la pista.');
     };
     const onEnded = () => { setState('ended'); nextRef.current(); };
     audio.addEventListener('timeupdate', onTime);
@@ -117,6 +129,8 @@ export function useLocalAudio(): Player {
     audio.addEventListener('error', onError);
     audio.addEventListener('ended', onEnded);
     return () => {
+      if(signedTimerRef.current)clearTimeout(signedTimerRef.current);
+      signedRenewRef.current=null;
       audio.pause();
       audio.removeAttribute('src');
       audio.load();
@@ -134,6 +148,45 @@ export function useLocalAudio(): Player {
   shuffleRef.current = shuffle;
   repeatRef.current = repeat;
 
+  const renewSignedTrack=useCallback(async(track:Track)=>{
+    const renew=track.renewAudioUrl;
+    if(!renew || currentRef.current!==track.id)return;
+    const audio=audioRef.current;
+    if(!audio)return;
+    try {
+      const lease=await renew();
+      if(currentRef.current!==track.id||audioRef.current!==audio)return;
+      const next=new URL(lease.url);
+      if(next.protocol!=='https:')throw new Error('Enlace firmado inseguro.');
+      const position=Number.isFinite(audio.currentTime)?audio.currentTime:0;
+      const wasPlaying=!audio.paused;
+      setState('loading');
+      audio.pause();
+      audio.src=next.toString();
+      const restore=()=>{
+        if(currentRef.current!==track.id||audioRef.current!==audio)return;
+        try{
+          if(Number.isFinite(audio.duration))audio.currentTime=Math.min(position,Math.max(0,audio.duration-0.1));
+          if(wasPlaying)void audio.play().catch(()=>setNotice('Pulsa Reproducir para continuar después de renovar el enlace.'));
+          else setState('paused');
+        }catch{setNotice('El audio se renovó. Reanuda la canción manualmente.');}
+      };
+      audio.addEventListener('loadedmetadata',restore,{once:true});
+      audio.load();
+      signedFailuresRef.current=0;
+      if(signedTimerRef.current)clearTimeout(signedTimerRef.current);
+      if(currentRef.current===track.id){
+        const interval=Math.max(30_000,Math.min(3_300_000,(lease.expiresInSeconds||3600)*1000-60_000));
+        signedTimerRef.current=setTimeout(()=>{void renewSignedTrack(track);},interval);
+      }
+    }catch{
+      if(currentRef.current!==track.id)return;
+      setNotice('No pudimos renovar el enlace privado. Comprueba la conexión e intenta reproducir otra vez.');
+      if(signedTimerRef.current)clearTimeout(signedTimerRef.current);
+      signedTimerRef.current=setTimeout(()=>{void renewSignedTrack(track);},60_000);
+    }
+  },[]);
+
   const selectTrack = useCallback((track: Track) => {
     if (!track.audioUrl) {
       setNotice('Esta canción es parte del concepto visual. Importa tus archivos para escuchar música real.');
@@ -141,6 +194,15 @@ export function useLocalAudio(): Player {
     }
     const audio = audioRef.current;
     if (!audio) return;
+    if(signedTimerRef.current)clearTimeout(signedTimerRef.current);
+    signedRenewRef.current=null;
+    signedFailuresRef.current=0;
+    currentRef.current=track.id;
+    if(track.renewAudioUrl){
+      signedRenewRef.current=()=>{void renewSignedTrack(track);};
+      const milliseconds=Math.max(30_000,Math.min(3_300_000,(track.signedAudioExpiresInSeconds||3600)*1000-60_000));
+      signedTimerRef.current=setTimeout(()=>{void renewSignedTrack(track);},milliseconds);
+    }
     setNotice('');
     setCurrentId(track.id);
     setTime(0);
@@ -160,7 +222,7 @@ export function useLocalAudio(): Player {
       setState('error');
       setNotice('No fue posible iniciar esta pista. Comprueba la disponibilidad del audio o intenta con otra.');
     });
-  }, []);
+  }, [renewSignedTrack]);
 
   const next = useCallback(() => {
     const list = queueRef.current;
