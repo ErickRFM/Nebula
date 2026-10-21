@@ -372,7 +372,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
         <section className="room-card glass" aria-labelledby="room-create-heading">
           <div className="room-card-header"><span className="room-card-icon"><Plus size={21}/></span><div><h2 id="room-create-heading">Crear sala</h2><p>Inicia una sesión privada de escucha.</p></div></div>
           <form className="room-form" onSubmit={event=>{event.preventDefault();create();}}>
-            <div className="room-field"><label htmlFor="room-name">Nombre de la sala</label><input id="room-name" value={name} maxLength={80} placeholder="Ej. Fiesta en casa" autoComplete="off" onChange={e=>setName(e.target.value)} required/></div>
+            <div className="room-field"><label htmlFor="room-name">Nombre</label><input id="room-name" value={name} maxLength={80} placeholder="Ej. Fiesta en casa" autoComplete="off" onChange={e=>setName(e.target.value)} required/></div>
             <div className="room-field"><label htmlFor="room-mode">Modo de sala</label><select id="room-mode" value={mode} onChange={e=>setMode(e.target.value as 'listening'|'party')}><option value="listening">Escucha compartida</option><option value="party">Party Sound (beta)</option></select></div>
             <p className="room-form-note">Cada participante activa su propia salida de audio.</p>
             <button type="submit" className="button primary" disabled={busy||!name.trim()}><Plus size={16}/> Crear sala</button>
@@ -381,9 +381,9 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
         <section className="room-card glass" aria-labelledby="room-join-heading">
           <div className="room-card-header"><span className="room-card-icon"><Users size={21}/></span><div><h2 id="room-join-heading">Unirse a una sala</h2><p>Entra con una invitación privada.</p></div></div>
           <form className="room-form" onSubmit={event=>{event.preventDefault();join();}}>
-            <div className="room-field"><label htmlFor="room-code">Código de invitación</label><input id="room-code" value={code} autoComplete="off" spellCheck={false} placeholder="Pega aquí tu código privado" onChange={e=>setCode(e.target.value)}/></div>
+            <div className="room-field"><label htmlFor="room-code">Código privado</label><input id="room-code" value={code} autoComplete="off" spellCheck={false} placeholder="Pega aquí tu código privado" onChange={e=>setCode(e.target.value)}/></div>
             <p className="room-form-note">También puedes abrir el enlace compartido por el anfitrión.</p>
-            <button type="submit" className="button secondary" disabled={busy||code.trim().length<20}>Entrar a la sala</button>
+            <button type="submit" className="button secondary" disabled={busy||code.trim().length<20}>Unirme</button>
           </form>
         </section>
       </div>
