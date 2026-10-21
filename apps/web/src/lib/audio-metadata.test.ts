@@ -53,7 +53,7 @@ describe('client-only audio tags',()=>{
     for(const tag of comments){const bytes=encode.encode(tag);payload.push(u32(bytes.length),bytes);}
     const length=payload.reduce((sum,x)=>sum+x.length,0);
     const header=new Uint8Array([102,76,97,67,0x84,(length>>16)&255,(length>>8)&255,length&255]);
-    const tags=await readAudioMetadata(named('fallback.flac',[header,...payload]));
+    const tags=await readAudioMetadata(named('fallback.flac',[header,...payload].map(part=>Uint8Array.from(part).buffer as ArrayBuffer)));
     expect(tags).toMatchObject({title:'Un cielo azul',artist:'Grupo del Río',album:'Mi álbum',genre:'Rock'});
   });
   it('reads small M4A iTunes atoms without decoding the audio track',async()=>{
@@ -67,7 +67,7 @@ describe('client-only audio tags',()=>{
     const data=atom('data',new Uint8Array([0,0,0,1,0,0,0,0,...enc.encode('Noche de Luna')]));
     const name=atom(String.fromCharCode(169)+'nam',data);
     const container=atom('moov',atom('udta',atom('meta',new Uint8Array([0,0,0,0,...atom('ilst',name)]))));
-    const tags=await readAudioMetadata(named('fallback.m4a',[container]));
+    const tags=await readAudioMetadata(named('fallback.m4a',[Uint8Array.from(container).buffer as ArrayBuffer]));
     expect(tags.title).toBe('Noche de Luna');
   });
 
