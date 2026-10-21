@@ -311,6 +311,12 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       const playable = await app.inject({ method: 'GET', url: '/v1/library/cloud/' + id + '/play', headers: headers(a.token) });
       expect(playable.statusCode).toBe(200);
       expect(new URL(playable.json().url).searchParams.get('X-Amz-Expires')).toBe('3600');
+      const download = await app.inject({method:'GET',url:'/v1/library/cloud/'+id+'/download',headers:headers(a.token)});
+      expect(download.statusCode).toBe(200);
+      expect(new URL(download.json().url).searchParams.get('response-content-disposition')).toContain('attachment;');
+      expect(new URL(download.json().url).searchParams.get('X-Amz-Expires')).toBe('300');
+      const deniedDownload = await app.inject({method:'GET',url:'/v1/library/cloud/'+id+'/download',headers:headers(b.token)});
+      expect(deniedDownload.statusCode).toBe(404);
       const blocked = await app.inject({ method: 'GET', url: '/v1/library/cloud/' + id + '/play', headers: headers(b.token) });
       expect(blocked.statusCode).toBe(404);
       const blockedDelete = await app.inject({ method: 'DELETE', url: '/v1/library/cloud/' + id, headers: headers(b.token) });
