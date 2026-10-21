@@ -207,7 +207,7 @@ export function NebulaApp() {
           <Tag>EXPLORA NUEVAS FRECUENCIAS</Tag><h1 className="page-title">¿Qué quieres escuchar?</h1>
           <p className="page-description">Busca una canción, artista o género en tu música y los catálogos conectados. Sin resultados ficticios.</p>
           <div className="search-field glass" role="search"><Search size={21} aria-hidden="true"/>
-            <input type="search" aria-label="Buscar canciones, artistas o álbumes" value={search} autoComplete="off"
+            <input type="text" aria-label="Buscar canciones, artistas o álbumes" value={search} autoComplete="off"
               onChange={event=>{setSearch(event.target.value);setGenre('Todos');}} placeholder="Busca una canción, artista o álbum…"/>
             {search&&<button type="button" className="icon-button" aria-label="Borrar búsqueda" onClick={()=>{setSearch('');setGenre('Todos');}}><X size={17}/></button>}
           </div>
