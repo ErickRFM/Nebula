@@ -27,23 +27,25 @@ export function registerRoomEventRoutes(app: FastifyInstance, pool: Pool): void 
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_room_id' });
     const roomId = parsed.data.id;
     const userId = request.principal!.userId;
+    const sessionId = request.principal!.sessionId;
     const fetchSnapshot = async (): Promise<Snapshot | null> => {
       const result = await pool.query<Snapshot>(`
         SELECT r.revision::int AS revision,
           (SELECT count(*)::int FROM room_members m2 WHERE m2.room_id=r.id) AS "participantCount"
         FROM rooms r
         JOIN room_members m ON m.room_id=r.id AND m.user_id=$2
+        JOIN sessions s ON s.id=$3 AND s.user_id=$2
+          AND s.revoked_at IS NULL AND s.expires_at > now()
         WHERE r.id=$1 AND r.status='active'
-      `, [roomId, userId]);
+      `, [roomId, userId, sessionId]);
       return result.rows[0] ?? null;
     };
     // Authenticate and authorize before upgrading to streaming response.
     const initial = await fetchSnapshot();
     if (!initial) return reply.code(404).send({ error: 'room_not_found' });
 
-    // A hijacked Fastify reply bypasses reply.send() header propagation.
-    // Forward ONLY headers already authorized by @fastify/cors: never reflect
-    // the incoming Origin or credentials ourselves.
+    // Streaming directly on reply.raw bypasses Fastify's CORS reply headers.
+    // Forward the approved @fastify/cors values, never reflect request Origin.
     const approvedHeaders: Record<string, string> = {};
     for (const name of ['access-control-allow-origin', 'access-control-allow-credentials', 'vary'] as const) {
       const value = reply.getHeader(name);

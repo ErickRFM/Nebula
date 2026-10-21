@@ -1,0 +1,64 @@
+name: NÉBULA Android APK
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, feat/party-sound-realtime-native-20261020]
+    paths:
+      - 'native/android/**'
+      - 'scripts/integrate-android.mjs'
+      - '.github/workflows/android-apk.yml'
+      - 'capacitor.config.ts'
+      - 'apps/web/**'
+      - 'package-lock.json'
+permissions:
+  contents: read
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEXT_PUBLIC_API_URL: https://nebula-er-i1.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify preinstalled Android SDK
+        run: |
+          test -n "$ANDROID_HOME"
+          test -d "$ANDROID_HOME/platforms"
+          ls "$ANDROID_HOME/platforms"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Export NÉBULA static web application
+        run: npm run build -w @nebula/web
+      - name: Generate Capacitor Android project
+        run: npx cap add android
+      - name: Integrate Kotlin, Media3 and manifest
+        run: node scripts/integrate-android.mjs
+      - name: Sync browser assets to Android
+        run: npx cap sync android
+      - name: Build installable debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+      - name: Check APK and checksum
+        run: |
+          test -s android/app/build/outputs/apk/debug/app-debug.apk
+          sha256sum android/app/build/outputs/apk/debug/app-debug.apk | tee android/debug-apk.sha256
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nebula-party-android-debug
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/debug-apk.sha256
+          if-no-files-found: error
+          retention-days: 14

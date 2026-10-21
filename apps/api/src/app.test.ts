@@ -73,6 +73,20 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(invalid.statusCode).toBe(400);
   });
 
+  it('allows only the configured site and fixed Capacitor native origins', async () => {
+    for (const origin of ['http://localhost:3000', 'http://localhost', 'https://localhost', 'capacitor://localhost']) {
+      const res=await app.inject({method:'OPTIONS',url:'/v1/auth/config',headers:{
+        origin,'access-control-request-method':'GET',
+      }});
+      expect(res.headers['access-control-allow-origin']).toBe(origin);
+      expect(res.headers['access-control-allow-credentials']).toBe('true');
+    }
+    const denied=await app.inject({method:'OPTIONS',url:'/v1/auth/config',headers:{
+      origin:'https://untrusted.example','access-control-request-method':'GET'
+    }});
+    expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
   it('health reports database connectivity', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/health' });
     expect(response.statusCode).toBe(200);
