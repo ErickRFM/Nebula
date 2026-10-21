@@ -8,7 +8,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { playlists, users, externalLibraryItems } from './db/schema.js';
+import { playlists, playlistItems, cloudTracks, users, externalLibraryItems } from './db/schema.js';
 import { externalInput, externalDelete } from './library/external-input.js';
 import { DiscoveryService } from './discovery/service.js';
 import { MusicBrainzMetadata } from './metadata/musicbrainz.js';
@@ -178,6 +178,60 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
       .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, principalId(request))))
       .returning({ id: playlists.id });
     if (!deleted) return reply.code(404).send(fail('playlist_not_found'));
+    return reply.code(204).send();
+  });
+
+  // A playlist can reference the owner's ready cloud files or saved provider metadata.
+  // An external reference does not authorize storing or copying the audio bytes.
+  const playlistItemInput = z.object({
+    source: z.enum(['cloud', 'external']),
+    trackId: z.string().uuid(),
+  });
+  app.get('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
+    const params = idInput.safeParse(request.params);
+    if (!params.success) return reply.code(400).send(fail('invalid_playlist_id'));
+    const [owner] = await db.select({ id: playlists.id }).from(playlists)
+      .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, principalId(request)))).limit(1);
+    if (!owner) return reply.code(404).send(fail('playlist_not_found'));
+    const items = await db.select({
+      id: playlistItems.id, cloudTrackId: playlistItems.cloudTrackId,
+      externalItemId: playlistItems.externalItemId, createdAt: playlistItems.createdAt,
+    }).from(playlistItems).where(eq(playlistItems.playlistId, owner.id))
+      .orderBy(playlistItems.createdAt, playlistItems.id).limit(500);
+    return { items };
+  });
+  app.post('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
+    const params = idInput.safeParse(request.params);
+    const body = playlistItemInput.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send(fail('invalid_playlist_item'));
+    const userId = principalId(request);
+    const [owner] = await db.select({ id: playlists.id }).from(playlists)
+      .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, userId))).limit(1);
+    if (!owner) return reply.code(404).send(fail('playlist_not_found'));
+    if (body.data.source === 'cloud') {
+      const [track] = await db.select({ id: cloudTracks.id }).from(cloudTracks)
+        .where(and(eq(cloudTracks.id, body.data.trackId), eq(cloudTracks.userId, userId), eq(cloudTracks.status, 'ready'))).limit(1);
+      if (!track) return reply.code(404).send(fail('track_not_found'));
+    } else {
+      const [track] = await db.select({ id: externalLibraryItems.id }).from(externalLibraryItems)
+        .where(and(eq(externalLibraryItems.id, body.data.trackId), eq(externalLibraryItems.userId, userId))).limit(1);
+      if (!track) return reply.code(404).send(fail('track_not_found'));
+    }
+    const key = body.data.source === 'cloud' ? {cloudTrackId: body.data.trackId} : {externalItemId: body.data.trackId};
+    const [row] = await db.insert(playlistItems).values({id: randomUUID(),playlistId:owner.id,...key})
+      .onConflictDoNothing().returning({id:playlistItems.id});
+    return reply.code(row ? 201 : 200).send({created:Boolean(row)});
+  });
+  app.delete('/v1/playlists/:id/items/:itemId', { preHandler: requireAuth }, async (request, reply) => {
+    const parsed = z.object({id:z.string().uuid(),itemId:z.string().uuid()}).safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send(fail('invalid_playlist_item'));
+    const [owner] = await db.select({id:playlists.id}).from(playlists)
+      .where(and(eq(playlists.id,parsed.data.id),eq(playlists.userId,principalId(request)))).limit(1);
+    if (!owner) return reply.code(404).send(fail('playlist_not_found'));
+    const [deleted] = await db.delete(playlistItems).where(and(
+      eq(playlistItems.id,parsed.data.itemId),eq(playlistItems.playlistId,owner.id)
+    )).returning({id:playlistItems.id});
+    if (!deleted) return reply.code(404).send(fail('playlist_item_not_found'));
     return reply.code(204).send();
   });
 

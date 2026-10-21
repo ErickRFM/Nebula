@@ -87,3 +87,11 @@ export const cloudTracks = pgTable('cloud_tracks', {
   status: varchar('status', { length: 16 }).notNull().default('pending'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('cloud_tracks_user_created_idx').on(t.userId, t.createdAt)]);
+
+export const playlistItems = pgTable('playlist_items', {
+  id: uuid('id').primaryKey(),
+  playlistId: uuid('playlist_id').notNull().references(() => playlists.id, { onDelete: 'cascade' }),
+  cloudTrackId: uuid('cloud_track_id').references(() => cloudTracks.id, { onDelete: 'cascade' }),
+  externalItemId: uuid('external_item_id').references(() => externalLibraryItems.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('playlist_items_playlist_created').on(t.playlistId, t.createdAt, t.id)]);

@@ -216,6 +216,23 @@ export function useAccount() {
   },[accessToken]);
 
 
+  const addAccountPlaylistItem=useCallback(async (playlistId:string,source:'cloud'|'external',trackId:string):Promise<boolean>=>{
+    if(!accessToken) {setError('Inicia sesión para guardar canciones.');return false;}
+    try {
+      await requestJson<{created:boolean}>('/v1/playlists/'+encodeURIComponent(playlistId)+'/items',{
+        method:'POST',body:JSON.stringify({source,trackId}),
+      },accessToken);
+      return true;
+    } catch(err) {
+      setError(err instanceof Error ? err.message : 'No se pudo añadir la pista.');
+      return false;
+    }
+  },[accessToken]);
+  const getAccountPlaylistItems=useCallback(async (playlistId:string):Promise<{items:{id:string;cloudTrackId:string|null;externalItemId:string|null}[]}>=>{
+    if(!accessToken) throw new Error('Inicia sesión para consultar la playlist.');
+    return requestJson('/v1/playlists/'+encodeURIComponent(playlistId)+'/items',{},accessToken);
+  },[accessToken]);
+
   const cloudRequest=useCallback(async <T,>(path:string,init:RequestInit={}):Promise<T>=>{
     if(!accessToken) throw new Error('Inicia sesión para usar tu biblioteca privada.');
     return requestJson<T>(path,init,accessToken);
@@ -224,7 +241,7 @@ export function useAccount() {
   return {
     configured:isAccountApiConfigured,user,accessToken,busy,restoring,error,registrationOpen,
     serverPlaylists,playlistsBusy,sessions,login,acceptInvite,logout,
-    revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,cloudRequest,setError,
+    revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,addAccountPlaylistItem,getAccountPlaylistItems,cloudRequest,setError,
   };
 }
 

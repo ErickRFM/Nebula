@@ -44,9 +44,9 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     return response.cookies.find((entry) => entry.name === name)?.value ?? '';
   }
 
-  async function register(prefix: string) {
+  async function register(prefix: string, clientIp?: string) {
     const email = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`;
-    const result = await app.inject({ method: 'POST', url: '/v1/auth/register', payload: { email, password: PASSWORD } });
+    const result = await app.inject({ method: 'POST', url: '/v1/auth/register', headers: clientIp ? {'x-forwarded-for': clientIp} : undefined, payload: { email, password: PASSWORD } });
     expect(result.statusCode).toBe(201);
     return { email, token: result.json().accessToken as string };
   }
@@ -128,6 +128,36 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(disabled.statusCode).toBe(200);
     expect(disabled.json().items).toEqual([]);
     expect(disabled.json().disabledProviders).toContain('jamendo');
+  });
+
+  it('persists playlist references and blocks cross-account membership access', async () => {
+    const owner = await register('playlist-item-owner','198.51.100.71');
+    const stranger = await register('playlist-item-stranger','198.51.100.71');
+    const header = (token: string) => ({ authorization: 'Bearer ' + token, 'x-forwarded-for': '198.51.100.71' });
+    const playlist = await app.inject({method:'POST',url:'/v1/playlists',headers:header(owner.token),payload:{name:'Favoritas de nube'}});
+    expect(playlist.statusCode).toBe(201);
+    const playlistId = playlist.json().playlist.id as string;
+    const source = await app.inject({method:'POST',url:'/v1/library/external',headers:header(owner.token),payload:{
+      provider:'jamendo',externalId:'45790',title:'Pista permitida',artist:'Artista',
+      sourceUrl:'https://www.jamendo.com/track/45790',
+    }});
+    expect([200,201]).toContain(source.statusCode);
+    const references = await app.inject({method:'GET',url:'/v1/library/external',headers:header(owner.token)});
+    const trackId = (references.json().items as {id:string;externalId:string}[]).find(x=>x.externalId==='45790')!.id;
+    const itemUrl = '/v1/playlists/'+playlistId+'/items';
+    const denied = await app.inject({method:'GET',url:itemUrl,headers:header(stranger.token)});
+    expect(denied.statusCode).toBe(404);
+    const unauthorized = await app.inject({method:'POST',url:itemUrl,headers:header(stranger.token),payload:{source:'external',trackId}});
+    expect(unauthorized.statusCode).toBe(404);
+    const created = await app.inject({method:'POST',url:itemUrl,headers:header(owner.token),payload:{source:'external',trackId}});
+    expect(created.statusCode).toBe(201);
+    const duplicate = await app.inject({method:'POST',url:itemUrl,headers:header(owner.token),payload:{source:'external',trackId}});
+    expect(duplicate.statusCode).toBe(200);
+    const items = await app.inject({method:'GET',url:itemUrl,headers:header(owner.token)});
+    expect(items.json().items).toHaveLength(1);
+    const itemId = items.json().items[0].id as string;
+    expect((await app.inject({method:'DELETE',url:itemUrl+'/'+itemId,headers:header(stranger.token)})).statusCode).toBe(404);
+    expect((await app.inject({method:'DELETE',url:itemUrl+'/'+itemId,headers:header(owner.token)})).statusCode).toBe(204);
   });
 
   it('stores external references only for the owner and de-duplicates saves', async () => {
