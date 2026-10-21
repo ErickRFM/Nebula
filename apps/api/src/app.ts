@@ -16,6 +16,7 @@ import { loadConfig } from './config.js';
 import { createGuards, registerAdminRoutes, registerAuthRoutes } from './modules/auth.js';
 import { registerCloudRoutes } from './modules/cloud.js';
 import { registerFavoriteRoutes } from './modules/favorites.js';
+import { registerYoutubeRoutes } from './modules/youtube.js';
 import { registerRoomRoutes } from './modules/rooms.js';
 import { registerRoomDeviceRoutes } from './modules/room-devices.js';
 import { classifyDatabaseFailure, describeDatabaseConnectionShape } from './db/diagnostics.js';
@@ -97,6 +98,7 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   registerAdminRoutes(app, { db });
   registerCloudRoutes(app, db);
   registerFavoriteRoutes(app, db);
+  registerYoutubeRoutes(app, db);
   registerRoomRoutes(app, pool);
   registerRoomDeviceRoutes(app, pool);
 

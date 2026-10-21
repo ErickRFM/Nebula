@@ -313,3 +313,18 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .player-title h1{overflow-wrap:anywhere;word-break:normal;font-size:clamp(1.5rem,2.55vw,2.45rem);line-height:1.16;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .side-collection .nav-item{width:100%;text-align:left;font:inherit;border:0;background:transparent;cursor:pointer}
 .side-collection .nav-item:focus-visible{outline:2px solid var(--accent,#bda0ff);outline-offset:2px}
+
+/* Source-aware official embeds: preserve Cosmic Glass and avoid iframe overflow. */
+.external-bridges{min-width:0}
+.external-bridges .playlist-create{margin:12px 0}
+.external-bridges .track-row{min-width:0;gap:12px}
+.external-bridges .track-descriptor{min-width:0;overflow-wrap:anywhere}
+.bridge-player{padding:clamp(12px,2vw,24px);border-radius:20px;margin-top:16px;min-width:0}
+.bridge-iframe{display:block;width:100%;max-width:100%;aspect-ratio:16/9;border:0;border-radius:14px;background:#090913}
+.bridge-player>a{display:inline-block;margin-top:12px;color:#c9beff;overflow-wrap:anywhere}
+@media(max-width:720px){
+  .external-bridges .playlist-create{flex-direction:column;align-items:stretch}
+  .external-bridges .playlist-create input{width:100%;min-width:0}
+  .external-bridges .playlist-create .button{width:100%;justify-content:center}
+  .bridge-player{padding:12px}
+}

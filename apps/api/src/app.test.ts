@@ -155,6 +155,23 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect((await app.inject({method:'DELETE',url:url+'/'+favoriteId,headers:h(owner.token)})).statusCode).toBe(204);
   });
 
+  it('gates YouTube search behind authentication and official API configuration', async()=>{
+    const ip='198.51.100.73';
+    const denied=await app.inject({method:'GET',url:'/v1/discovery/youtube?q=music',headers:{'x-forwarded-for':ip}});
+    expect(denied.statusCode).toBe(401);
+    const owner=await register('youtube-search',ip);
+    const headers={authorization:'Bearer '+owner.token,'x-forwarded-for':ip};
+    const config=await app.inject({method:'GET',url:'/v1/discovery/youtube/config',headers});
+    expect(config.statusCode).toBe(200);
+    const invalid=await app.inject({method:'GET',url:'/v1/discovery/youtube?q=a',headers});
+    expect(invalid.statusCode).toBe(400);
+    if(config.json().enabled===false){
+      const missing=await app.inject({method:'GET',url:'/v1/discovery/youtube?q=music',headers});
+      expect(missing.statusCode).toBe(503);
+      expect(missing.json().error).toBe('youtube_not_configured');
+    }
+  });
+
   it('persists playlist references and blocks cross-account membership access', async () => {
     const owner = await register('playlist-item-owner','198.51.100.71');
     const stranger = await register('playlist-item-stranger','198.51.100.71');
