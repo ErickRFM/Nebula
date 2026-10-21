@@ -137,17 +137,19 @@ export function CloudLibrary({
   async function play(item: CloudTrack) {
     setError('');
     try {
-      const result = await account.cloudRequest<{ url: string }>('/v1/library/cloud/' + encodeURIComponent(item.id) + '/play');
+      const result = await account.cloudRequest<{ url: string; expiresInSeconds:number }>('/v1/library/cloud/' + encodeURIComponent(item.id) + '/play');
       onPlay({
         id: 'cloud-' + item.id,
         title: item.title,
         artist: item.artist,
-        album: 'NÉBULA Cloud',
-        genre: 'Mi música',
+        album: item.album||'NÉBULA Cloud',
+        genre: item.genre||'Mi música',
         cover: artwork[0],
         duration: '--:--',
         audioUrl: result.url,
         source: 'external',
+        signedAudioExpiresInSeconds:result.expiresInSeconds,
+        renewAudioUrl:()=>account.cloudRequest<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play'),
       });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo reproducir la canción.');
