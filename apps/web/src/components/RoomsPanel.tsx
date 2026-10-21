@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Copy, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
-import { RoomAudioPlayer } from './RoomAudioPlayer';
+import { RoomDevicesPanel } from './RoomDevicesPanel';
 import { buildRoomInviteLink, roomInviteFromHash } from '../lib/room-invite-link';
 
 type Room = {
@@ -455,7 +455,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
             </div>)}
         </div>
       </section>}
-      {selected && selectedId===selected.id && <RoomAudioPlayer room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>}
+      {selected && selectedId===selected.id && <RoomDevicesPanel room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>}
     </>}
   </section>;
 }

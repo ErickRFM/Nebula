@@ -17,6 +17,7 @@ import { createGuards, registerAdminRoutes, registerAuthRoutes } from './modules
 import { registerCloudRoutes } from './modules/cloud.js';
 import { registerFavoriteRoutes } from './modules/favorites.js';
 import { registerRoomRoutes } from './modules/rooms.js';
+import { registerRoomDeviceRoutes } from './modules/room-devices.js';
 import { classifyDatabaseFailure, describeDatabaseConnectionShape } from './db/diagnostics.js';
 import './types.js';
 
@@ -97,6 +98,7 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   registerCloudRoutes(app, db);
   registerFavoriteRoutes(app, db);
   registerRoomRoutes(app, pool);
+  registerRoomDeviceRoutes(app, pool);
 
   app.get('/v1/me', { preHandler: requireAuth }, async (request, reply) => {
     const [user] = await db

@@ -46,3 +46,10 @@ Last merged main at this checkpoint: `ca0b843380a43469e95daefaf5a021c5db264cd2`.
 5. Record physical evidence in `docs/rooms/PHYSICAL_QA.md`, then certify or document platform-specific limitations.
 
 No background work is implied by this checkpoint; resume from the verified main HEAD and current PR list.
+
+## PS-03 — Registro de salidas de sala (rama en desarrollo)
+
+Se agregó el registro privado de dispositivos con `0010_room_devices.sql`, permisos de propietario y estados de presencia. El panel de salas permite que cada participante active expresamente **su propio** receptor y consulte los receptores registrados. Cada dispositivo necesita habilitar el audio de forma local; no se activa el altavoz de otros usuarios.
+
+Esto no implementa todavía NSD/mDNS, transmisión Bluetooth, gateway Realtime, Media3 ni sincronización acústica certificada. Requiere migración, CI y prueba con dispositivos físicos antes de considerarse liberado.
+
