@@ -133,7 +133,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
   it('persists playlist references and blocks cross-account membership access', async () => {
     const owner = await register('playlist-item-owner');
     const stranger = await register('playlist-item-stranger');
-    const header = (token: string) => ({ authorization: 'Bearer ' + token });
+    const header = (token: string) => ({ authorization: 'Bearer ' + token, 'x-forwarded-for': '198.51.100.71' });
     const playlist = await app.inject({method:'POST',url:'/v1/playlists',headers:header(owner.token),payload:{name:'Favoritas de nube'}});
     expect(playlist.statusCode).toBe(201);
     const playlistId = playlist.json().playlist.id as string;
