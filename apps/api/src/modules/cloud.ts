@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { cloudTracks } from '../db/schema.js';
@@ -15,6 +15,9 @@ const uploadInput = z.object({
   size: z.number().int().min(1).max(MAX_CLOUD_AUDIO_BYTES),
   title: z.string().trim().min(1).max(200).optional(),
   artist: z.string().trim().min(1).max(200).optional(),
+  album: z.string().trim().min(1).max(200).optional(),
+  genre: z.string().trim().min(1).max(120).optional(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 });
 const idInput = z.object({ id: z.string().uuid() });
 
@@ -22,10 +25,31 @@ const projection = {
   id: cloudTracks.id,
   title: cloudTracks.title,
   artist: cloudTracks.artist,
+  album: cloudTracks.album,
+  genre: cloudTracks.genre,
   mimeType: cloudTracks.mimeType,
   byteSize: cloudTracks.byteSize,
   createdAt: cloudTracks.createdAt,
 };
+
+const searchInput=z.object({
+  q:z.string().trim().max(120).default(''),
+  limit:z.coerce.number().int().min(1).max(50).default(25),
+  cursor:z.string().max(180).optional(),
+});
+type CloudCursor={t:string;id:string};
+const cursorFormat=z.object({t:z.string().datetime({offset:true}),id:z.string().uuid()});
+function parseCloudCursor(encoded:string):CloudCursor|null{
+  try{
+    const result=cursorFormat.safeParse(JSON.parse(Buffer.from(encoded,'base64url').toString('utf8')));
+    if(!result.success||!Number.isFinite(Date.parse(result.data.t)))return null;
+    return result.data;
+  }catch{return null;}
+}
+function encodeCloudCursor(createdAt:Date,id:string):string{
+  return Buffer.from(JSON.stringify({t:createdAt.toISOString(),id})).toString('base64url');
+}
+const normalizeQuery=(value:string):string=>value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es').replace(/\s+/g,' ').trim();
 
 export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): void {
   const { requireAuth } = createGuards(db);
@@ -45,6 +69,40 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     return { items, pendingItems, configured: Boolean(readR2Settings()) };
   });
 
+  // Authenticated search across all owner rows, not just legacy 500.
+  app.get('/v1/library/cloud/search',{preHandler:requireAuth},async(request,reply)=>{
+    const input=searchInput.safeParse(request.query);
+    if(!input.success)return reply.code(400).send({error:'invalid_cloud_search'});
+    const cursor=input.data.cursor?parseCloudCursor(input.data.cursor):null;
+    if(input.data.cursor&&!cursor)return reply.code(400).send({error:'invalid_cloud_cursor'});
+    const normalized=normalizeQuery(input.data.q);
+    if(normalized.length===1)return reply.code(400).send({error:'cloud_search_too_short'});
+    const conditions=[
+      eq(cloudTracks.userId,request.principal!.userId),
+      eq(cloudTracks.status,'ready'),
+    ];
+    if(normalized.length>=2){
+      // position() treats SQL wildcard characters as literal query text.
+      conditions.push(sql`position(${normalized} in translate(lower(concat_ws(' ',${cloudTracks.title},${cloudTracks.artist},${cloudTracks.album},${cloudTracks.genre})),'áéíóúüñ','aeiouun')) > 0`);
+    }
+    if(cursor){
+      const timestamp=new Date(cursor.t);
+      conditions.push(or(
+        lt(cloudTracks.createdAt,timestamp),
+        and(eq(cloudTracks.createdAt,timestamp),lt(cloudTracks.id,cursor.id)),
+      )!);
+    }
+    const rows=await db.select(projection).from(cloudTracks)
+      .where(and(...conditions))
+      .orderBy(desc(cloudTracks.createdAt),desc(cloudTracks.id))
+      .limit(input.data.limit+1);
+    const hasMore=rows.length>input.data.limit;
+    const items=rows.slice(0,input.data.limit);
+    const last=items.at(-1);
+    reply.header('Cache-Control','no-store');
+    return {items,hasMore,nextCursor:hasMore&&last?encodeCloudCursor(last.createdAt,last.id):null};
+  });
+
   app.post('/v1/library/cloud/uploads', {
     preHandler: requireAuth, config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
   }, async (request, reply) => {
@@ -55,15 +113,27 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const data = parsed.data;
     const mimeType = audioMimeForFilename(data.filename);
     if (!mimeType) return reply.code(400).send({ error: 'unsupported_audio_format' });
+    if(data.sha256){
+      const [existing]=await db.select({id:cloudTracks.id,status:cloudTracks.status}).from(cloudTracks)
+        .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.sha256,data.sha256))).limit(1);
+      if(existing)return reply.code(409).send({error:'duplicate_cloud_audio',existingId:existing.id,status:existing.status});
+    }
     const extension = data.filename.toLowerCase().split('.').pop()!;
     const id = randomUUID();
     const userId = request.principal!.userId;
     const objectKey = 'users/' + userId + '/' + id + '.' + extension;
     const title = data.title ?? data.filename.replace(/\.[^.]+$/, '').slice(0, 200);
-    await db.insert(cloudTracks).values({
-      id, userId, objectKey, title, artist: data.artist ?? 'Mi música',
-      mimeType, byteSize: data.size, status: 'pending',
-    });
+    try {
+      await db.insert(cloudTracks).values({
+        id,userId,objectKey,title,artist:data.artist??'Mi música',
+        album:data.album??'Archivos importados',genre:data.genre??'Mis canciones',sha256:data.sha256,
+        mimeType,byteSize:data.size,status:'pending',
+      });
+    }catch(error){
+      if((error as {code?:string}).code==='23505'&&data.sha256)
+        return reply.code(409).send({error:'duplicate_cloud_audio'});
+      throw error;
+    }
     return reply.code(201).send({
       id, uploadUrl: presignR2(settings, 'PUT', objectKey, 600, mimeType),
       contentType: mimeType, expiresInSeconds: 600,
