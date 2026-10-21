@@ -180,8 +180,8 @@ export function NebulaApp() {
       <div className="sidebar-label">TU UNIVERSO</div>
       <nav aria-label="Navegación principal" className="side-links">{navigation.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen === item.id ? 'page' : undefined} className={'nav-item ' + (screen === item.id ? 'selected' : '')}><Icon size={19}/>{item.label}</button>; })}</nav>
       <div className="sidebar-label extra-label">TU MÚSICA</div>
-      <div className="side-collection"><span><Disc3 size={16}/> En mi órbita</span><span><Waves size={16}/> Noches de neón</span><span><Headphones size={16}/> Marea tranquila</span></div>
-      <div className="sidebar-footer"><span className="status-dot"/> F01 · Vista preliminar</div>
+      <div className="side-collection"><button type="button" className="nav-item" onClick={()=>navigate('biblioteca')}><Disc3 size={16}/> Mi biblioteca ({localCount})</button>{playlistStore.playlists.slice(0,3).map((list)=><button key={list.id} type="button" className="nav-item" onClick={()=>{setActivePlaylist(list.id);navigate('playlists');}}><ListMusic size={16}/>{list.title}</button>)}{playlistStore.playlists.length===0 && <button type="button" className="nav-item" onClick={()=>navigate('playlists')}><Plus size={16}/> Crear playlist</button>}</div>
+      <div className="sidebar-footer"><span className="status-dot"/> {account.configured ? (account.user ? 'Biblioteca conectada' : 'Inicia sesión para sincronizar') : 'Biblioteca local disponible'}</div>
     </aside>
     <div className="workspace">
       <header className="topbar glass">
@@ -241,7 +241,7 @@ export function NebulaApp() {
           <Tag>PERSONALIZA TU EXPERIENCIA</Tag><h1 className="page-title">Configuración</h1><p className="page-description">Haz que NÉBULA suene y se vea como a ti te gusta.</p>
           <section className="settings-panel glass"><h2>Reproducción</h2><div className="setting-row"><div><strong>Audio de mejor calidad</strong><p>Estará disponible al integrar streaming y perfiles de calidad.</p></div><span className="soon">Próximamente</span></div><div className="setting-row"><div><strong>Reproducción continua</strong><p>Pasar a la siguiente pista de tus archivos locales.</p></div><span className="status-dot"/></div><div className="setting-row"><div><strong>Salida de audio</strong><p>Controlada por el navegador o el sistema operativo.</p></div><MonitorSpeaker size={22}/></div></section>
           <section className="settings-panel glass"><h2>Apariencia y accesibilidad</h2><div className="setting-row"><div><strong>Reducir animaciones</strong><p>Disminuir movimiento decorativo en la interfaz.</p></div><button className={'toggle ' + (reducedMotion ? 'on' : '')} type="button" role="switch" aria-checked={reducedMotion} aria-label="Reducir animaciones" onClick={()=>setReducedMotion((v)=>!v)}><span/></button></div><div className="setting-row"><div><strong>Estilo visual</strong><p>Cosmic Glass · Oscuro nocturno.</p></div><span className="setting-value">Cósmico oscuro</span></div></section>
-          <div className="disclosure">Versión F01 · Sin cuenta, servicio remoto ni sincronización de preferencias.</div>
+          <div className="disclosure">La música local y las playlists de este dispositivo se guardan en el navegador. La biblioteca privada en la nube requiere iniciar sesión y almacenamiento configurado.</div>
         </>}
         {screen === 'cuenta' && <AccountPanel account={account}/>}
         {screen === 'explorar' && <ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>}
