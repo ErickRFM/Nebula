@@ -121,6 +121,7 @@ export function NebulaApp() {
   const playlistStore = usePlaylists();
   const account = useAccount();
   const [playlistTitle, setPlaylistTitle] = useState('');
+  const [cloudPlaylistTitle, setCloudPlaylistTitle] = useState('');
   const [activePlaylist, setActivePlaylist] = useState<string | null>(null);
 
   const localCount = player.ownTracks.length;
@@ -234,7 +235,22 @@ export function NebulaApp() {
             {currentPlaylist.trackIds.length===0 ? <p className="empty-note">Añade canciones desde la Biblioteca utilizando el botón de lista.</p> : currentPlaylist.trackIds.map((id,index)=>{const track=player.tracks.find((entry)=>entry.id===id);return track ? <div key={id} className="playlist-track"><TrackRow track={track} player={player} index={index}/><button type="button" className="icon-button" aria-label={'Quitar '+track.title+' de esta lista'} onClick={()=>playlistStore.removeSong(currentPlaylist.id,id)}><X size={17}/></button></div> : null;})}
           </div></section>}
           <section className="content-section"><SectionHeader title="Selecciones de ejemplo"/><div className="album-grid">{mixes.map((mix)=><AlbumCard key={mix.title} {...mix} onClick={()=>player.setNotice('Este mix es ilustrativo; añade tus propias canciones a una playlist para escucharlas.')}/>)}</div></section>
-          <div className="disclosure">Las playlists se guardan en el navegador actual; aún no se sincronizan con otros dispositivos.</div>
+          {account.user && <section className="content-section">
+            <SectionHeader title="Playlists de tu cuenta"/>
+            <p className="page-description">Estas listas sincronizan sus nombres entre dispositivos. Las canciones todavía no se sincronizan; las colecciones locales permanecen intactas.</p>
+            <form className="playlist-create glass" onSubmit={(event)=>{event.preventDefault();const value=cloudPlaylistTitle.trim();if(value){void account.createServerPlaylist(value).then((created)=>{if(created)setCloudPlaylistTitle('');});}}}>
+              <label className="sr-only" htmlFor="cloud-playlist-title">Nombre de playlist de cuenta</label>
+              <input id="cloud-playlist-title" placeholder="Nombre de playlist de cuenta" value={cloudPlaylistTitle} maxLength={80} onChange={(event)=>setCloudPlaylistTitle(event.target.value)}/>
+              <button type="submit" className="button primary small" disabled={account.playlistsBusy || !cloudPlaylistTitle.trim()}><Plus size={16}/> Crear en mi cuenta</button>
+            </form>
+            {account.playlistsBusy && <p role="status" className="disclosure">Actualizando playlists de cuenta…</p>}
+            <div className="personal-playlists">{account.serverPlaylists.map((list)=><div className="playlist-entry glass" key={list.id}>
+              <span className="playlist-entry-main"><ListMusic size={19}/><strong>{list.name}</strong><small>En tu cuenta</small></span>
+              <button type="button" className="icon-button" disabled={account.playlistsBusy} title="Eliminar playlist de cuenta" aria-label={'Eliminar de mi cuenta '+list.name} onClick={()=>{if(window.confirm('¿Eliminar playlist de cuenta '+list.name+'?'))void account.removeServerPlaylist(list.id);}}><Trash2 size={17}/></button>
+            </div>)}</div>
+            {!account.playlistsBusy && account.serverPlaylists.length===0 && <p className="empty-note">Todavía no tienes playlists guardadas en tu cuenta.</p>}
+          </section>}
+          <div className="disclosure">Las playlists locales se guardan en este navegador. Las playlists de cuenta sincronizan nombres, no archivos ni pistas todavía.</div>
         </>}
         {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
         {screen === 'ajustes' && <>
