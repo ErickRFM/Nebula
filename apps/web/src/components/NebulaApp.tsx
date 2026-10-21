@@ -147,7 +147,7 @@ export function NebulaApp() {
   const filteredTracks = player.tracks.filter((track) => {
     const query = search.toLocaleLowerCase('es');
     const matchesText = (track.title + ' ' + track.artist + ' ' + track.album + ' ' + track.genre).toLocaleLowerCase('es').includes(query);
-    return matchesText && (genre === 'Todos' || track.genre === genre);
+    return matchesText && (genre === 'Todos' || track.genre === genre) && (!account.user || Boolean(track.audioUrl));
   });
 
   useEffect(() => {
@@ -189,7 +189,7 @@ export function NebulaApp() {
     </aside>
     <div className="workspace">
       <header className="topbar glass">
-        <div className="mobile-brand"><Brand/></div><div className="desktop-location"><span>Descubre tu propio universo</span></div>
+        <div className="mobile-brand"><Brand/></div><div className="desktop-location"><span>{screen==='reproductor'?'Reproduciendo ahora':navigation.find(item=>item.id===screen)?.label??'NÉBULA Music'}</span></div>
         <div className="topbar-actions">
           <button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>
           <button className="icon-button glass-chip desktop-only" title="Notificaciones: próximamente" aria-label="Notificaciones no disponibles" type="button" disabled><Bell size={19}/></button>
@@ -200,11 +200,11 @@ export function NebulaApp() {
         {screen === 'inicio' && <>
           <section className="hero glass"><div className="hero-copy"><Tag>✦ BIENVENIDO A TU UNIVERSO</Tag><h1>La música se siente <em>diferente</em> aquí.</h1><p>Un espacio para tus canciones, tus momentos y todo lo que te mueve.</p><div className="hero-actions"><UploadButton onFiles={player.importFiles}/><button className="button secondary" type="button" onClick={()=>navigate('biblioteca')}>Mi biblioteca</button></div></div><div className="hero-planet" aria-hidden="true"><div className="planet-rings"/></div></section>
           <section className="content-section"><SectionHeader title="Para tu momento" action="Explorar" onAction={()=>navigate('buscar')}/><div className="album-grid">{mixes.map((mix)=><AlbumCard key={mix.title} {...mix} onClick={()=>navigate('playlists')}/>)}</div></section>
-          <section className="content-section"><SectionHeader title="Tus mixes favoritos" action="Ver todos" onAction={()=>navigate('playlists')}/><div className="mix-grid">{mixes.slice(0,3).map((mix)=><button className="mix-pill glass" key={mix.title} type="button" onClick={()=>navigate('playlists')}><Cover source={mix.cover} alt="" className="mix-thumb"/><span><strong>{mix.title}</strong><small>{mix.subtitle}</small></span></button>)}</div></section>
+          <section className="content-section"><SectionHeader title={account.user?'Playlists de tu cuenta':'Colecciones de ejemplo'} action="Ver playlists" onAction={()=>navigate('playlists')}/><div className="mix-grid">{account.user ? (account.serverPlaylists.length ? account.serverPlaylists.slice(0,3).map(list=><button className="mix-pill glass" key={list.id} type="button" onClick={()=>navigate('playlists')}><ListMusic size={23}/><span><strong>{list.name}</strong><small>Playlist de tu cuenta</small></span></button>) : <button className="mix-pill glass" type="button" onClick={()=>navigate('playlists')}><Plus size={23}/><span><strong>Crear mi primera playlist</strong><small>Guárdala en tu cuenta</small></span></button>) : mixes.slice(0,3).map(mix=><button className="mix-pill glass" key={mix.title} type="button" onClick={()=>navigate('playlists')}><Cover source={mix.cover} alt="" className="mix-thumb"/><span><strong>{mix.title}</strong><small>Ejemplo · {mix.subtitle}</small></span></button>)}</div></section>
           <section className="content-section"><SectionHeader title="Escucha tu música" action="Biblioteca" onAction={()=>navigate('biblioteca')}/><div className="track-list glass">{player.tracks.slice(0,5).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>)}</div></section>
         </>}
         {screen === 'buscar' && <>
-          <Tag>EXPLORA NUEVAS FRECUENCIAS</Tag><h1 className="page-title">¿Qué quieres escuchar?</h1><p className="page-description">Busca entre tus canciones y explora sonidos favoritos.</p>
+          <Tag>EXPLORA NUEVAS FRECUENCIAS</Tag><h1 className="page-title">¿Qué quieres escuchar?</h1><p className="page-description">Encuentra pistas reales en tu biblioteca y los proveedores disponibles. Los ejemplos no sustituirán resultados reproducibles cuando inicies sesión.</p>
           <div className="search-field glass"><Search size={21}/><input aria-label="Buscar canciones, artistas o álbumes" value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Artistas, canciones, álbumes..."/>{search && <button type="button" className="icon-button" aria-label="Borrar búsqueda" onClick={()=>setSearch('')}><X size={16}/></button>}</div>
           <div className="chip-row">{genres.map((name)=><button type="button" key={name} className={'chip ' + (genre === name ? 'active' : '')} onClick={()=>setGenre(name)}>{name}</button>)}</div>
           <section className="content-section"><SectionHeader title="Música en línea"/><ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate("cuenta")} onPlay={player.playExternal}/></section>
@@ -214,7 +214,7 @@ export function NebulaApp() {
         </>}
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>
-          <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length} <span>guardadas</span></strong><small>Las que siempre vuelven</small></div></div>
+          <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length+account.accountFavorites.length} <span>guardadas</span></strong><small>Favoritos locales y de cuenta</small></div></div>
           <CloudLibrary account={account} onPlay={player.playExternal}/>
           <section className="content-section"><SectionHeader title="Colección musical" action="Playlists" onAction={()=>navigate('playlists')}/><div className="chip-row">{(['canciones','favoritos','albumes'] as const).map((item)=><button type="button" key={item} className={'chip ' + (libraryFilter === item ? 'active' : '')} onClick={()=>setLibraryFilter(item)}>{item === 'albumes' ? 'Álbumes' : item === 'favoritos' ? 'Favoritos' : 'Canciones'}</button>)}</div>{libraryFilter === 'albumes' ? <div className="album-grid">{mixes.map((mix)=><AlbumCard key={mix.title} {...mix} onClick={()=>player.setNotice('Los álbumes de demostración estarán disponibles con un catálogo autorizado.')}/>)}</div> : <div className="track-list glass">{player.tracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i} onAdd={addToPlaylist} onRemove={deleteFromLibrary}/>)}</div>}</section>
           <div className="disclosure">Los archivos importados se guardan en este navegador mediante IndexedDB cuando el almacenamiento está disponible. No se suben a servidores. El navegador puede eliminar datos locales al liberar espacio o borrar datos del sitio.</div>
