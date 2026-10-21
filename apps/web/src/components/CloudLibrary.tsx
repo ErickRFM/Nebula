@@ -7,9 +7,10 @@ import { artwork } from '../lib/catalog';
 import { putPrivateAudio } from '../lib/r2-upload';
 import { retrieveAuthorizedAudio } from '../lib/authorized-web-audio';
 import { readAudioMetadata } from '../lib/audio-metadata';
+import { hashAudioFile } from '../lib/audio-hash';
 
 type CloudTrack = {
-  id: string; title: string; artist: string; mimeType: string;
+  id: string; title: string; artist: string; album?:string; genre?:string; mimeType: string;
   byteSize: number; createdAt: string;
 };
 type CloudList = { items: CloudTrack[]; pendingItems?: CloudTrack[]; configured: boolean };
@@ -69,9 +70,11 @@ export function CloudLibrary({
         setUploadProgress(0);
         setMessage('Subiendo '+(uploaded+1)+' de '+files.length+': '+file.name);
         const tags=await readAudioMetadata(file);
+        setMessage('Calculando huella SHA-256 para evitar duplicados: '+file.name);
+        const sha256=await hashAudioFile(file,controller.signal);
         if(controller.signal.aborted)throw new Error('Carga cancelada.');
         const ticket=await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads',{
-          method:'POST',body:JSON.stringify({filename:file.name,size:file.size,title:tags.title,artist:tags.artist}),
+          method:'POST',body:JSON.stringify({filename:file.name,size:file.size,title:tags.title,artist:tags.artist,album:tags.album,genre:tags.genre,sha256}),
         });
         try{
           if(controller.signal.aborted)throw new Error('Carga cancelada.');
