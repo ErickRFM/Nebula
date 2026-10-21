@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './auth-test';
 import {Pool} from 'pg';
 import {randomBytes,randomUUID,scryptSync} from 'node:crypto';
 
