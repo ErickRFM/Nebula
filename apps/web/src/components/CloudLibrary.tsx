@@ -23,6 +23,7 @@ export function CloudLibrary({
 }) {
   const [items, setItems] = useState<CloudTrack[]>([]);
   const [configured, setConfigured] = useState(false);
+  const [targetPlaylist, setTargetPlaylist] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -141,6 +142,7 @@ export function CloudLibrary({
       {loading && <p className="disclosure">Sincronizando tu biblioteca privada…</p>}
       {message && <p className="disclosure" role="status">{message}</p>}
       {error && <p className="account-error" role="alert">{error}</p>}
+      {account.serverPlaylists.length>0 && <div className="cloud-actions glass"><label htmlFor="cloud-target-playlist">Añadir canciones a playlist de cuenta</label><select id="cloud-target-playlist" value={targetPlaylist} onChange={(event)=>setTargetPlaylist(event.target.value)}><option value="">Selecciona una playlist</option>{account.serverPlaylists.map((list)=><option key={list.id} value={list.id}>{list.name}</option>)}</select></div>}
       <div className="track-list glass">
         {!items.length ? <p className="empty-note">Tu nube todavía no tiene canciones. Sube un MP3 o FLAC para empezar.</p> :
           items.map((item) => <div className="track-row" key={item.id}>
@@ -149,6 +151,7 @@ export function CloudLibrary({
               <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {(item.byteSize / 1048576).toFixed(1)} MB</small></span>
             </button>
             <span className="track-album">NÉBULA Cloud</span>
+            {account.serverPlaylists.length>0 && <button type="button" className="button small" disabled={busy || !targetPlaylist} onClick={()=>{void account.addAccountPlaylistItem(targetPlaylist,'cloud',item.id).then((ok)=>{if(ok)setMessage('Canción añadida a la playlist de tu cuenta.');else setError('No fue posible añadir esta canción a la playlist.');});}}>Añadir a lista</button>
             <button type="button" className="icon-button" disabled={busy} title="Eliminar de R2"
               aria-label={'Eliminar ' + item.title + ' de la nube'} onClick={() => { void remove(item); }}>
               <Trash2 size={17}/>
