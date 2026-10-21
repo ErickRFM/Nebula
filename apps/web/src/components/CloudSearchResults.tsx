@@ -55,11 +55,13 @@ export function CloudSearchResults({query,account,onAccount,onPlay}:{
   async function play(item:CloudTrack){
     setPlayingId(item.id);setError('');
     try{
-      const result=await account.cloudRequest<{url:string}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play');
+      const result=await account.cloudRequest<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play');
       const url=new URL(result.url);
       if(url.protocol!=='https:')throw new Error('URL temporal de audio insegura.');
       onPlay({id:'cloud-'+item.id,title:item.title,artist:item.artist,album:item.album||'NÉBULA Cloud',
-        genre:item.genre||'Mi música',cover:artwork[0],duration:'--:--',audioUrl:url.toString(),source:'external'});
+        genre:item.genre||'Mi música',cover:artwork[0],duration:'--:--',audioUrl:url.toString(),source:'external',
+        signedAudioExpiresInSeconds:result.expiresInSeconds,
+        renewAudioUrl:()=>account.cloudRequest<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play')});
     }catch(cause){setError(cause instanceof Error?cause.message:'No fue posible reproducir la canción privada.');}
     finally{setPlayingId(null);}
   }
