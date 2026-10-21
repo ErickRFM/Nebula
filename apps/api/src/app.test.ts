@@ -136,6 +136,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     const providers = await app.inject({ method: 'GET', url: '/v1/discovery/providers', headers });
     expect(providers.statusCode).toBe(200);
     expect(providers.json().providers.some((p: { id: string }) => p.id === 'jamendo')).toBe(true);
+    expect(providers.json().providers.some((p: {id:string;enabled:boolean}) => p.id === 'internetarchive' && p.enabled)).toBe(true);
     const invalid = await app.inject({ method: 'GET', url: '/v1/discovery/search?q=a', headers });
     expect(invalid.statusCode).toBe(400);
     const disabled = await app.inject({ method: 'GET', url: '/v1/discovery/search?q=ambient&provider=jamendo', headers });
