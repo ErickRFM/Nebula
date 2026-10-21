@@ -63,7 +63,7 @@ export function createInternetArchiveProvider(fetchImpl:JsonFetch=fetch):AudioPr
       const candidates=docs.filter((doc):doc is SearchDoc=>doc!==null&&typeof doc==='object'&&!Array.isArray(doc)).slice(0,rows);
       const settled=await Promise.allSettled(candidates.map(async(doc):Promise<ExternalTrack|null>=>{
         const identifier=doc.identifier;
-        if(typeof identifier!=='string'||!/^[a-zA-Z0-9_-]{5,100}$/.test(identifier))return null;
+        if(typeof identifier!=='string'||!/^[a-zA-Z0-9][a-zA-Z0-9._-]{4,99}$/.test(identifier) || identifier.includes('..'))return null;
         const url=new URL('https://archive.org/metadata/'+encodeURIComponent(identifier));
         const data=await loadProviderJson(url,fetchImpl) as ItemMetadata;
         const metadata=data?.metadata;
