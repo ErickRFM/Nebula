@@ -81,7 +81,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
       if(controller.signal.aborted) return;
       setTracks(Array.isArray(json.items)?json.items:[]);
       setFailed(Array.isArray(json.failedProviders)?json.failedProviders:[]);
-      if(json.disabledProviders?.length) setNotice('Este proveedor necesita configuración en el servidor.');
+      if(json.disabledProviders?.length) setNotice('Algunas fuentes no están disponibles; mostramos los resultados de las que respondieron.');
     } catch(e) {
       if(controller.signal.aborted) return;
       setTracks([]);
@@ -151,6 +151,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
     finally {setSaving(null);}
   }
 
+  if (embedded && (initialQuery??'').trim().length<2) return null;
   return <section className="explore-page">
     {!embedded && <div className="eyebrow">CATÁLOGOS MUSICALES</div>}
     {!embedded && <h1 className="page-title">Explora nuevas frecuencias</h1>}
@@ -165,8 +166,8 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
         <button type="submit" className="button primary small" disabled={busy}>{busy?'Buscando…':'Buscar'}</button>
       </form>}
       <div className="chip-row">{providerNames.map(x=><button type="button" key={x.id}
-        className={'chip '+(provider===x.id?'active':'')} onClick={()=>setProvider(x.id)}>
-        {x.label}{x.id!=='all'&&enabled[x.id]===false?' · sin configurar':''}
+        className={'chip '+(provider===x.id?'active':'')} disabled={x.id!=='all'&&enabled[x.id]===false} aria-pressed={provider===x.id} onClick={()=>setProvider(x.id)}>
+        {x.label}{x.id!=='all'&&enabled[x.id]===false?' · no disponible':''}
       </button>)}</div>
       {notice && <p className="explore-notice" role="status">{notice}</p>}
       {failed.length>0 && <p className="explore-notice">Algunas fuentes no respondieron: {failed.join(', ')}.</p>}
