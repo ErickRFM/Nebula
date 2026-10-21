@@ -1,11 +1,13 @@
 import { createJamendoProvider, createOpenverseProvider, createAudiusProvider } from './providers.js';
 import type { AudioProvider, AudioProviderId, ExternalTrack, SearchRequest } from './types.js';
+import { createInternetArchiveProvider } from './internet-archive.js';
 
 export class DiscoveryService {
   constructor(readonly providers: AudioProvider[]=[
     createJamendoProvider(process.env.JAMENDO_CLIENT_ID),
     createOpenverseProvider(),
     createAudiusProvider(),
+    createInternetArchiveProvider(),
   ]) {}
   list() {
     return this.providers.map(({id,enabled})=>({id,enabled}));
