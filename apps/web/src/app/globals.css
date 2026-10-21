@@ -377,3 +377,16 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .cloud-actions select{min-height:42px;max-width:100%;border:1px solid var(--edge);background:#24223e;color:var(--ink);border-radius:11px;padding:9px 12px}
 .cloud-actions>div:last-child{display:flex;flex-wrap:wrap;gap:8px}
 .cloud-actions .button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+
+
+/* Authorized direct-audio web import — compact, readable and responsive. */
+.authorized-web-import{display:grid;gap:10px;padding:16px;border-radius:18px;margin:14px 0;min-width:0}
+.authorized-web-import strong{display:block;font-weight:700;color:#f0eafe}
+.authorized-web-import p{margin:5px 0 0;color:#c1bbd6;line-height:1.5;font-size:.85rem}
+.authorized-web-import>label:not(.authorized-web-confirm){font-size:.78rem;font-weight:650;color:#d7cbed}
+.authorized-web-import>input[type=url]{min-width:0;width:100%;min-height:43px;color:var(--ink);background:#ffffff0b;border:1px solid var(--edge);border-radius:11px;padding:10px 13px}
+.authorized-web-confirm{display:flex;align-items:flex-start;gap:11px;font-size:.84rem;line-height:1.45;color:#d7cfed}
+.authorized-web-confirm input{flex:none;min-width:19px;min-height:19px;accent-color:#c1a1fb}
+.authorized-web-import>.button{justify-self:start;min-height:44px}
+.external-bridges .disclosure a{color:#d2b5ff;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+@media(max-width:720px){.authorized-web-import{padding:12px}.authorized-web-import>.button{width:100%;justify-self:stretch}}
