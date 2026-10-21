@@ -106,3 +106,6 @@ export function correctionForDrift(actualMs: number, targetMs: number, playing: 
 export function shouldAcceptRevision(currentRevision: number, incomingRevision: number): boolean {
   return Number.isSafeInteger(incomingRevision) && incomingRevision > currentRevision;
 }
+
+export { detectAcousticPeaks, relativeAcousticDelayMs, acousticDelaySummary } from './acoustic';
+export type { AcousticPeak } from './acoustic';

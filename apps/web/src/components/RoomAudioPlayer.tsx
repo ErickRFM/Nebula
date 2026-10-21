@@ -11,6 +11,7 @@ export type SharedRoom = {
 };
 type AudioResult = { url: string; track: { id: string; title: string; artist: string }; expiresInSeconds: number };
 type SinkCapableAudio = HTMLAudioElement & { setSinkId?: (sinkId: string) => Promise<void> };
+type RemoteAudio = HTMLAudioElement & { remote?: { prompt: () => Promise<void> } };
 
 export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enabled = true, onPlaybackStateChange }: {
   room: SharedRoom; account: AccountApi; clockOffsetMs: number; onActivate: () => void;
@@ -27,6 +28,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enab
   const [outputLatencyMs, setOutputLatencyMs] = useState(0);
   const [logicalDriftMs, setLogicalDriftMs] = useState<number | null>(null);
   const [sinkSupported, setSinkSupported] = useState(false);
+  const [remoteSupported, setRemoteSupported] = useState(false);
   const [audioSinks, setAudioSinks] = useState<RoomAudioSink[]>([]);
   const [selectedSinkId, setSelectedSinkId] = useState('default');
   const [sinkNotice, setSinkNotice] = useState('');
@@ -42,6 +44,21 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enab
       onPlaybackStateChange?.('idle');
     }
   }, [enabled, onPlaybackStateChange]);
+
+  useEffect(() => {
+    const audio = audioRef.current as RemoteAudio | null;
+    setRemoteSupported(Boolean(source && enabled && audio?.remote && typeof audio.remote.prompt === 'function'));
+  }, [source, enabled]);
+
+  async function requestRemotePlayback() {
+    const remote = (audioRef.current as RemoteAudio | null)?.remote;
+    if (!remote || !enabled) return;
+    try {
+      await remote.prompt(); // Must happen in response to local user gesture.
+    } catch {
+      setError('El receptor externo no está disponible o no puede reproducir esta canción.');
+    }
+  }
 
   // Profiles are intentionally local to this browser and audio route. Bluetooth
   // output latency is not discoverable reliably from browser APIs.
@@ -235,6 +252,9 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enab
       }}
       aria-label="Audio de la sala"/>}
     {source && <button type="button" className="button small" onClick={()=>setSourceVersion(x=>x+1)}>Renovar enlace de audio</button>}
+    {remoteSupported && <button type="button" className="button small" onClick={() => { void requestRemotePlayback(); }}>
+      Transmitir a un receptor compatible
+    </button>}
     {sinkSupported && <div>
       <label htmlFor="room-audio-sink">Salida física (navegador compatible)</label>
       <select id="room-audio-sink" value={selectedSinkId} onChange={e => setSelectedSinkId(e.target.value)}>
