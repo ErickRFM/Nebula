@@ -5,6 +5,8 @@ import { Copy, Headphones, Music2, Plus, RadioTower, RefreshCw, Users, X } from 
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomDevicesPanel } from './RoomDevicesPanel';
+import { RoomRequestsPanel } from './RoomRequestsPanel';
+import { useRoomEventStream } from '../lib/room-event-stream';
 import { buildRoomInviteLink, roomInviteFromHash } from '../lib/room-invite-link';
 
 type Room = {
@@ -105,11 +107,19 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [selectedId, account.user?.id, account.cloudRequest]);
 
+  const onRoomEvent = useCallback((event: { revision: number; participantCount: number }) => {
+    // REST remains authoritative; event payload has no sensitive media URLs.
+    // Refresh on revision changes and participant updates (e.g. host transfer).
+    void event;
+    void refreshSelected();
+  }, [refreshSelected]);
+  useRoomEventStream(selectedId, account.accessToken, onRoomEvent);
+
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
     if (!selectedId || !account.user) return;
     void refreshSelected();
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshSelected(); }, 3000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshSelected(); }, 15_000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshSelected]);
 
@@ -460,6 +470,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
             </div>)}
         </div>
       </section>}
+      {selected && selectedId===selected.id && <RoomRequestsPanel roomId={selected.id} hostId={selected.ownerUserId} account={account}/>}
       {selected && selectedId===selected.id && <RoomDevicesPanel room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>}
     </>}
   </section>;
