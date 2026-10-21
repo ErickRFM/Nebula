@@ -12,3 +12,5 @@ Abre GitHub → Actions → *NÉBULA Android APK* → ejecución verde → Artif
 - Para iOS se necesita un Mac con Xcode, provisioning y una prueba de AVFoundation/Bonjour.
 
 Media3 1.11.1 needs Android SDK API 36 and AGP at least 8.9.1. This builder upgrades the generated Capacitor 7 template to compileSdk 36, AGP 8.11.1 and Gradle 8.13 while retaining targetSdk 35. Android 36 is already installed on the GitHub runner. The versions are explicitly pinned and CI validates them.
+
+Android native API access: the Fastify CORS allowlist now includes only the production origin plus exact Capacitor local origins (`http://localhost`, `https://localhost`, `capacitor://localhost`). The browser continues to use the HttpOnly refresh cookie over an authenticated HTTPS API. Android/iOS WebView cookie behavior is still subject to on-device QA; no unrestricted CORS or public media routes were enabled.
