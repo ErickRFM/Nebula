@@ -400,7 +400,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
             <button className="room-entry-main" type="button" aria-pressed={selectedId===room.id} onClick={()=>{setSelectedId(room.id);setIssuedCode('');}}>
               <span className="room-entry-icon"><RadioTower size={20}/></span>
               <span className="room-entry-detail"><strong>{room.name}</strong><small>{room.mode==='party'?'Party Sound · beta':'Escucha compartida'} · {room.participantCount} {room.participantCount===1?'participante':'participantes'}</small></span>
-              <span className="room-entry-state">{room.ownerUserId===account.user.id?'Anfitrión':'Invitado'}</span>
+              <span className="room-entry-state">{room.ownerUserId===account.user?.id?'Anfitrión':'Invitado'}</span>
             </button>
             <button className="icon-button" type="button" disabled={busy} aria-label={'Salir o cerrar '+room.name} onClick={()=>leaveOrClose(room)}><X size={17}/></button>
           </div>)}</div>}
