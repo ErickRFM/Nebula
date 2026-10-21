@@ -370,3 +370,10 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
  .icon-button{min-width:44px;min-height:44px}
  .nav-item{min-height:44px}
 }
+
+/* Private upload progress: native accessible progress with matte glass styling. */
+.cloud-upload-progress{display:flex;align-items:center;gap:12px;padding:9px 16px;margin-bottom:12px;border-radius:12px;background:#ffffff10;color:#d6cee9;font-size:.82rem}
+.cloud-upload-progress progress{flex:1;min-width:0;accent-color:#be9afc;height:11px}
+.cloud-actions select{min-height:42px;max-width:100%;border:1px solid var(--edge);background:#24223e;color:var(--ink);border-radius:11px;padding:9px 12px}
+.cloud-actions>div:last-child{display:flex;flex-wrap:wrap;gap:8px}
+.cloud-actions .button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
