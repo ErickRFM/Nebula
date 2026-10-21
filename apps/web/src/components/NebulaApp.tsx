@@ -203,15 +203,30 @@ export function NebulaApp() {
           <section className="content-section"><SectionHeader title={account.user?'Playlists de tu cuenta':'Colecciones de ejemplo'} action="Ver playlists" onAction={()=>navigate('playlists')}/><div className="mix-grid">{account.user ? (account.serverPlaylists.length ? account.serverPlaylists.slice(0,3).map(list=><button className="mix-pill glass" key={list.id} type="button" onClick={()=>navigate('playlists')}><ListMusic size={23}/><span><strong>{list.name}</strong><small>Playlist de tu cuenta</small></span></button>) : <button className="mix-pill glass" type="button" onClick={()=>navigate('playlists')}><Plus size={23}/><span><strong>Crear mi primera playlist</strong><small>Guárdala en tu cuenta</small></span></button>) : mixes.slice(0,3).map(mix=><button className="mix-pill glass" key={mix.title} type="button" onClick={()=>navigate('playlists')}><Cover source={mix.cover} alt="" className="mix-thumb"/><span><strong>{mix.title}</strong><small>Ejemplo · {mix.subtitle}</small></span></button>)}</div></section>
           <section className="content-section"><SectionHeader title="Escucha tu música" action="Biblioteca" onAction={()=>navigate('biblioteca')}/><div className="track-list glass">{player.tracks.slice(0,5).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>)}</div></section>
         </>}
-        {screen === 'buscar' && <>
-          <Tag>EXPLORA NUEVAS FRECUENCIAS</Tag><h1 className="page-title">¿Qué quieres escuchar?</h1><p className="page-description">Encuentra pistas reales en tu biblioteca y los proveedores disponibles. Los ejemplos no sustituirán resultados reproducibles cuando inicies sesión.</p>
-          <div className="search-field glass"><Search size={21}/><input aria-label="Buscar canciones, artistas o álbumes" value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Artistas, canciones, álbumes..."/>{search && <button type="button" className="icon-button" aria-label="Borrar búsqueda" onClick={()=>setSearch('')}><X size={16}/></button>}</div>
-          <div className="chip-row">{genres.map((name)=><button type="button" key={name} className={'chip ' + (genre === name ? 'active' : '')} onClick={()=>setGenre(name)}>{name}</button>)}</div>
-          <section className="content-section"><SectionHeader title="Música en línea"/><ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate("cuenta")} onPlay={player.playExternal}/></section>
-          <ExternalMediaBridges account={account} initialQuery={search} embedded onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
-          <section className="content-section"><SectionHeader title="Explora por sonido"/><div className="genre-grid">{genres.slice(1).map((name,i)=><button className={'genre-card genre-' + i} type="button" onClick={()=>setGenre(name)} key={name}><strong>{name}</strong><Disc3 size={56}/></button>)}</div></section>
-          <section className="content-section"><SectionHeader title={search || genre !== 'Todos' ? 'Resultados de búsqueda' : 'Escucha algo nuevo'}/><div className="track-list glass">{filteredTracks.length ? filteredTracks.map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>) : <p className="empty-note">No encontramos canciones con esos filtros.</p>}</div></section>
-        </>}
+        {screen === 'buscar' && <section className="search-page">
+          <Tag>EXPLORA NUEVAS FRECUENCIAS</Tag><h1 className="page-title">¿Qué quieres escuchar?</h1>
+          <p className="page-description">Busca una canción, artista o género en tu música y los catálogos conectados. Sin resultados ficticios.</p>
+          <div className="search-field glass" role="search"><Search size={21} aria-hidden="true"/>
+            <input type="search" aria-label="Buscar canciones, artistas o álbumes" value={search} autoComplete="off"
+              onChange={event=>{setSearch(event.target.value);setGenre('Todos');}} placeholder="Busca una canción, artista o álbum…"/>
+            {search&&<button type="button" className="icon-button" aria-label="Borrar búsqueda" onClick={()=>{setSearch('');setGenre('Todos');}}><X size={17}/></button>}
+          </div>
+          {search.trim().length<2 ? <>
+            <section className="content-section search-discovery"><div className="section-heading"><h2>Explora por sonido</h2></div>
+              <div className="genre-grid">{genres.slice(1).map((name,i)=><button className={'genre-card genre-'+i} type="button" onClick={()=>{setSearch(name);setGenre('Todos');}} key={name}><strong>{name}</strong><Disc3 size={56}/></button>)}</div>
+            </section>
+            <div className="search-start glass"><Search size={21}/><span>Escribe al menos dos caracteres para consultar tu biblioteca y las fuentes disponibles.</span></div>
+          </> : <>
+            <section className="content-section search-local"><div className="section-heading"><div><h2>En tu biblioteca</h2><p className="search-section-note">Canciones guardadas en este dispositivo</p></div><span className="server-pill">{filteredTracks.length} resultados</span></div>
+              <div className="chip-row search-genre-filter" aria-label="Filtrar la biblioteca">{genres.map(name=><button type="button" key={name} className={'chip '+(genre===name?'active':'')} aria-pressed={genre===name} onClick={()=>setGenre(name)}>{name}</button>)}</div>
+              <div className="track-list glass">{filteredTracks.length?filteredTracks.map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>):<p className="empty-note">No hay coincidencias locales. Prueba los resultados en línea más abajo o añade música desde Biblioteca.</p>}</div>
+            </section>
+            <section className="content-section search-online"><div className="section-heading"><div><h2>Música en línea</h2><p className="search-section-note">Resultados de los proveedores disponibles para tu cuenta</p></div></div>
+              <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
+              <ExternalMediaBridges account={account} initialQuery={search} embedded onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
+            </section>
+          </>}
+        </section>}
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>
           <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length+account.accountFavorites.length} <span>guardadas</span></strong><small>Favoritos locales y de cuenta</small></div></div>
