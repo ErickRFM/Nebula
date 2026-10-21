@@ -223,7 +223,7 @@ export function NebulaApp() {
         <div className="mobile-brand"><Brand/></div><div className="desktop-location"><span>{screen==='reproductor'?'Reproduciendo ahora':navigation.find(item=>item.id===screen)?.label??'NÉBULA Music'}</span></div>
         <div className="topbar-actions">
           <button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>
-          <button className="icon-button glass-chip desktop-only" title="Notificaciones: próximamente" aria-label="Notificaciones no disponibles" type="button" disabled><Bell size={19}/></button>
+          <button className="icon-button glass-chip mobile-only" title="Ajustes" aria-label="Ajustes" type="button" onClick={()=>navigate('ajustes')}><Settings2 size={19}/></button>
           <button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>
         </div>
       </header>
