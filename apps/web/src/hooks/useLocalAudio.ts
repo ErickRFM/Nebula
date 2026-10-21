@@ -393,9 +393,13 @@ export function useLocalAudio(): Player {
     if (!('mediaSession' in navigator)) return;
     const session = navigator.mediaSession;
     if (current) {
+      const coverPath=new URL(current.cover,location.origin);
+      const mime=coverPath.protocol==='data:'
+        ? (/^data:image\/png/i.test(current.cover)?'image/png':/^data:image\/jpeg/i.test(current.cover)?'image/jpeg':'image/svg+xml')
+        : /\.png$/i.test(coverPath.pathname)?'image/png':/\.jpe?g$/i.test(coverPath.pathname)?'image/jpeg':'image/svg+xml';
       session.metadata = new MediaMetadata({
         title: current.title, artist: current.artist, album: current.album,
-        artwork: [{src: new URL(current.cover, location.origin).href, sizes:'512x512', type:'image/svg+xml'}],
+        artwork: [{src:coverPath.href,type:mime}],
       });
     }
     session.playbackState = state === 'playing' ? 'playing' : state === 'paused' ? 'paused' : 'none';
