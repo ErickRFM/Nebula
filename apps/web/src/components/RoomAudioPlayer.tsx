@@ -12,8 +12,10 @@ export type SharedRoom = {
 type AudioResult = { url: string; track: { id: string; title: string; artist: string }; expiresInSeconds: number };
 type SinkCapableAudio = HTMLAudioElement & { setSinkId?: (sinkId: string) => Promise<void> };
 
-export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
+export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enabled = true, onPlaybackStateChange }: {
   room: SharedRoom; account: AccountApi; clockOffsetMs: number; onActivate: () => void;
+  enabled?: boolean;
+  onPlaybackStateChange?: (state: 'idle' | 'ready' | 'buffering' | 'playing' | 'error') => void;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [source, setSource] = useState('');
@@ -32,6 +34,14 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackKeyRef = useRef('');
   const resumeRef = useRef<{ position: number; wasPlaying: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      audioRef.current?.pause();
+      setActive(false);
+      onPlaybackStateChange?.('idle');
+    }
+  }, [enabled, onPlaybackStateChange]);
 
   // Profiles are intentionally local to this browser and audio route. Bluetooth
   // output latency is not discoverable reliably from browser APIs.
@@ -175,12 +185,18 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
   }, [source, room.revision, room.playbackStatus, room.effectiveAt, room.positionMs, clockOffsetMs, calibrationMs, outputLatencyMs]);
 
   function activated() {
+    if (!enabled) {
+      audioRef.current?.pause();
+      setError('Activa esta salida antes de reproducir música.');
+      return;
+    }
     if (room.playbackStatus !== 'playing') {
       audioRef.current?.pause();
       setError('El anfitrión ha pausado la sala. Espera a que reanude la música.');
       return;
     }
     setActive(true); onActivate(); setError('');
+    onPlaybackStateChange?.('playing');
     const audio = audioRef.current;
     if (audio && room.playbackStatus === 'playing' && Date.parse(room.effectiveAt) <= Date.now() + clockOffsetMs) {
       audio.currentTime = Math.max(0, targetMs() / 1000);
@@ -192,12 +208,16 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
     {!room.trackId && <p>El anfitrión todavía no ha seleccionado una canción de R2.</p>}
     {room.trackId && !room.shareEnabled && <p>El anfitrión todavía no ha autorizado compartir esta pista.</p>}
     {track && <p><strong>{track.title}</strong> · {track.artist}</p>}
-    {source && <audio ref={audioRef} src={source} controls preload="auto"
+    {source && !enabled && <p>Activa este dispositivo como bocina para habilitar sus controles de reproducción.</p>}
+    {source && enabled && <audio ref={audioRef} src={source} controls preload="auto"
+      onPause={() => onPlaybackStateChange?.('ready')}
+      onWaiting={() => onPlaybackStateChange?.('buffering')}
       style={{width:'100%',maxWidth:480}}
       onPlay={activated}
       onLoadedMetadata={() => {
         const a = audioRef.current;
         if (!a) return;
+        if (enabled && a.paused) onPlaybackStateChange?.('ready');
         const previous = resumeRef.current;
         resumeRef.current = null;
         if (previous && Number.isFinite(previous.position)) {
@@ -209,7 +229,10 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate }: {
           a.currentTime = Math.max(0, targetMs() / 1000);
         }
       }}
-      onError={() => setError('No se pudo cargar el audio. Renueva el enlace temporal.')}
+      onError={() => {
+        onPlaybackStateChange?.('error');
+        setError('No se pudo cargar el audio. Renueva el enlace temporal.');
+      }}
       aria-label="Audio de la sala"/>}
     {source && <button type="button" className="button small" onClick={()=>setSourceVersion(x=>x+1)}>Renovar enlace de audio</button>}
     {sinkSupported && <div>
