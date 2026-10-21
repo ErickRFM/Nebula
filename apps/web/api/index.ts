@@ -90,6 +90,18 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
 
   try {
     const app = await getApp();
+    if (method === 'GET' && /^\/v1\/rooms\/[0-9a-fA-F-]{36}\/events$/.test(url)) {
+      // Fastify injection buffers the entire response and cannot transport SSE.
+      // Hand off the original Node streams directly only for this GET endpoint.
+      // No request body or URL bearer token is involved.
+      req.url = url;
+      await new Promise<void>(resolve => {
+        res.once('finish', resolve);
+        res.once('close', resolve);
+        app.server.emit('request', req, res);
+      });
+      return;
+    }
     const response = await app.inject({
       method: method as 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT' | 'OPTIONS' | 'HEAD',
       url,

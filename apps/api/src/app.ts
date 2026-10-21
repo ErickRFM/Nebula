@@ -19,6 +19,9 @@ import { registerFavoriteRoutes } from './modules/favorites.js';
 import { registerYoutubeRoutes } from './modules/youtube.js';
 import { registerRoomRoutes } from './modules/rooms.js';
 import { registerRoomDeviceRoutes } from './modules/room-devices.js';
+import { registerRoomEventRoutes } from './modules/room-events.js';
+import { registerRoomWsTickets } from './modules/room-ws-tickets.js';
+import { registerRoomRequestRoutes } from './modules/room-requests.js';
 import { classifyDatabaseFailure, describeDatabaseConnectionShape } from './db/diagnostics.js';
 import './types.js';
 
@@ -101,6 +104,9 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   registerYoutubeRoutes(app, db);
   registerRoomRoutes(app, pool);
   registerRoomDeviceRoutes(app, pool);
+  registerRoomEventRoutes(app, pool);
+  registerRoomWsTickets(app, pool);
+  registerRoomRequestRoutes(app, pool);
 
   app.get('/v1/me', { preHandler: requireAuth }, async (request, reply) => {
     const [user] = await db

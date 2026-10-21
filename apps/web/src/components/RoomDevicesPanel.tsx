@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AccountApi } from '../hooks/useAccount';
 import { RoomAudioPlayer, type SharedRoom } from './RoomAudioPlayer';
+import { NebulaParty, sanitizeNearbyServices, supportsNativeParty, type NearbyNebulaService } from '../lib/party-native';
 
 type PlaybackState = 'idle' | 'ready' | 'buffering' | 'playing' | 'error';
 type Device = {
@@ -56,6 +57,13 @@ export function RoomDevicesPanel({ room, account, clockOffsetMs, onActivate }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [nearby, setNearby] = useState<NearbyNebulaService[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [discoverable, setDiscoverable] = useState(false);
+  const [beaconBusy, setBeaconBusy] = useState(false);
+  const nativeAvailable = supportsNativeParty();
+
 
   const refresh = useCallback(async () => {
     try {
@@ -113,6 +121,59 @@ export function RoomDevicesPanel({ room, account, clockOffsetMs, onActivate }: {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [account.cloudRequest, room.id, deviceId, registered, outputEnabled, playbackState]);
 
+  useEffect(() => {
+    if (!nativeAvailable || !scanning) return;
+    let closed = false;
+    const handle = NebulaParty.addListener('servicesChanged', event => {
+      if (!closed) setNearby(sanitizeNearbyServices(event));
+    });
+    return () => {
+      closed = true;
+      void handle.then(listener => listener.remove()).catch(() => {});
+      void NebulaParty.stopScan().catch(() => {});
+    };
+  }, [nativeAvailable, scanning]);
+
+  useEffect(() => {
+    return () => { void NebulaParty.stopBeacon().catch(() => {}); };
+  }, []);
+
+  async function toggleBeacon() {
+    if (!nativeAvailable || beaconBusy) return;
+    setBeaconBusy(true); setError('');
+    try {
+      if (discoverable) {
+        await NebulaParty.stopBeacon();
+        setDiscoverable(false);
+      } else {
+        await NebulaParty.startBeacon();
+        setDiscoverable(true);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo anunciar este dispositivo.');
+    } finally { setBeaconBusy(false); }
+  }
+
+  async function toggleScan() {
+    if (!nativeAvailable || scanBusy) return;
+    setScanBusy(true);
+    setError('');
+    try {
+      if (scanning) {
+        await NebulaParty.stopScan();
+        setScanning(false);
+        setNearby([]);
+      } else {
+        await NebulaParty.startScan();
+        setScanning(true);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo buscar en la red local.');
+    } finally {
+      setScanBusy(false);
+    }
+  }
+
   async function toggleOutput() {
     if (!registered || !deviceId || busy) return;
     setBusy(true);
@@ -151,6 +212,22 @@ export function RoomDevicesPanel({ room, account, clockOffsetMs, onActivate }: {
         </button>
         <p><small>Solo tú puedes activar el audio aquí. El navegador también te pedirá pulsar Play.</small></p>
       </div>
+      {nativeAvailable && <div className="room-card">
+        <h4>Buscar NÉBULA en mi Wi-Fi</h4>
+        <button type="button" className="button small" disabled={beaconBusy} aria-pressed={discoverable}
+          onClick={() => { void toggleBeacon(); }}>
+          {discoverable ? 'Dejar de anunciarme en Wi-Fi' : 'Hacer visible esta app en Wi-Fi'}
+        </button>
+        <p><small>La visibilidad es voluntaria y no habilita acceso remoto a tu música. Puedes desactivarla cuando quieras.</small></p>
+        <p>Solo se muestran aplicaciones que anuncien NÉBULA voluntariamente. Para unirte, sigue usando una invitación privada.</p>
+        <button type="button" className="button small" disabled={scanBusy} onClick={() => { void toggleScan(); }}>
+          {scanning ? 'Detener búsqueda local' : 'Buscar dispositivos en Wi-Fi'}
+        </button>
+        {scanning && nearby.length === 0 && <p>No se han detectado receptores anunciados en esta red.</p>}
+        {nearby.length > 0 && <ul aria-label="Dispositivos anunciados en la red">
+          {nearby.map(item => <li key={item.id}>{item.name}</li>)}
+        </ul>}
+      </div>}
       {devices.length > 0 ? <ul aria-label="Receptores participantes">
         {devices.map(device => <li key={device.deviceId}>
           <strong>{device.label}{device.deviceId === deviceId ? ' · Este dispositivo' : ''}</strong>

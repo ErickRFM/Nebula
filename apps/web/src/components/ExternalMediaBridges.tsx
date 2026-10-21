@@ -78,7 +78,12 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
        placeholder="Buscar videos musicales en YouTube"/>
      <button className="button secondary small" type="submit" disabled={searching||query.trim().length<2}>{searching?'Buscando…':'Buscar videos'}</button>
-   </form> : !youtubeReady ? <p className="search-source-hint" role="status">{!account.accessToken?"Inicia sesión para consultar YouTube desde NÉBULA.":"YouTube no está habilitado en este momento. Los demás catálogos siguen disponibles."}</p> : null}
+   </form> : !youtubeReady ? <p className="search-source-hint" role="status">{!account.accessToken?"Inicia sesión para consultar YouTube desde NÉBULA.":"YouTube no está habilitado en NÉBULA en este momento. Puedes consultar otros catálogos."}</p> : null}
+   {embedded&&!youtubeReady&&(initialQuery??'').trim().length>=2&&<p className="disclosure">
+     <a href={'https://www.youtube.com/results?search_query='+encodeURIComponent((initialQuery??'').trim())}
+       target="_blank" rel="noopener noreferrer">Buscar «{(initialQuery??'').trim()}» en la web de YouTube</a>
+     {' '}— sin clave API; los resultados se abrirán en YouTube, no en el reproductor de NÉBULA.
+   </p>}
    {error&&<p className="account-error" role="alert">{error}</p>}
    {embedded&&youtubeReady&&searching&&<p className="disclosure" role="status">Buscando videos musicales relacionados…</p>}
    {embedded&&youtubeReady&&!searching&&(initialQuery??'').trim().length>=4&&videos.length===0&&!error&&<p className="empty-note">No hay videos encontrados para esa búsqueda.</p>}

@@ -8,3 +8,7 @@ When a browser exposes both `HTMLMediaElement.setSinkId` and `navigator.mediaDev
 - Device identifiers and labels remain in the browser, never sent to the API or stored in PostgreSQL.
 - Calibration profiles remain independent and manual. Selecting an output does not imply measured acoustic synchronization.
 - Real two-phone and Bluetooth speaker validation is still required.
+
+## Optional browser Remote Playback / Cast-compatible routes
+
+When HTMLMediaElement exposes a `remote.prompt()` API on a supported browser and a room receiver has explicitly enabled its local output, NÉBULA shows **Transmitir a un receptor compatible**. This is the standards-based browser Remote Playback interface with a user gesture, **not** a native Google Cast SDK integration or automatic Chromecast discovery. The selected receiver must be able to fetch and decode the short-lived authorized R2 URL; failures are shown as a recoverable message, not reported as success. Browser/iOS availability is platform-dependent and not physically verified. Further Cast sender/receiver integration and calibration remain outstanding.
