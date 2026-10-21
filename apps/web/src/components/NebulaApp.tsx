@@ -18,6 +18,7 @@ import { useAccount } from '../hooks/useAccount';
 import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { CloudLibrary } from './CloudLibrary';
+import { AccountPlaylistTracks } from './AccountPlaylistTracks';
 import { RoomsPanel } from './RoomsPanel';
 import { roomInviteFromHash } from '../lib/room-invite-link';
 
@@ -122,6 +123,7 @@ export function NebulaApp() {
   const account = useAccount();
   const [playlistTitle, setPlaylistTitle] = useState('');
   const [cloudPlaylistTitle, setCloudPlaylistTitle] = useState('');
+  const [selectedAccountPlaylistId,setSelectedAccountPlaylistId]=useState<string|null>(null);
   const [activePlaylist, setActivePlaylist] = useState<string | null>(null);
 
   const localCount = player.ownTracks.length;
@@ -245,12 +247,13 @@ export function NebulaApp() {
             </form>
             {account.playlistsBusy && <p role="status" className="disclosure">Actualizando playlists de cuenta…</p>}
             <div className="personal-playlists">{account.serverPlaylists.map((list)=><div className="playlist-entry glass" key={list.id}>
-              <span className="playlist-entry-main"><ListMusic size={19}/><strong>{list.name}</strong><small>En tu cuenta</small></span>
+              <button type="button" className="playlist-entry-main" onClick={()=>setSelectedAccountPlaylistId(current=>current===list.id?null:list.id)}><ListMusic size={19}/><strong>{list.name}</strong><small>En tu cuenta · {selectedAccountPlaylistId===list.id?'Ocultar':'Ver canciones'}</small></button>
               <button type="button" className="icon-button" disabled={account.playlistsBusy} title="Eliminar playlist de cuenta" aria-label={'Eliminar de mi cuenta '+list.name} onClick={()=>{if(window.confirm('¿Eliminar playlist de cuenta '+list.name+'?'))void account.removeServerPlaylist(list.id);}}><Trash2 size={17}/></button>
             </div>)}</div>
             {!account.playlistsBusy && account.serverPlaylists.length===0 && <p className="empty-note">Todavía no tienes playlists guardadas en tu cuenta.</p>}
+            {selectedAccountPlaylistId && account.serverPlaylists.some(list=>list.id===selectedAccountPlaylistId) && <AccountPlaylistTracks account={account} playlistId={selectedAccountPlaylistId} onPlay={player.playExternal}/>}
           </section>}
-          <div className="disclosure">Las playlists locales se guardan en este navegador. Las playlists de cuenta sincronizan nombres, no archivos ni pistas todavía.</div>
+          <div className="disclosure">Las playlists locales se guardan en este navegador. Las playlists de cuenta sincronizan nombres y referencias a canciones de tu nube y fuentes guardadas. Las pistas locales permanecen en este navegador.</div>
         </>}
         {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
         {screen === 'ajustes' && <>
