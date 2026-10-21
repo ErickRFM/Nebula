@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Cloud, CloudOff, CloudUpload, Download, Play, Trash2 } from 'lucide-react';
-import type { AccountApi } from '../hooks/useAccount';
+import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
 import { artwork } from '../lib/catalog';
 import { putPrivateAudio } from '../lib/r2-upload';
@@ -83,6 +83,7 @@ export function CloudLibrary({
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
     let uploaded=0;
+    let duplicates=0;
     try{
       for(const file of files){
         if(controller.signal.aborted)throw new Error('Carga cancelada.');
@@ -94,9 +95,19 @@ export function CloudLibrary({
         setMessage('Calculando huella SHA-256 para evitar duplicados: '+file.name);
         const sha256=await hashAudioFile(file,controller.signal);
         if(controller.signal.aborted)throw new Error('Carga cancelada.');
-        const ticket=await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads',{
-          method:'POST',body:JSON.stringify({filename:file.name,size:file.size,title:tags.title,artist:tags.artist,album:tags.album,genre:tags.genre,sha256}),
-        });
+        let ticket:UploadTicket;
+        try{
+          ticket=await account.cloudRequest<UploadTicket>('/v1/library/cloud/uploads',{
+            method:'POST',body:JSON.stringify({filename:file.name,size:file.size,title:tags.title,artist:tags.artist,album:tags.album,genre:tags.genre,sha256}),
+          });
+        }catch(failure){
+          if(failure instanceof ApiRequestError && failure.status===409){
+            duplicates++;
+            setMessage(file.name+' ya estaba en tu nube; omitiendo duplicado ('+duplicates+').');
+            continue;
+          }
+          throw failure;
+        }
         try{
           if(controller.signal.aborted)throw new Error('Carga cancelada.');
           await putPrivateAudio(ticket.uploadUrl,ticket.contentType,file,controller.signal,setUploadProgress);
@@ -116,11 +127,11 @@ export function CloudLibrary({
           throw failure;
         }
       }
-      setMessage(uploaded+' canción(es) guardadas en tu nube privada.');
+      setMessage(uploaded+' canción(es) nuevas en tu nube; '+duplicates+' duplicado(s) omitidos.');
       return true;
     }catch(failure){
       setError(failure instanceof Error?failure.message:'Error al subir canciones.');
-      if(uploaded)setMessage(uploaded+' canción(es) se guardaron correctamente.');
+      if(uploaded||duplicates)setMessage(uploaded+' canción(es) nuevas; '+duplicates+' duplicado(s) detectados antes del error.');
       return false;
     }finally{
       uploadController.current=null;
