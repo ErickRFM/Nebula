@@ -377,3 +377,55 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .cloud-actions select{min-height:42px;max-width:100%;border:1px solid var(--edge);background:#24223e;color:var(--ink);border-radius:11px;padding:9px 12px}
 .cloud-actions>div:last-child{display:flex;flex-wrap:wrap;gap:8px}
 .cloud-actions .button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+
+
+/* Salas + búsqueda: matte glass, readable forms, responsive layout. */
+.rooms-page{margin-top:12px;min-width:0}.rooms-page>.heading-with-action{align-items:flex-start}
+.rooms-page>.heading-with-action>svg{color:#d5c2ff;margin-top:34px;flex:none}
+.rooms-page .page-description{margin-bottom:14px;max-width:680px}
+.rooms-overview{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0 25px}
+.rooms-overview span{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border:1px solid var(--edge);background:rgba(181,156,247,.075);color:#ded7f2;font-size:.73rem;border-radius:999px}
+.room-grid{gap:16px;align-items:stretch}
+.rooms-page .room-card{min-width:0;min-height:0;padding:clamp(18px,2vw,26px);background:linear-gradient(155deg,rgba(48,44,83,.66),rgba(24,30,60,.75))}
+.room-card-header{display:flex;align-items:center;gap:14px;margin-bottom:22px;min-width:0}
+.room-card-icon,.room-entry-icon,.room-empty-icon{display:grid;place-items:center;flex:none;width:46px;height:46px;border:1px solid rgba(201,166,255,.19);border-radius:14px;background:rgba(172,137,245,.13);color:#e2ceff}
+.room-card-header h2{font-size:1.12rem;margin:0 0 4px}
+.rooms-page .room-card-header p{margin:0;max-width:none;color:#c5bfda;font-size:.78rem;line-height:1.45}
+.room-form{display:grid;gap:15px;min-width:0}.room-field{display:grid;gap:7px;min-width:0}
+.room-field label,.room-hero label{color:#e0d8f1;font-size:.79rem;font-weight:700}
+.room-field input,.room-field select,.room-hero select{display:block;width:100%;max-width:100%;min-width:0;min-height:48px;border-radius:12px;border:1px solid rgba(205,192,249,.24);background:rgba(11,15,37,.6);padding:12px 13px;color:#fbf8ff;line-height:1.3}
+.room-field input::placeholder{color:#a9a5c5;opacity:1}
+.room-field input:hover,.room-field select:hover,.room-hero select:hover{border-color:rgba(205,175,255,.5)}
+.room-field select option,.room-hero select option{background:#211f3a;color:#f6efff}
+.rooms-page .room-form-note{margin:-1px 0 0;max-width:none;color:#b7b2d0;font-size:.75rem;line-height:1.5}
+.room-form .button{width:100%;margin-top:auto;min-height:47px}
+.rooms-list-section{margin-top:30px}.room-section-description,.search-section-note{font-size:.77rem;color:#b1adce;margin:5px 0 0}
+.room-empty{border-radius:18px;min-height:190px;display:grid;justify-items:center;align-content:center;text-align:center;gap:9px;padding:26px}
+.room-empty h3{font-size:1.05rem;margin:5px 0 0}.room-empty p{max-width:490px;color:#c0bbd9;font-size:.83rem;margin:0 0 5px}
+.room-empty-icon{width:55px;height:55px}.rooms-list{border-radius:17px;overflow:hidden}
+.room-entry{display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid var(--edge)}
+.room-entry:last-child{border-bottom:0}.room-entry.is-selected,.room-entry:hover{background:rgba(184,153,250,.10)}
+.room-entry-main{flex:1;min-width:0;display:flex;align-items:center;gap:13px;text-align:left;color:var(--ink);border:0;background:transparent;padding:8px 0}
+.room-entry-icon{width:41px;height:41px;border-radius:12px}.room-entry-detail{flex:1;min-width:0;display:grid;gap:5px}
+.room-entry-detail strong{font-size:.86rem;overflow-wrap:anywhere}.room-entry-detail small{color:#bdb9d5;font-size:.75rem}
+.room-entry-state{border:1px solid var(--edge);background:#ffffff0d;border-radius:999px;padding:6px 10px;color:#d7c8fa;font-size:.68rem}
+.rooms-page .room-hero{display:block;margin-top:24px;padding:clamp(18px,2.5vw,28px);background:linear-gradient(120deg,rgba(65,53,105,.62),rgba(23,52,73,.64));min-width:0}
+.rooms-page .room-hero>div{min-width:0}.rooms-page .room-hero p{max-width:none;line-height:1.5;margin:8px 0;color:#cdc8e0}
+.rooms-page .room-hero label[for="room-cloud-track"]{display:block;margin:20px 0 7px}
+.rooms-page .room-hero .button{margin:7px 8px 7px 0;max-width:100%;white-space:normal}
+.rooms-page .room-hero code{display:inline-block;padding:9px;background:#11152c;border-radius:9px;color:#eadbff}
+.search-page{min-width:0;margin-top:10px}
+.search-page .page-title{font-size:clamp(2rem,3.15vw,3.2rem)}.search-page .page-description{max-width:750px;margin-bottom:18px}
+.search-page .search-field{max-width:860px;min-width:0;margin:12px 0 0;background:rgba(34,34,66,.8)}
+.search-page .search-field:focus-within{border-color:rgba(201,166,255,.65);box-shadow:0 0 0 3px rgba(174,136,252,.12)}
+.search-page .search-field input{width:100%;color:var(--ink);background:transparent}
+.search-discovery{margin-top:29px}.search-start{display:flex;align-items:center;gap:12px;margin:22px 0 0;padding:16px 18px;border-radius:14px;font-size:.78rem;color:#c1bad8}
+.search-start svg{flex:none;color:#c9a6ff}.search-page .content-section{margin-top:28px}.search-page .chip-row{margin:14px 0}
+.search-page .search-local .track-list{max-width:1100px}
+.search-page .search-online .explore-page{max-width:none}.search-page .search-online .explore-page .chip-row{margin-top:0}
+.search-page .search-online .external-bridges{margin-top:24px;padding-top:18px;border-top:1px solid var(--edge)}
+.search-page .search-online .external-bridges .section-heading{margin-bottom:7px}
+.search-page .search-online .external-bridges .page-description{margin-bottom:12px;font-size:.8rem}
+.search-source-hint{margin:10px 0 0;color:#bfb6d7;font-size:.78rem;padding:11px 13px;border:1px solid var(--edge);border-radius:12px;background:rgba(35,34,67,.52)}
+@media(max-width:850px){.room-grid{grid-template-columns:1fr}.search-page .genre-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.rooms-overview{gap:7px}.rooms-overview span{font-size:.67rem}.rooms-page>.heading-with-action>svg{display:none}.rooms-page .room-card{padding:18px}.room-card-header{gap:10px}.room-card-icon{width:39px;height:39px}.room-entry-state{display:none}.search-page .genre-grid{grid-template-columns:1fr 1fr}.search-page .genre-card{height:100px;padding:13px}.search-start{align-items:flex-start}.rooms-page .room-hero .button{width:100%;margin:7px 0}}
