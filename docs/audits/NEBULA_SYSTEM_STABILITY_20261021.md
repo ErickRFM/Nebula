@@ -1,6 +1,6 @@
 # NÉBULA — Auditoría de estabilidad transversal (21 de octubre de 2026)
 
-**Ámbito revisado:** API Ktor? No; este repo tiene backend Fastify/PostgreSQL, web Next.js/React, música IndexedDB y R2, descubrimiento (Jamendo/Openverse/Audius/Internet Archive/YouTube embed), sesiones, playlists/favoritos y componentes de salas. Se contrastaron la rama `main@5e918d07`, checks de GitHub y el despliegue de Vercel `413587c8` (antes de este PR). No es evidencia de prueba física en teléfonos ni de disponibilidad continua de proveedores.
+**Ámbito revisado:** backend Fastify/PostgreSQL, web Next.js/React, música IndexedDB y R2, descubrimiento (Jamendo/Openverse/Audius/Internet Archive/YouTube embed), sesiones, playlists/favoritos y componentes de salas. Se contrastaron la rama `main@5e918d07`, checks de GitHub y el despliegue de Vercel `413587c8` (antes de este PR). No es evidencia de prueba física en teléfonos ni de disponibilidad continua de proveedores.
 
 ## Hallazgos e intervención de este PR
 
