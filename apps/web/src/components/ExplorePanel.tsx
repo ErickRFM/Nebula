@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Bookmark, Check, ExternalLink, Headphones, Search, WifiOff } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
 import type { Track } from '../lib/catalog';
@@ -43,6 +43,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
   const [failed,setFailed]=useState<string[]>([]);
   const [saving,setSaving]=useState<string|null>(null);
   const [enabled,setEnabled]=useState<Record<string,boolean>>({});
+  const searchAbort=useRef<AbortController|null>(null);
 
   const loadSaved=useCallback(async()=>{
     if(!account.accessToken || !apiConfigured) {setSaved([]);return;}
@@ -63,31 +64,37 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
   },[account.accessToken]);
 
   async function searchRemote(q:string) {
-    if(q.length<2){setTracks([]);setSearched(false);return;}
-    if(!account.accessToken || !apiConfigured){setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
+    searchAbort.current?.abort();
+    if(q.length<2){setTracks([]);setSearched(false);setBusy(false);return;}
+    if(!account.accessToken || !apiConfigured){setTracks([]);setBusy(false);setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
+    const controller=new AbortController();
+    searchAbort.current=controller;
     setBusy(true);setNotice('');setFailed([]);setSearched(true);
     try {
       const params=new URLSearchParams({q,provider,limit:'12',page:'1'});
       const response=await fetch(apiBase+'/v1/discovery/search?'+params.toString(),{
-        headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',
+        headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',signal:controller.signal,
       });
       if(!response.ok) throw new Error(response.status===401?'La sesión caducó; vuelve a iniciar sesión.':'No fue posible consultar los proveedores.');
       const json=await response.json();
+      if(controller.signal.aborted) return;
       setTracks(Array.isArray(json.items)?json.items:[]);
       setFailed(Array.isArray(json.failedProviders)?json.failedProviders:[]);
       if(json.disabledProviders?.length) setNotice('Este proveedor necesita configuración en el servidor.');
     } catch(e) {
+      if(controller.signal.aborted) return;
       setTracks([]);
       setNotice(e instanceof Error?e.message:'Ocurrió un error al buscar.');
-    } finally {setBusy(false);}
+    } finally {if(searchAbort.current===controller) {searchAbort.current=null;setBusy(false);} }
   }
 
   useEffect(()=>{
     if(!embedded) return;
     const q=(initialQuery??'').trim();
-    if(q.length<2){setTracks([]);setSearched(false);setNotice('');return;}
+    searchAbort.current?.abort();
+    if(q.length<2){setTracks([]);setSearched(false);setNotice('');setBusy(false);return;}
     const timer=setTimeout(()=>{void searchRemote(q);},400);
-    return ()=>clearTimeout(timer);
+    return ()=>{clearTimeout(timer);searchAbort.current?.abort();};
   },[embedded,initialQuery,provider,account.accessToken]);
 
   async function removeSavedReference(item:SavedTrack) {
