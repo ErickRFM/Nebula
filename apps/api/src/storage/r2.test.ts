@@ -50,6 +50,18 @@ describe('Cloudflare R2 private signed URLs', () => {
     expect(() => presignR2(settings, 'GET', key, 3601)).toThrow('invalid_presign_ttl');
   });
 
+  it('signs downloads as short-lived attachments without exposing secrets', () => {
+    const now=new Date('2026-10-16T12:00:00Z');
+    const signed=new URL(presignR2(settings,'GET',key,300,undefined,now,'Mi-cancion.mp3'));
+    expect(signed.searchParams.get('response-content-disposition')).toBe('attachment; filename="Mi-cancion.mp3"');
+    expect(signed.searchParams.get('X-Amz-Expires')).toBe('300');
+    expect(signed.searchParams.get('X-Amz-Signature')).toMatch(/^[a-f0-9]{64}$/);
+    expect(signed.href).not.toContain(settings.secretAccessKey);
+    expect(() => presignR2(settings,'GET',key,300,undefined,now,'../bad.mp3')).toThrow('invalid_download_filename');
+    expect(() => presignR2(settings,'PUT',key,300,'audio/mpeg',now,'no.mp3')).toThrow('invalid_download_filename');
+    expect(presignR2(settings,'GET',key,300,undefined,now)).not.toBe(signed.href);
+  });
+
   it('allows only supported audio filename extensions', () => {
     expect(audioMimeForFilename('Mi canción.MP3')).toBe('audio/mpeg');
     expect(audioMimeForFilename('recording.flac')).toBe('audio/flac');
