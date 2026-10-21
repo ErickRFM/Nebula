@@ -4,7 +4,7 @@
  * Supported tags: ID3v2.3/v2.4 text frames and legacy ID3v1 on MP3.
  * Unsupported tags/codecs fall back to a readable filename.
  */
-export type AudioMetadata = { title:string; artist:string; album:string; genre:string };
+export type AudioMetadata = { title:string; artist:string; album:string; genre:string; coverDataUrl?:string };
 export type NamedAudioBlob = Pick<File, 'name' | 'slice'>;
 
 const FIELD_LIMIT=200;
@@ -57,7 +57,9 @@ function parseV2(data:Uint8Array):Partial<AudioMetadata> {
     if(!/^[A-Z0-9]{4}$/.test(name))break;
     const length=version===4?synchsafe(data,pos+4):be32(data,pos+4);
     if(length<0||length>end-pos-10)break;
-    const value=decodeText(data.subarray(pos+10,pos+10+length));
+    const frame=data.subarray(pos+10,pos+10+length);
+    if(name==='APIC'){result.coverDataUrl=parseId3Picture(frame)||result.coverDataUrl;}
+    const value=name==='APIC'?'':decodeText(frame);
     if(value){
       if(name==='TIT2')result.title=value;
       else if(name==='TPE1')result.artist=value;
@@ -77,22 +79,149 @@ function parseV1(data:Uint8Array):Partial<AudioMetadata> {
   return { ...(title?{title}:{}), ...(artist?{artist}:{}), ...(album?{album}:{}) };
 }
 
+
+/** Inline covers are limited to 256 KiB; larger pictures never enter IndexedDB. */
+function embeddedCover(bytes:Uint8Array):string|undefined{
+  if(bytes.length<12||bytes.length>256*1024)return undefined;
+  const png=bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71;
+  const jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+  if(!png&&!jpeg)return undefined;
+  let encoded='';
+  for(let i=0;i<bytes.length;i+=8192)encoded+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  return 'data:image/'+(png?'png':'jpeg')+';base64,'+btoa(encoded);
+}
+function parseId3Picture(bytes:Uint8Array):string|undefined{
+  if(bytes.length<8)return undefined;
+  const mimeEnd=bytes.indexOf(0,1);
+  if(mimeEnd<0)return undefined;
+  let pos=mimeEnd+2;
+  const encoding=bytes[0];
+  if(encoding===0||encoding===3){
+    const next=bytes.indexOf(0,pos);
+    if(next<0)return undefined;
+    pos=next+1;
+  }else{
+    while(pos+1<bytes.length && !(bytes[pos]===0&&bytes[pos+1]===0))pos+=2;
+    pos+=2;
+  }
+  return embeddedCover(bytes.subarray(pos));
+}
+function u32le(data:Uint8Array,at:number):number {
+  if(at<0||at+4>data.length)return 0;
+  return (data[at]+data[at+1]*256+data[at+2]*65536+data[at+3]*16777216)>>>0;
+}
+function parseFlac(data:Uint8Array):Partial<AudioMetadata>{
+  if(latin1(data.subarray(0,4))!=='fLaC')return {};
+  let pos=4;
+  const result:Partial<AudioMetadata>={};
+  for(let n=0;n<80&&pos+4<=data.length;n++){
+    const last=(data[pos]&0x80)!==0,type=data[pos]&0x7f;
+    const size=(data[pos+1]<<16)|(data[pos+2]<<8)|data[pos+3];
+    pos+=4;
+    if(size<0||pos+size>data.length)break;
+    const block=data.subarray(pos,pos+size);
+    if(type===4 && block.length>=8){
+      let cursor=0;
+      const vendorLength=u32le(block,cursor);cursor+=4+vendorLength;
+      if(cursor+4<=block.length){
+        const count=Math.min(100,u32le(block,cursor));cursor+=4;
+        for(let i=0;i<count&&cursor+4<=block.length;i++){
+          const len=u32le(block,cursor);cursor+=4;
+          if(len>4096||cursor+len>block.length)break;
+          const tag=new TextDecoder().decode(block.subarray(cursor,cursor+len));
+          cursor+=len;
+          const split=tag.indexOf('=');
+          if(split<1)continue;
+          const key=tag.slice(0,split).toUpperCase(),value=safeText(tag.slice(split+1));
+          if(!value)continue;
+          if(key==='TITLE')result.title=value;
+          else if(key==='ARTIST')result.artist=value;
+          else if(key==='ALBUM')result.album=value;
+          else if(key==='GENRE')result.genre=value;
+        }
+      }
+    }else if(type===6&&block.length>32){
+      let cursor=4;
+      const mimeLength=(block[cursor]*0x1000000+(block[cursor+1]<<16)+(block[cursor+2]<<8)+block[cursor+3])>>>0;
+      cursor+=4+mimeLength;
+      if(cursor+4>block.length)break;
+      const descriptionLength=(block[cursor]*0x1000000+(block[cursor+1]<<16)+(block[cursor+2]<<8)+block[cursor+3])>>>0;
+      cursor+=4+descriptionLength+16;
+      if(cursor+4>block.length)break;
+      const imageLen=(block[cursor]*0x1000000+(block[cursor+1]<<16)+(block[cursor+2]<<8)+block[cursor+3])>>>0;
+      cursor+=4;
+      if(imageLen<=block.length-cursor)result.coverDataUrl=embeddedCover(block.subarray(cursor,cursor+imageLen))||result.coverDataUrl;
+    }
+    pos+=size;if(last)break;
+  }
+  return result;
+}
+function parseMp4(data:Uint8Array):Partial<AudioMetadata>{
+  const result:Partial<AudioMetadata>={};
+  const label=(at:number)=>latin1(data.subarray(at,at+4));
+  function visit(start:number,end:number,depth:number){
+    if(depth>6)return;
+    let pos=start;
+    for(let count=0;count<200&&pos+8<=end;count++){
+      const size=be32(data,pos);
+      if(size<8||pos+size>end)break;
+      const type=label(pos+4);
+      if(type==='moov'||type==='udta'||type==='ilst'||type==='meta'){
+        visit(pos+(type==='meta'?12:8),pos+size,depth+1);
+      }else if(['©nam','©ART','aART','©alb','©gen','covr'].includes(type)){
+        const d=pos+8;
+        if(d+16<=pos+size && label(d+4)==='data'){
+          const len=be32(data,d);
+          if(len>=16&&d+len<=pos+size){
+            const payload=data.subarray(d+16,d+len);
+            const value=safeText(new TextDecoder().decode(payload));
+            if(type==='©nam'&&value)result.title=value;
+            else if((type==='©ART'||type==='aART')&&value)result.artist=value;
+            else if(type==='©alb'&&value)result.album=value;
+            else if(type==='©gen'&&value)result.genre=value;
+            else if(type==='covr')result.coverDataUrl=embeddedCover(payload)||result.coverDataUrl;
+          }
+        }
+      }
+      pos+=size;
+    }
+  }
+  visit(0,data.length,0);
+  return result;
+}
+
 export async function readAudioMetadata(file:NamedAudioBlob & { size:number }):Promise<AudioMetadata> {
   const fallback=filenameAudioMetadata(file.name);
-  if(!/\.mp3$/i.test(file.name)||file.size<10)return fallback;
+  if(file.size<10)return fallback;
   try{
-    const header=new Uint8Array(await file.slice(0,10).arrayBuffer());
-    const length=latin1(header.subarray(0,3))==='ID3' ? 10+synchsafe(header,6) : 0;
-    const v2=length>10&&length<=MAX_TAG_BYTES
-      ? parseV2(new Uint8Array(await file.slice(0,length).arrayBuffer())) : {};
-    // Legacy tags may fill missing fields; modern tags always win.
-    const v1=file.size>=128
-      ? parseV1(new Uint8Array(await file.slice(file.size-128,file.size).arrayBuffer())) : {};
+    const isMp3=/\.mp3$/i.test(file.name);
+    const isFlac=/\.flac$/i.test(file.name);
+    const isM4a=/\.(m4a|mp4)$/i.test(file.name);
+    if(!isMp3&&!isFlac&&!isM4a)return fallback;
+    let primary:Partial<AudioMetadata>={};
+    let legacy:Partial<AudioMetadata>={};
+    if(isMp3){
+      const header=new Uint8Array(await file.slice(0,10).arrayBuffer());
+      const length=latin1(header.subarray(0,3))==='ID3'?10+synchsafe(header,6):0;
+      if(length>10&&length<=MAX_TAG_BYTES)primary=parseV2(new Uint8Array(await file.slice(0,length).arrayBuffer()));
+      if(file.size>=128)legacy=parseV1(new Uint8Array(await file.slice(file.size-128,file.size).arrayBuffer()));
+    }else if(isFlac){
+      primary=parseFlac(new Uint8Array(await file.slice(0,Math.min(file.size,MAX_TAG_BYTES)).arrayBuffer()));
+    }else{
+      // iTunes metadata may live near the tail of a large MP4/M4A file.
+      const head=new Uint8Array(await file.slice(0,Math.min(file.size,MAX_TAG_BYTES)).arrayBuffer());
+      primary=parseMp4(head);
+      if(!primary.title&&file.size>MAX_TAG_BYTES){
+        const tail=new Uint8Array(await file.slice(Math.max(0,file.size-MAX_TAG_BYTES),file.size).arrayBuffer());
+        primary={...parseMp4(tail),...primary};
+      }
+    }
     return {
-      title:v2.title||v1.title||fallback.title,
-      artist:v2.artist||v1.artist||fallback.artist,
-      album:v2.album||v1.album||fallback.album,
-      genre:v2.genre||fallback.genre,
+      title:primary.title||legacy.title||fallback.title,
+      artist:primary.artist||legacy.artist||fallback.artist,
+      album:primary.album||legacy.album||fallback.album,
+      genre:primary.genre||fallback.genre,
+      ...(primary.coverDataUrl?{coverDataUrl:primary.coverDataUrl}:{}),
     };
   }catch{return fallback;}
 }
