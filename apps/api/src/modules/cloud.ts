@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { cloudTracks } from '../db/schema.js';
 import { createGuards } from './auth.js';
 import {
-  MAX_CLOUD_AUDIO_BYTES, audioMimeForFilename, deleteR2Object,
+  MAX_CLOUD_AUDIO_BYTES, MAX_CLOUD_ARTWORK_BYTES, audioMimeForFilename, deleteR2Object,
   inspectR2Object, presignR2, readR2Settings,
 } from '../storage/r2.js';
 
@@ -27,9 +27,20 @@ const projection = {
   artist: cloudTracks.artist,
   album: cloudTracks.album,
   genre: cloudTracks.genre,
+  coverObjectKey: cloudTracks.coverObjectKey,
   mimeType: cloudTracks.mimeType,
   byteSize: cloudTracks.byteSize,
   createdAt: cloudTracks.createdAt,
+};
+
+const coverInput=z.object({
+  contentType:z.enum(['image/png','image/jpeg']),
+  size:z.number().int().min(12).max(MAX_CLOUD_ARTWORK_BYTES),
+});
+const signedCover=<T extends {coverObjectKey:string|null}>(row:T)=>{
+  const {coverObjectKey,...publicItem}=row;
+  const settings=readR2Settings();
+  return {...publicItem,coverUrl:coverObjectKey&&settings?presignR2(settings,'GET',coverObjectKey,3600):null};
 };
 
 const searchInput=z.object({
@@ -66,14 +77,14 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const pendingItems = await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'pending')))
       .orderBy(desc(cloudTracks.createdAt)).limit(50);
-    return { items, pendingItems, configured: Boolean(readR2Settings()) };
+    return { items:items.map(signedCover), pendingItems:pendingItems.map(signedCover), configured: Boolean(readR2Settings()) };
   });
 
   app.get('/v1/library/cloud/pending',{preHandler:requireAuth},async(request)=>{
     const pendingItems=await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'pending')))
       .orderBy(desc(cloudTracks.createdAt),desc(cloudTracks.id)).limit(50);
-    return {pendingItems,configured:Boolean(readR2Settings())};
+    return {pendingItems:pendingItems.map(signedCover),configured:Boolean(readR2Settings())};
   });
 
   // Authenticated search across all owner rows, not just legacy 500.
@@ -107,7 +118,7 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const items=rows.slice(0,input.data.limit);
     const last=items.at(-1);
     reply.header('Cache-Control','no-store');
-    return {items,hasMore,nextCursor:hasMore&&last?encodeCloudCursor(last.createdAt,last.id):null};
+    return {items:items.map(signedCover),hasMore,nextCursor:hasMore&&last?encodeCloudCursor(last.createdAt,last.id):null};
   });
 
   app.post('/v1/library/cloud/uploads', {
@@ -168,7 +179,49 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     }
     const [item] = await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.id, row.id), eq(cloudTracks.userId, request.principal!.userId))).limit(1);
-    return { item };
+    return { item:item?signedCover(item):null };
+  });
+
+  // Artwork is a separate short-lived signed R2 object. The owner can only
+  // attach it to a ready track within their own namespace.
+  app.post('/v1/library/cloud/:id/cover-ticket',{preHandler:requireAuth},async(request,reply)=>{
+    const settings=readR2Settings();
+    if(!settings)return reply.code(503).send({error:'storage_not_configured'});
+    const params=idInput.safeParse(request.params);
+    const body=coverInput.safeParse(request.body);
+    if(!params.success||!body.success)return reply.code(400).send({error:'invalid_cover_upload'});
+    const [track]=await db.select({id:cloudTracks.id}).from(cloudTracks)
+      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'ready'))).limit(1);
+    if(!track)return reply.code(404).send({error:'cloud_track_not_found'});
+    const extension=body.data.contentType==='image/png'?'png':'jpg';
+    const key='users/'+request.principal!.userId+'/'+track.id+'.'+extension;
+    reply.header('Cache-Control','no-store');
+    return {uploadUrl:presignR2(settings,'PUT',key,600,body.data.contentType),
+      contentType:body.data.contentType,expiresInSeconds:600,maxBytes:MAX_CLOUD_ARTWORK_BYTES};
+  });
+
+  app.post('/v1/library/cloud/:id/cover-complete',{preHandler:requireAuth},async(request,reply)=>{
+    const settings=readR2Settings();
+    if(!settings)return reply.code(503).send({error:'storage_not_configured'});
+    const params=idInput.safeParse(request.params);
+    const body=coverInput.safeParse(request.body);
+    if(!params.success||!body.success)return reply.code(400).send({error:'invalid_cover_upload'});
+    const [track]=await db.select({id:cloudTracks.id,coverObjectKey:cloudTracks.coverObjectKey}).from(cloudTracks)
+      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'ready'))).limit(1);
+    if(!track)return reply.code(404).send({error:'cloud_track_not_found'});
+    const extension=body.data.contentType==='image/png'?'png':'jpg';
+    const key='users/'+request.principal!.userId+'/'+track.id+'.'+extension;
+    let object:Awaited<ReturnType<typeof inspectR2Object>>;
+    try{object=await inspectR2Object(settings,key);}
+    catch{return reply.code(502).send({error:'storage_unavailable'});}
+    if(!object)return reply.code(409).send({error:'cover_not_uploaded'});
+    if(object.size!==body.data.size||object.contentType!==body.data.contentType||object.size>MAX_CLOUD_ARTWORK_BYTES)
+      return reply.code(422).send({error:'cover_mismatch'});
+    await db.update(cloudTracks).set({coverObjectKey:key})
+      .where(and(eq(cloudTracks.id,track.id),eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'ready')));
+    if(track.coverObjectKey && track.coverObjectKey!==key)void deleteR2Object(settings,track.coverObjectKey).catch(()=>{});
+    reply.header('Cache-Control','no-store');
+    return {coverUrl:presignR2(settings,'GET',key,3600)};
   });
 
   app.get('/v1/library/cloud/:id/play', { preHandler: requireAuth }, async (request, reply) => {
@@ -207,10 +260,10 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     if (!settings) return reply.code(503).send({ error: 'storage_not_configured' });
     const parsed = idInput.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_track_id' });
-    const [item] = await db.select({ objectKey: cloudTracks.objectKey }).from(cloudTracks)
+    const [item] = await db.select({ objectKey: cloudTracks.objectKey,coverObjectKey:cloudTracks.coverObjectKey }).from(cloudTracks)
       .where(and(eq(cloudTracks.id, parsed.data.id), eq(cloudTracks.userId, request.principal!.userId))).limit(1);
     if (!item) return reply.code(404).send({ error: 'cloud_track_not_found' });
-    try { await deleteR2Object(settings, item.objectKey); }
+    try { await deleteR2Object(settings, item.objectKey); if(item.coverObjectKey)await deleteR2Object(settings,item.coverObjectKey); }
     catch { return reply.code(502).send({ error: 'storage_unavailable' }); }
     await db.delete(cloudTracks).where(and(
       eq(cloudTracks.id, parsed.data.id), eq(cloudTracks.userId, request.principal!.userId),
