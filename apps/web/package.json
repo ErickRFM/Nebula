@@ -20,7 +20,8 @@
     "@nebula/api": "file:../api",
     "light-my-request": "6.6.0",
     "@fastify/cookie": "11.1.0",
-    "@nebula/room-sync": "file:../../packages/room-sync"
+    "@nebula/room-sync": "file:../../packages/room-sync",
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
