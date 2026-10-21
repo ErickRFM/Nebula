@@ -328,3 +328,45 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
   .external-bridges .playlist-create .button{width:100%;justify-content:center}
   .bridge-player{padding:12px}
 }
+
+/* NÉBULA UX consolidation — consistent focus, responsive content, matte controls. */
+:where(button,a,input,textarea,select):focus-visible{outline:2px solid #e0beff;outline-offset:3px}
+:where(button,input,select):disabled{cursor:not-allowed;opacity:.55}
+.track-row{min-width:0}
+.track-row .button{flex-shrink:0}
+.track-descriptor{min-width:0;overflow:hidden}
+.track-descriptor strong{overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.35}
+.track-descriptor small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-stage{gap:clamp(20px,3vw,50px);grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.player-detail{min-width:0}
+.player-title{gap:14px}
+.player-title .icon-button{flex:none}
+.player-actions button{min-width:40px;min-height:40px}
+.side-collection{gap:5px;margin:0 4px}
+.side-collection .nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:11px;color:#c3bedf;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-collection .nav-item:hover{background:#ffffff14;color:#fff}
+.sidebar-footer{line-height:1.45}
+.playlist-entry{min-width:0}
+.playlist-entry-main{min-width:0;overflow:hidden}
+.playlist-entry-main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track-row .button:focus-visible,.icon-button:focus-visible,.nav-item:focus-visible{outline-offset:2px}
+@media(max-width:1050px){
+ .player-stage{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
+ .track-album{display:none}
+}
+@media(max-width:720px){
+ .track-row{flex-wrap:wrap;gap:9px;padding:12px}
+ .track-row .track-main{flex-basis:100%}
+ .track-row .track-descriptor{flex:1 1 140px}
+ .track-row .button{min-height:42px}
+ .playlist-entry{gap:8px}
+ .bottom-nav{overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity}
+ .bottom-nav button{scroll-snap-align:center;flex-shrink:0}
+ .player-stage{grid-template-columns:1fr;max-width:480px;gap:20px;margin:14px auto}
+ .player-art{max-width:440px;margin:auto}
+ .player-detail{padding:0}
+}
+@media(pointer:coarse){
+ .icon-button{min-width:44px;min-height:44px}
+ .nav-item{min-height:44px}
+}
