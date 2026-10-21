@@ -69,6 +69,13 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     return { items, pendingItems, configured: Boolean(readR2Settings()) };
   });
 
+  app.get('/v1/library/cloud/pending',{preHandler:requireAuth},async(request)=>{
+    const pendingItems=await db.select(projection).from(cloudTracks)
+      .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'pending')))
+      .orderBy(desc(cloudTracks.createdAt),desc(cloudTracks.id)).limit(50);
+    return {pendingItems,configured:Boolean(readR2Settings())};
+  });
+
   // Authenticated search across all owner rows, not just legacy 500.
   app.get('/v1/library/cloud/search',{preHandler:requireAuth},async(request,reply)=>{
     const input=searchInput.safeParse(request.query);
