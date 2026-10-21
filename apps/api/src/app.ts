@@ -32,7 +32,7 @@ const discoveryInput = z.object({
   q: z.string().trim().min(2).max(100),
   page: z.coerce.number().int().min(1).max(20).default(1),
   limit: z.coerce.number().int().min(1).max(25).default(12),
-  provider: z.enum(['all', 'jamendo', 'openverse', 'audius']).default('all'),
+  provider: z.enum(['all', 'jamendo', 'openverse', 'audius', 'internetarchive']).default('all'),
 });
 
 function fail(reason: string) {
