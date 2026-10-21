@@ -41,12 +41,16 @@ export function presignR2(
   expiresSeconds: number,
   contentType?: string,
   now = new Date(),
+  downloadFilename?: string,
 ): string {
   if (expiresSeconds < 1 || expiresSeconds > 3600 || !Number.isInteger(expiresSeconds)) {
     throw new Error('invalid_presign_ttl');
   }
   if (!/^audio\/[a-z0-9.+-]+$/.test(contentType ?? 'audio/mpeg') || (method !== 'PUT' && contentType)) {
     throw new Error('invalid_signed_content_type');
+  }
+  if (downloadFilename && (method !== 'GET' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,159}$/.test(downloadFilename))) {
+    throw new Error('invalid_download_filename');
   }
   if (!/^users\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]+$/.test(objectKey)) {
     throw new Error('invalid_object_key');
@@ -64,6 +68,7 @@ export function presignR2(
     'X-Amz-Expires': String(expiresSeconds),
     'X-Amz-SignedHeaders': signedHeaders,
   };
+  if (downloadFilename) params['response-content-disposition'] = 'attachment; filename="' + downloadFilename + '"';
   const canonicalQuery = Object.keys(params).sort()
     .map((key) => encoded(key) + '=' + encoded(params[key])).join('&');
   const canonicalHeaders = (contentType ? 'content-type:' + contentType + '\n' : '') + 'host:' + url.host + '\n';

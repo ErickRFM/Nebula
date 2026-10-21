@@ -109,6 +109,22 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     return { url: presignR2(settings, 'GET', item.objectKey, 3600), expiresInSeconds: 3600 };
   });
 
+  app.get('/v1/library/cloud/:id/download', { preHandler: requireAuth }, async (request, reply) => {
+    const settings = readR2Settings();
+    if (!settings) return reply.code(503).send({error:'storage_not_configured'});
+    const parsed = idInput.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({error:'invalid_track_id'});
+    const [track] = await db.select({objectKey:cloudTracks.objectKey,title:cloudTracks.title}).from(cloudTracks)
+      .where(and(eq(cloudTracks.id,parsed.data.id),eq(cloudTracks.userId,request.principal!.userId),
+        eq(cloudTracks.status,'ready'))).limit(1);
+    if (!track) return reply.code(404).send({error:'cloud_track_not_found'});
+    const extension=track.objectKey.split('.').pop() ?? 'mp3';
+    const base=track.title.normalize('NFKD').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,100) || 'mi-cancion';
+    const filename=base+'.'+extension;
+    reply.header('Cache-Control','no-store');
+    return {url:presignR2(settings,'GET',track.objectKey,300,undefined,undefined,filename),filename,expiresInSeconds:300};
+  });
+
   app.delete('/v1/library/cloud/:id', { preHandler: requireAuth }, async (request, reply) => {
     const settings = readR2Settings();
     if (!settings) return reply.code(503).send({ error: 'storage_not_configured' });
