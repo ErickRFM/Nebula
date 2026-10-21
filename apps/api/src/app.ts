@@ -52,7 +52,9 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   const musicBrainz = new MusicBrainzMetadata();
   const { requireAuth } = createGuards(db);
   await app.register(cors, {
-    origin: config.corsOrigin,
+    // Capacitor serves bundled assets from these fixed device-local origins.
+    // Never use origin:true or '*': refresh cookies require scoped CORS.
+    origin: [config.corsOrigin, 'http://localhost', 'https://localhost', 'capacitor://localhost'],
     credentials: true,
     allowedHeaders: ['content-type', 'authorization', 'x-nebula-client'],
   });
