@@ -78,6 +78,11 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
        placeholder="Buscar videos musicales en YouTube"/>
      <button className="button secondary small" type="submit" disabled={searching||query.trim().length<2}>{searching?'Buscando…':'Buscar videos'}</button>
    </form> : !youtubeReady ? <p className="disclosure">La búsqueda automática de YouTube requiere YOUTUBE_API_KEY en el servidor. La búsqueda de Jamendo, Openverse y Audius sigue disponible por separado.</p> : null}
+   {embedded&&!youtubeReady&&(initialQuery??'').trim().length>=2&&<p className="disclosure">
+     <a href={'https://www.youtube.com/results?search_query='+encodeURIComponent((initialQuery??'').trim())}
+       target="_blank" rel="noopener noreferrer">Buscar «{(initialQuery??'').trim()}» en la web de YouTube</a>
+     {' '}— sin clave API; los resultados se abrirán en YouTube, no en el reproductor de NÉBULA.
+   </p>}
    {error&&<p className="account-error" role="alert">{error}</p>}
    {embedded&&youtubeReady&&searching&&<p className="disclosure" role="status">Buscando videos musicales relacionados…</p>}
    {embedded&&youtubeReady&&!searching&&(initialQuery??'').trim().length>=4&&videos.length===0&&!error&&<p className="empty-note">No hay videos encontrados para esa búsqueda.</p>}
