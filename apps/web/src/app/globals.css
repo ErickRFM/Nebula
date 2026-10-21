@@ -441,3 +441,22 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .search-source-hint{margin:10px 0 0;color:#bfb6d7;font-size:.78rem;padding:11px 13px;border:1px solid var(--edge);border-radius:12px;background:rgba(35,34,67,.52)}
 @media(max-width:850px){.room-grid{grid-template-columns:1fr}.search-page .genre-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.rooms-overview{gap:7px}.rooms-overview span{font-size:.67rem}.rooms-page>.heading-with-action>svg{display:none}.rooms-page .room-card{padding:18px}.room-card-header{gap:10px}.room-card-icon{width:39px;height:39px}.room-entry-state{display:none}.search-page .genre-grid{grid-template-columns:1fr 1fr}.search-page .genre-card{height:100px;padding:13px}.search-start{align-items:flex-start}.rooms-page .room-hero .button{width:100%;margin:7px 0}}
+
+
+/* V2 private-library search — one coherent visual language with CloudLibrary. */
+.cloud-search{min-width:0}
+.cloud-search .section-heading h2{display:flex;align-items:center;gap:9px}
+.cloud-search .track-list{min-width:0}
+.cloud-search .track-row{gap:12px}
+.cloud-search .track-descriptor{flex:1}
+.cloud-search .track-row>.button{flex:none;white-space:nowrap}
+.cloud-search .search-start{margin:0;justify-content:space-between;flex-wrap:wrap}
+.cloud-search .empty-note{border-radius:16px}
+.cloud-actions{flex-wrap:wrap}
+.cloud-actions>label.button{max-width:100%;min-width:135px}
+@media(max-width:650px){
+  .cloud-search .track-row{flex-wrap:wrap}
+  .cloud-search .track-descriptor{flex:1 1 160px}
+  .cloud-search .track-row>.button{width:100%}
+  .cloud-actions>label.button{width:100%;justify-content:center}
+}

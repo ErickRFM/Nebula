@@ -19,6 +19,7 @@ import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { ExternalMediaBridges } from './ExternalMediaBridges';
 import { CloudLibrary } from './CloudLibrary';
+import { CloudSearchResults } from './CloudSearchResults';
 import { AccountPlaylistTracks } from './AccountPlaylistTracks';
 import { RoomsPanel } from './RoomsPanel';
 import { roomInviteFromHash } from '../lib/room-invite-link';
@@ -221,6 +222,7 @@ export function NebulaApp() {
               <div className="chip-row search-genre-filter" aria-label="Filtrar la biblioteca">{genres.map(name=><button type="button" key={name} className={'chip '+(genre===name?'active':'')} aria-pressed={genre===name} onClick={()=>setGenre(name)}>{name}</button>)}</div>
               <div className="track-list glass">{filteredTracks.length?filteredTracks.map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>):<p className="empty-note">No hay coincidencias locales. Prueba los resultados en línea más abajo o añade música desde Biblioteca.</p>}</div>
             </section>
+            <CloudSearchResults query={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
             <section className="content-section search-online"><div className="section-heading"><div><h2>Música en línea</h2><p className="search-section-note">Resultados de los proveedores disponibles para tu cuenta</p></div></div>
               <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
               <ExternalMediaBridges account={account} initialQuery={search} embedded onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
