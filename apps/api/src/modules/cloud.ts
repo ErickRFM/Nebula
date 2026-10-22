@@ -233,7 +233,16 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
       .where(and(eq(cloudTracks.id,track.id),eq(cloudTracks.userId,userId),eq(cloudTracks.status,'ready'),
         ticket.previousKey===null?isNull(cloudTracks.coverObjectKey):eq(cloudTracks.coverObjectKey,ticket.previousKey)))
       .returning({id:cloudTracks.id});
-    if(!updated)return reply.code(409).send({error:'cover_replaced_during_upload'});
+    if(!updated){
+      const [latest]=await db.select({key:cloudTracks.coverObjectKey}).from(cloudTracks)
+        .where(and(eq(cloudTracks.id,track.id),eq(cloudTracks.userId,userId))).limit(1);
+      // A retried confirmation must not turn a committed cover into an error.
+      if(latest?.key===ticket.key){
+        reply.header('Cache-Control','no-store');
+        return {coverUrl:presignR2(settings,'GET',ticket.key,3600)};
+      }
+      return reply.code(409).send({error:'cover_replaced_during_upload'});
+    }
     // Previous R2 tokens may live for up to 1h; delete best effort only after
     // the new database pointer is committed and never on CAS failure.
     if(ticket.previousKey&&ticket.previousKey!==ticket.key){
