@@ -4,7 +4,7 @@ import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { and, asc, desc, eq, gt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import {presignR2,readR2Settings} from './storage/r2.js';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -204,22 +204,21 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   });
   const playlistItemsQuery=z.object({
     limit:z.coerce.number().int().min(1).max(500).default(500),
-    cursor:z.string().max(180).optional(),
+    // UUID cursor references an existing playlist item with exact PostgreSQL
+    // timestamp precision; no Date/ISO microsecond truncation in Node.js.
+    cursor:z.string().uuid().optional(),
   });
-  const playlistCursor=z.object({t:z.string().datetime({offset:true}),id:z.string().uuid()});
-  function parsePlaylistCursor(value:string){
-    try{
-      const result=playlistCursor.safeParse(JSON.parse(Buffer.from(value,'base64url').toString('utf8')));
-      return result.success?result.data:null;
-    }catch{return null;}
-  }
   app.get('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
     const params = idInput.safeParse(request.params);
     const pagination=playlistItemsQuery.safeParse(request.query);
     if (!params.success) return reply.code(400).send(fail('invalid_playlist_id'));
     if (!pagination.success)return reply.code(400).send(fail('invalid_playlist_page'));
-    const cursor=pagination.data.cursor?parsePlaylistCursor(pagination.data.cursor):null;
-    if(pagination.data.cursor&&!cursor)return reply.code(400).send(fail('invalid_playlist_cursor'));
+    const cursor=pagination.data.cursor;
+    if(cursor){
+      const [exists]=await db.select({id:playlistItems.id}).from(playlistItems)
+        .where(and(eq(playlistItems.id,cursor),eq(playlistItems.playlistId,params.data.id))).limit(1);
+      if(!exists)return reply.code(400).send(fail('invalid_playlist_cursor'));
+    }
     const [owner] = await db.select({ id: playlists.id }).from(playlists)
       .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, principalId(request)))).limit(1);
     if (!owner) return reply.code(404).send(fail('playlist_not_found'));
@@ -247,17 +246,16 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
         eq(externalLibraryItems.userId,userId)))
       .where(and(
         eq(playlistItems.playlistId,owner.id),
-        cursor?or(
-          gt(playlistItems.createdAt,new Date(cursor.t)),
-          and(eq(playlistItems.createdAt,new Date(cursor.t)),gt(playlistItems.id,cursor.id)),
-        ):undefined,
+        cursor?sql`(${playlistItems.createdAt},${playlistItems.id}) >
+          (SELECT c.created_at,c.id FROM playlist_items c
+           WHERE c.playlist_id=${owner.id} AND c.id=${cursor})`:undefined,
       ))
       .orderBy(asc(playlistItems.createdAt),asc(playlistItems.id))
       .limit(pagination.data.limit+1);
     const hasMore=rows.length>pagination.data.limit;
     const page=rows.slice(0,pagination.data.limit);
     const tail=page.at(-1);
-    const nextCursor=hasMore&&tail?Buffer.from(JSON.stringify({t:tail.createdAt.toISOString(),id:tail.id})).toString('base64url'):null;
+    const nextCursor=hasMore&&tail?tail.id:null;
     const settings=readR2Settings();
     const items=page.map(({cloudCoverKey,...row})=>({
       ...row,
