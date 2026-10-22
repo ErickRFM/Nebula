@@ -5,6 +5,7 @@ import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, desc, eq } from 'drizzle-orm';
+import {presignR2,readR2Settings} from './storage/r2.js';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -207,12 +208,40 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
     const [owner] = await db.select({ id: playlists.id }).from(playlists)
       .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, principalId(request)))).limit(1);
     if (!owner) return reply.code(404).send(fail('playlist_not_found'));
-    const items = await db.select({
-      id: playlistItems.id, cloudTrackId: playlistItems.cloudTrackId,
-      externalItemId: playlistItems.externalItemId, createdAt: playlistItems.createdAt,
-    }).from(playlistItems).where(eq(playlistItems.playlistId, owner.id))
-      .orderBy(playlistItems.createdAt, playlistItems.id).limit(500);
-    return { items };
+    const userId=principalId(request);
+    // Hydrate exactly the referenced items from the database. Reading the
+    // first 500 cloud tracks separately made older playlist songs disappear.
+    const rows=await db.select({
+      id:playlistItems.id,cloudTrackId:playlistItems.cloudTrackId,
+      externalItemId:playlistItems.externalItemId,createdAt:playlistItems.createdAt,
+      cloud:{
+        id:cloudTracks.id,title:cloudTracks.title,artist:cloudTracks.artist,
+        album:cloudTracks.album,genre:cloudTracks.genre,
+      },
+      cloudCoverKey:cloudTracks.coverObjectKey,
+      external:{
+        id:externalLibraryItems.id,title:externalLibraryItems.title,
+        artist:externalLibraryItems.artist,sourceUrl:externalLibraryItems.sourceUrl,
+      },
+    }).from(playlistItems)
+      .leftJoin(cloudTracks,and(
+        eq(cloudTracks.id,playlistItems.cloudTrackId),eq(cloudTracks.userId,userId),
+        eq(cloudTracks.status,'ready')))
+      .leftJoin(externalLibraryItems,and(
+        eq(externalLibraryItems.id,playlistItems.externalItemId),
+        eq(externalLibraryItems.userId,userId)))
+      .where(eq(playlistItems.playlistId,owner.id))
+      .orderBy(playlistItems.createdAt,playlistItems.id).limit(500);
+    const settings=readR2Settings();
+    const items=rows.map(({cloudCoverKey,...row})=>({
+      ...row,
+      cloud:row.cloud?{
+        ...row.cloud,
+        coverUrl:cloudCoverKey&&settings?presignR2(settings,'GET',cloudCoverKey,3600):null,
+      }:null,
+    }));
+    reply.header('Cache-Control','no-store');
+    return {items};
   });
   app.post('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
     const params = idInput.safeParse(request.params);
