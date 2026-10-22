@@ -1,64 +1,61 @@
-# NÉBULA Music · Cosmic Glass
+# NÉBULA Music · Cosmic Glass V2
 
-Next.js + React + TypeScript foundation for a future cross-platform personal music platform.
+Plataforma privada de música personal: cliente web Next.js/React/TypeScript, API Fastify/PostgreSQL, almacenamiento de audio autorizado en Cloudflare R2 y cliente Android con Capacitor/Media3. El proyecto está en desarrollo: **código integrado no equivale a una función certificada en hardware o desplegada**.
 
-## Quick start
+## Empezar
 
-Requires Node.js 20.11+ and npm 10+.
+Requiere Node.js >=20.11 y npm 10.
 
 ```bash
 npm ci
+npm run check
 npm run dev
 ```
 
-Open `http://localhost:3000`. To verify: `npm run check`. Browser smoke tests: `npx playwright install chromium` then `npm run test:e2e`.
-
-## What works in F01
-
-- Responsive Cosmic Glass navigation: Inicio, Buscar, Biblioteca, Playlists, Salas, Ajustes, and full-screen player.
-- Real audio playback **only** after choosing your own local music files, with progress/seek/volume/next/previous, shuffle and repeat; selected files are now persisted in IndexedDB (subject to browser quota).
-- Editable local playlists plus user-local favorites and preferences; examples in the catalogue are fictional preview data and **are not playable**.
-- Pure TypeScript playback queue helpers with automated tests.
-- Static export for web hosting and preparation for Capacitor builds.
-
-## Not implemented yet
-
-Authentication, PostgreSQL, cloud upload, streaming catalog, sync, realtime rooms, offline DRM/entitlements, native background audio, APK/IPA releases. Do not present prototype content as a real catalog.
-
-## Structure
-
-- `apps/web`: responsive Next.js client and player adapter.
-- `packages/player-core`: transport-independent queue logic.
-- `docs/`: architecture decisions and roadmap.
-- `capacitor.config.ts`: shell preparation only; native projects are not generated or validated.
-
-## Licensing and privacy
-
-Only import files you own or are authorized to play. Files selected through the browser remain on the device; NÉBULA does not upload them. Imported blobs are stored in IndexedDB when permitted. Browser data clearing or storage eviction will remove the files. Object URLs are revoked on teardown. This is an engineering foundation, not a licensed streaming service.
-
-See [ADR-001](docs/architecture/ADR-001-web-first.md) and [roadmap](docs/roadmap.md).
-
-## Library persistence (F02 local)
-
-Imported audio is saved to IndexedDB if permitted. Maximum supported import size is 100 MB per track and up to 50 files per selection. This is a per-file safety cap, **not** a promise about browser storage quota. Users can delete tracks in the Biblioteca view. Playlists are stored as metadata in localStorage and are not synchronized between browsers. Browser storage can be cleared, evicted, or blocked. No cloud account or remote backup yet.
-
-## Optional server API (F03/F05)
-
-Run PostgreSQL, set DATABASE_URL and API_JWT_SECRET (32+ characters) using apps/api/README.md, then:
+Web local: http://localhost:3000. Para pruebas de navegador: `npx playwright install chromium && npm run test:e2e`. Para desarrollar API, configurar PostgreSQL, `DATABASE_URL` y `API_JWT_SECRET` según [apps/api/README.md](apps/api/README.md):
 
 ```bash
-npm ci
 npm run db:migrate
-OWNER_EMAIL=owner@example.com OWNER_PASSWORD='a-strong-password' npm run owner:bootstrap
 npm run api:dev
 ```
 
-The API now implements a **private, invitation-only** account model: public registration is disabled by default, the first OWNER is created with the bootstrap CLI, and additional accounts are created through owner-managed invitations. Sessions use a 15-minute access token (kept in memory) plus an HttpOnly refresh cookie with rotation and revocation. See [AUTH_SECURITY](docs/architecture/AUTH_SECURITY.md) and [API_CONTRACTS](docs/api/API_CONTRACTS.md). The local browser library continues working without the API.
+La primera cuenta se crea con `npm run owner:bootstrap` (variables `OWNER_EMAIL` y `OWNER_PASSWORD`); el registro público está deshabilitado por defecto y las cuentas adicionales requieren invitaciones. No almacenar secretos en Git.
 
-## Development database
+## Componentes integrados al 21-10-2026 (main@113ceff)
 
-Docker Compose and Windows PowerShell setup: [Local development](docs/local-development.md). The default database credentials in compose.yaml are **for localhost only** and must never be reused in production.
+| Componente | Estado del código | Validación aún necesaria |
+| --- | --- | --- |
+| Biblioteca local con IndexedDB y playlists | Integrado | Persistencia y cuotas en navegadores reales |
+| Cuenta privada, refresh y revocación de sesiones | Integrado | Pruebas en despliegue, límites por IP y proxy (#69) |
+| Biblioteca privada R2 (importación, subida, descarga y búsqueda SQL paginada) | Integrado | Smoke contra bucket y base de producción; archivos grandes |
+| Etiquetas, deduplicación por SHA-256 y carátulas de álbum privadas | Integrado | Cobertura de formatos y archivos de casos extremos |
+| Búsqueda federada y proveedores de audio | Integrado | Disponibilidad/capacidades según proveedor y configuración |
+| YouTube | Búsqueda opcional y reproducción por embed oficial | Requiere API/configuración apropiada; no es audio libre para descarga |
+| Salas, señales SSE/WebSocket y Party Sound | Base integrada | Prueba física acústica, deriva, reconexión y Bluetooth (#53) |
+| Android Capacitor/Media3 y scripts de APK | Código y CI integrados | APK instalada, pantalla apagada, notificaciones, rutas de audio |
+| Cosmic Glass V2 | Integrado | Auditoría WCAG, responsive y dispositivos |
+| iOS, Cast y DJ avanzado | Parcial o no certificado | Implementación y validación específica |
 
-## Portal de cuenta (F04/F05)
+Los commits #66, #67, #68 y #70 incorporan rediseño, estabilidad, biblioteca escalable y carátulas. El [épico V2 #64](https://github.com/ErickRFM/Nebula/issues/64) y el [plan Party Sound #53](https://github.com/ErickRFM/Nebula/issues/53) registran los criterios de cierre. Consultar siempre la versión actual de `main`: la auditoría inicial [NEBULA_V2_IMPLEMENTATION_AUDIT](docs/roadmap/NEBULA_V2_IMPLEMENTATION_AUDIT.md) se redactó antes de varios de estos commits y contiene límites ya superados.
 
-La pestaña **Cuenta** inicia sesión contra `NEXT_PUBLIC_API_URL` cuando la API está disponible. Es una **biblioteca privada**: el registro público está desactivado y solo acceden las cuentas autorizadas por el propietario (bootstrap del OWNER + invitaciones). La sesión es persistente mediante una cookie de refresco HttpOnly con rotación y revocación; el token de acceso vive únicamente en memoria. La pestaña permite listar y cerrar dispositivos/sesiones. Las playlists remotas aún almacenan únicamente su nombre y propietario; los archivos musicales siguen en tu dispositivo. Para probar en navegador, configura `NEXT_PUBLIC_API_URL=http://127.0.0.1:4000` en Next.js y `API_CORS_ORIGIN=http://127.0.0.1:3000` en la API.
+## Verificación antes de declarar una versión lista
+
+1. Confirmar migraciones supervisadas, secretos y R2 privados; no desactivar controles de seguridad para facilitar despliegues.
+2. Ejecutar `npm run check`, tests de integración PostgreSQL, `npm run test:e2e` y la compilación Android del CI.
+3. En web desplegada, probar login, cambio de cuenta, biblioteca, permisos sobre archivos ajenos, favoritos, playlists y expiración de enlaces.
+4. En dos teléfonos físicos: probar sala de 30 minutos, audio de fuentes autorizadas en ambos, cambio de anfitrión, expulsión, fondo/bloqueo, reconexión y medición acústica real de desfase; registrar evidencia en `docs/rooms/PHYSICAL_QA.md`.
+5. Verificar SHA exacto desplegado y las rutas de recuperación antes de producción.
+
+**Estado de release:** integración activa, **Party Sound no certificado físicamente**. Un commit verde, el simulador o el tiempo del reproductor no demuestran sincronización acústica.
+
+## Arquitectura
+
+- `apps/web`: búsqueda, biblioteca, cuenta, reproductor, salas y experiencia responsive.
+- `apps/api`: autenticación privada, PostgreSQL, módulos cloud, proveedores y salas.
+- `packages/player-core`: lógica de transporte/cola compartida.
+- `native/android` y `scripts/integrate-android.mjs`: proyecto y automatización Android.
+- `docs/`: contratos, arquitectura y evidencia de pruebas.
+
+## Privacidad y derechos
+
+Solo importar o reproducir audio con permiso suficiente. Los archivos privados de cuenta se mantienen aislados y se sirven con autorizaciones o URLs de duración limitada. La reproducción mediante proveedor externo no otorga permiso para descargar, retransmitir o eludir DRM.
