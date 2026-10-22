@@ -465,15 +465,72 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       const crossAccount=await app.inject({method:'POST',url:endpoint+'/cover-ticket',
         headers:auth(outsider.token),payload});
       expect(crossAccount.statusCode).toBe(404);
-      const forbiddenComplete=await app.inject({method:'POST',url:endpoint+'/cover-complete',
-        headers:auth(outsider.token),payload});
-      expect(forbiddenComplete.statusCode).toBe(404);
       const invalid=await app.inject({method:'POST',url:endpoint+'/cover-ticket',headers:auth(owner.token),
         payload:{contentType:'image/svg+xml',size:100}});
       expect(invalid.statusCode).toBe(400);
       const ticket=await app.inject({method:'POST',url:endpoint+'/cover-ticket',headers:auth(owner.token),payload});
       expect(ticket.statusCode).toBe(200);
-      expect(new URL(ticket.json().uploadUrl).pathname).toContain('/users/'+ownerId+'/'+trackId+'.png');
+      expect(new URL(ticket.json().uploadUrl).pathname).toMatch(new RegExp('/users/'+ownerId+'/[0-9a-f-]{36}\\.png
+      expect(new URL(ticket.json().uploadUrl).searchParams.get('X-Amz-SignedHeaders')).toBe('content-type;host');
+      const mocked=vi.spyOn(globalThis,'fetch');
+      mocked.mockResolvedValueOnce(new Response(null,{status:200,
+        headers:{'content-length':'15','content-type':'image/png'}}));
+      const sizeMismatch=await app.inject({method:'POST',url:endpoint+'/cover-complete',
+        headers:auth(owner.token),payload:{ticket:ticket.json().ticket}});
+      expect(sizeMismatch.statusCode).toBe(422);
+      const before=await pool.query<{cover_object_key:string|null}>(
+        'SELECT cover_object_key FROM cloud_tracks WHERE id=$1',[trackId]);
+      expect(before.rows[0].cover_object_key).toBeNull();
+      mocked.mockResolvedValueOnce(new Response(null,{status:200,
+        headers:{'content-length':'16','content-type':'image/png'}}));
+      const completed=await app.inject({method:'POST',url:endpoint+'/cover-complete',
+        headers:auth(owner.token),payload:{ticket:ticket.json().ticket}});
+      expect(completed.statusCode).toBe(200);
+      expect(new URL(completed.json().coverUrl).searchParams.get('X-Amz-Expires')).toBe('3600');
+      mocked.mockResolvedValueOnce(new Response(null,{status:200,
+        headers:{'content-length':'16','content-type':'image/png'}}));
+      const stale=await app.inject({method:'POST',url:endpoint+'/cover-complete',
+        headers:auth(owner.token),payload:{ticket:competing.json().ticket}});
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json().error).toBe('cover_replaced_during_upload');
+      const pointer=await pool.query<{cover_object_key:string|null}>('SELECT cover_object_key FROM cloud_tracks WHERE id=$1',[trackId]);
+      expect(pointer.rows[0].cover_object_key).toBe(new URL(ticket.json().uploadUrl).pathname.split('/').slice(-3).join('/'));
+      expect(mocked).toHaveBeenCalledTimes(3);
+      const browse=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=Cover%20test',
+        headers:auth(owner.token)});
+      expect(browse.statusCode).toBe(200);
+      const row=(browse.json().items as Array<Record<string,unknown>>).find(x=>x.id===trackId);
+      expect(row?.coverUrl).toContain('.png?');
+      expect(row?.coverObjectKey).toBeUndefined();
+      const strangerBrowse=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=Cover%20test',
+        headers:auth(outsider.token)});
+      expect(strangerBrowse.statusCode).toBe(200);
+      expect(strangerBrowse.json().items).toHaveLength(0);
+    }finally{
+      vi.restoreAllMocks();
+      await pool.query('DELETE FROM cloud_tracks WHERE id=$1',[trackId]);
+      for(const key of env){
+        if(previous[key]===undefined)delete process.env[key];
+        else process.env[key]=previous[key];
+      }
+    }
+  });
+
+  it('logs out and revokes the session access token', async () => {
+    const logout = await app.inject({ method: 'POST', url: '/v1/auth/logout', headers: { authorization: 'Bearer ' + memberToken, 'x-nebula-client': 'test' } });
+    expect(logout.statusCode).toBe(204);
+    const after = await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: 'Bearer ' + memberToken } });
+    expect(after.statusCode).toBe(401);
+  });
+});
+));
+      const forbiddenComplete=await app.inject({method:'POST',url:endpoint+'/cover-complete',
+        headers:auth(outsider.token),payload:{ticket:ticket.json().ticket}});
+      expect(forbiddenComplete.statusCode).toBe(400); // a ticket cannot be replayed by another account
+      const competing=await app.inject({method:'POST',url:endpoint+'/cover-ticket',
+        headers:auth(owner.token),payload});
+      expect(competing.statusCode).toBe(200);
+      expect(competing.json().uploadUrl).not.toBe(ticket.json().uploadUrl);
       expect(new URL(ticket.json().uploadUrl).searchParams.get('X-Amz-SignedHeaders')).toBe('content-type;host');
       const mocked=vi.spyOn(globalThis,'fetch');
       mocked.mockResolvedValueOnce(new Response(null,{status:200,
