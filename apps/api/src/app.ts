@@ -4,7 +4,8 @@ import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import {presignR2,readR2Settings} from './storage/r2.js';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -201,18 +202,70 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
     source: z.enum(['cloud', 'external']),
     trackId: z.string().uuid(),
   });
+  const playlistItemsQuery=z.object({
+    limit:z.coerce.number().int().min(1).max(500).default(500),
+    // UUID cursor references an existing playlist item with exact PostgreSQL
+    // timestamp precision; no Date/ISO microsecond truncation in Node.js.
+    cursor:z.string().uuid().optional(),
+  });
   app.get('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
     const params = idInput.safeParse(request.params);
+    const pagination=playlistItemsQuery.safeParse(request.query);
     if (!params.success) return reply.code(400).send(fail('invalid_playlist_id'));
+    if (!pagination.success)return reply.code(400).send(fail('invalid_playlist_page'));
+    const cursor=pagination.data.cursor;
     const [owner] = await db.select({ id: playlists.id }).from(playlists)
       .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, principalId(request)))).limit(1);
     if (!owner) return reply.code(404).send(fail('playlist_not_found'));
-    const items = await db.select({
-      id: playlistItems.id, cloudTrackId: playlistItems.cloudTrackId,
-      externalItemId: playlistItems.externalItemId, createdAt: playlistItems.createdAt,
-    }).from(playlistItems).where(eq(playlistItems.playlistId, owner.id))
-      .orderBy(playlistItems.createdAt, playlistItems.id).limit(500);
-    return { items };
+    if(cursor){
+      const [exists]=await db.select({id:playlistItems.id}).from(playlistItems)
+        .where(and(eq(playlistItems.id,cursor),eq(playlistItems.playlistId,owner.id))).limit(1);
+      if(!exists)return reply.code(400).send(fail('invalid_playlist_cursor'));
+    }
+    const userId=principalId(request);
+    // Hydrate exactly the referenced items from the database. Reading the
+    // first 500 cloud tracks separately made older playlist songs disappear.
+    const rows=await db.select({
+      id:playlistItems.id,cloudTrackId:playlistItems.cloudTrackId,
+      externalItemId:playlistItems.externalItemId,createdAt:playlistItems.createdAt,
+      cloud:{
+        id:cloudTracks.id,title:cloudTracks.title,artist:cloudTracks.artist,
+        album:cloudTracks.album,genre:cloudTracks.genre,
+      },
+      cloudCoverKey:cloudTracks.coverObjectKey,
+      external:{
+        id:externalLibraryItems.id,title:externalLibraryItems.title,
+        artist:externalLibraryItems.artist,sourceUrl:externalLibraryItems.sourceUrl,
+      },
+    }).from(playlistItems)
+      .leftJoin(cloudTracks,and(
+        eq(cloudTracks.id,playlistItems.cloudTrackId),eq(cloudTracks.userId,userId),
+        eq(cloudTracks.status,'ready')))
+      .leftJoin(externalLibraryItems,and(
+        eq(externalLibraryItems.id,playlistItems.externalItemId),
+        eq(externalLibraryItems.userId,userId)))
+      .where(and(
+        eq(playlistItems.playlistId,owner.id),
+        cursor?sql`(${playlistItems.createdAt},${playlistItems.id}) >
+          (SELECT c.created_at,c.id FROM playlist_items c
+           WHERE c.playlist_id=${owner.id} AND c.id=${cursor})`:undefined,
+      ))
+      .orderBy(asc(playlistItems.createdAt),asc(playlistItems.id))
+      .limit(pagination.data.limit+1);
+    const hasMore=rows.length>pagination.data.limit;
+    const page=rows.slice(0,pagination.data.limit);
+    const tail=page.at(-1);
+    const nextCursor=hasMore&&tail?tail.id:null;
+    const settings=readR2Settings();
+    const items=page.map(({cloudCoverKey,...row})=>({
+      ...row,
+      cloud:row.cloud?{
+        ...row.cloud,
+        coverUrl:cloudCoverKey&&settings?presignR2(settings,'GET',cloudCoverKey,3600):null,
+      }:null,
+    }));
+    reply.header('Cache-Control','no-store');
+    return {items,hasMore,nextCursor};
   });
   app.post('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
     const params = idInput.safeParse(request.params);
