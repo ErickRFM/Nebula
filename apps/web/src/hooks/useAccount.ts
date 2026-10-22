@@ -239,9 +239,15 @@ export function useAccount() {
       return false;
     }
   },[accessToken]);
-  const getAccountPlaylistItems=useCallback(async (playlistId:string):Promise<{items:AccountPlaylistItem[]}>=>{
-    if(!accessToken) throw new Error('Inicia sesión para consultar la playlist.');
-    return requestJson('/v1/playlists/'+encodeURIComponent(playlistId)+'/items',{},accessToken);
+  const getAccountPlaylistItems=useCallback(async (
+    playlistId:string,options:{limit?:number;cursor?:string}={},
+  ):Promise<{items:AccountPlaylistItem[];hasMore:boolean;nextCursor:string|null}>=>{
+    if(!accessToken)throw new Error('Inicia sesión para consultar la playlist.');
+    const params=new URLSearchParams();
+    if(options.limit!==undefined)params.set('limit',String(options.limit));
+    if(options.cursor)params.set('cursor',options.cursor);
+    return requestJson('/v1/playlists/'+encodeURIComponent(playlistId)+'/items'+
+      (params.size?'?'+params.toString():''),{},accessToken);
   },[accessToken]);
 
   const refreshAccountFavorites=useCallback(async(token:string)=>{
