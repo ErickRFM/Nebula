@@ -24,8 +24,8 @@ export function RoomAcousticQaPanel(){
       if(decoded.numberOfChannels!==2||decoded.duration>30){
         throw new Error('Necesitas una grabación estéreo de hasta 30 s: cada canal debe aislar un dispositivo.');
       }
-      const left=detectAcousticPeaks(Array.from(decoded.getChannelData(0)),decoded.sampleRate,{minimumGapMs:180,thresholdRatio:.55});
-      const right=detectAcousticPeaks(Array.from(decoded.getChannelData(1)),decoded.sampleRate,{minimumGapMs:180,thresholdRatio:.55});
+      const left=detectAcousticPeaks(decoded.getChannelData(0),decoded.sampleRate,{minimumGapMs:180,thresholdRatio:.55});
+      const right=detectAcousticPeaks(decoded.getChannelData(1),decoded.sampleRate,{minimumGapMs:180,thresholdRatio:.55});
       const aligned=alignAcousticPeaks(left,right,{maxOffsetMs:1500,toleranceMs:60,minimumPairs:3});
       if(aligned.kind==='ambiguous')
         throw new Error('Hay varias formas plausibles de emparejar los clics. Repite la toma con intervalos irregulares y sin impulsos faltantes.');
