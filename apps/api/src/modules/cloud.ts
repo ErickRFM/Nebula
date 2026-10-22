@@ -244,6 +244,20 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     return {coverUrl:presignR2(settings,'GET',ticket.key,3600)};
   });
 
+  // Refresh only an existing cover for its owner. Keep the R2 key hidden.
+  app.get('/v1/library/cloud/:id/cover',{preHandler:requireAuth},async(request,reply)=>{
+    const settings=readR2Settings();
+    if(!settings)return reply.code(503).send({error:'storage_not_configured'});
+    const params=idInput.safeParse(request.params);
+    if(!params.success)return reply.code(400).send({error:'invalid_track_id'});
+    const [track]=await db.select({key:cloudTracks.coverObjectKey}).from(cloudTracks)
+      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,request.principal!.userId),
+        eq(cloudTracks.status,'ready'))).limit(1);
+    if(!track||!track.key)return reply.code(404).send({error:'cover_not_found'});
+    reply.header('Cache-Control','no-store');
+    return {coverUrl:presignR2(settings,'GET',track.key,3600),expiresInSeconds:3600};
+  });
+
   app.get('/v1/library/cloud/:id/play', { preHandler: requireAuth }, async (request, reply) => {
     const settings = readR2Settings();
     if (!settings) return reply.code(503).send({ error: 'storage_not_configured' });
