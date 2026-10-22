@@ -46,6 +46,9 @@ export function verifyCoverTicket(
   const chunks=token.split('.');
   if(chunks.length!==2||!chunks[0]||!chunks[1]||!/^[a-zA-Z0-9_-]+$/.test(chunks[0])||!/^[a-zA-Z0-9_-]{43}$/.test(chunks[1]))return null;
   const provided=Buffer.from(chunks[1],'base64url');
+  // Base64url trailing pad bits can admit alternate strings for identical bytes.
+  // Require the canonical representation before comparing HMAC bytes.
+  if(provided.toString('base64url')!==chunks[1])return null;
   const expected=Buffer.from(sign(settings,chunks[0]),'base64url');
   if(provided.length!==expected.length||!timingSafeEqual(provided,expected))return null;
   try{
