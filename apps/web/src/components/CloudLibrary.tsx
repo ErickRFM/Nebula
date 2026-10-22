@@ -9,6 +9,7 @@ import { retrieveAuthorizedAudio } from '../lib/authorized-web-audio';
 import { readAudioMetadata } from '../lib/audio-metadata';
 import { hashAudioFile } from '../lib/audio-hash';
 import {embeddedCoverFile, validatedCoverFile} from '../lib/cloud-artwork';
+import {PrivateCloudCover} from './PrivateCloudCover';
 
 type CloudTrack = {
   id: string; title: string; artist: string; album?:string; genre?:string; mimeType: string;
@@ -310,7 +311,7 @@ export function CloudLibrary({
         {!items.length ? <p className="empty-note">Tu nube todavía no tiene canciones. Sube un MP3 o FLAC para empezar.</p> :
           items.map((item) => <div className="track-row" key={item.id}>
             <button type="button" className="track-main" disabled={busy} onClick={() => { void play(item); }}>
-              {item.coverUrl?<img className="cloud-track-cover" src={item.coverUrl} alt="" loading="lazy" referrerPolicy="no-referrer"/>:<span className="cloud-track-icon"><Play size={17}/></span>}
+              <PrivateCloudCover key={item.id} trackId={item.id} coverUrl={item.coverUrl} account={account} fallback={<span className="cloud-track-icon"><Play size={17}/></span>}/>
               <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {(item.byteSize / 1048576).toFixed(1)} MB</small></span>
             </button>
             <span className="track-album">{item.album||'NÉBULA Cloud'}</span>
