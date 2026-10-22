@@ -495,7 +495,12 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       expect(stale.json().error).toBe('cover_replaced_during_upload');
       const pointer=await pool.query<{cover_object_key:string|null}>('SELECT cover_object_key FROM cloud_tracks WHERE id=$1',[trackId]);
       expect(pointer.rows[0].cover_object_key).toBe(new URL(ticket.json().uploadUrl).pathname.split('/').slice(-3).join('/'));
-      expect(mocked).toHaveBeenCalledTimes(3);
+      mocked.mockResolvedValueOnce(new Response(null,{status:200,
+        headers:{'content-length':'16','content-type':'image/png'}}));
+      const repeated=await app.inject({method:'POST',url:endpoint+'/cover-complete',
+        headers:auth(owner.token),payload:{ticket:ticket.json().ticket}});
+      expect(repeated.statusCode).toBe(200);
+      expect(mocked).toHaveBeenCalledTimes(4);
       const browse=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=Cover%20test',
         headers:auth(owner.token)});
       expect(browse.statusCode).toBe(200);
