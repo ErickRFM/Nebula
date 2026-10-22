@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export type Role = 'owner' | 'member';
 export type AccountUser = { id: string; email: string; role?: Role };
 export type ServerPlaylist = { id: string; name: string; createdAt: string };
+export type AccountPlaylistItem={
+  id:string;cloudTrackId:string|null;externalItemId:string|null;
+  cloud:{id:string;title:string;artist:string;album:string;genre:string;coverUrl:string|null}|null;
+  external:{id:string;title:string;artist:string;sourceUrl:string}|null;
+};
 export type AccountFavorite={id:string;cloudTrackId:string|null;externalItemId:string|null};
 export type AccountSession = {
   id: string;
@@ -234,7 +239,7 @@ export function useAccount() {
       return false;
     }
   },[accessToken]);
-  const getAccountPlaylistItems=useCallback(async (playlistId:string):Promise<{items:{id:string;cloudTrackId:string|null;externalItemId:string|null}[]}>=>{
+  const getAccountPlaylistItems=useCallback(async (playlistId:string):Promise<{items:AccountPlaylistItem[]}>=>{
     if(!accessToken) throw new Error('Inicia sesión para consultar la playlist.');
     return requestJson('/v1/playlists/'+encodeURIComponent(playlistId)+'/items',{},accessToken);
   },[accessToken]);
