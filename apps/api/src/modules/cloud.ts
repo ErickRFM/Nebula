@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { cloudTracks } from '../db/schema.js';
+import {createCoverTicket,verifyCoverTicket} from '../storage/cover-ticket.js';
 import { createGuards } from './auth.js';
 import {
   MAX_CLOUD_AUDIO_BYTES, MAX_CLOUD_ARTWORK_BYTES, audioMimeForFilename, deleteR2Object,
@@ -37,6 +38,7 @@ const coverInput=z.object({
   contentType:z.enum(['image/png','image/jpeg']),
   size:z.number().int().min(12).max(MAX_CLOUD_ARTWORK_BYTES),
 });
+const coverCompleteInput=z.object({ticket:z.string().min(32).max(1300)});
 const signedCover=<T extends {coverObjectKey:string|null}>(row:T)=>{
   const {coverObjectKey,...publicItem}=row;
   const settings=readR2Settings();
@@ -184,21 +186,27 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     return { item:item?signedCover(item):null };
   });
 
-  // Artwork is a separate short-lived signed R2 object. The owner can only
-  // attach it to a ready track within their own namespace.
-  app.post('/v1/library/cloud/:id/cover-ticket',{preHandler:requireAuth,config:{rateLimit:{max:30,timeWindow:'1 minute'}}},async(request,reply)=>{
+  // A ticket reserves a fresh immutable key. Unlike a PUT to trackId.png,
+  // an interrupted/concurrent upload never changes the selected cover.
+  app.post('/v1/library/cloud/:id/cover-ticket',{
+    preHandler:requireAuth,config:{rateLimit:{max:30,timeWindow:'1 minute'}},
+  },async(request,reply)=>{
     const settings=readR2Settings();
     if(!settings)return reply.code(503).send({error:'storage_not_configured'});
     const params=idInput.safeParse(request.params);
     const body=coverInput.safeParse(request.body);
     if(!params.success||!body.success)return reply.code(400).send({error:'invalid_cover_upload'});
-    const [track]=await db.select({id:cloudTracks.id}).from(cloudTracks)
-      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'ready'))).limit(1);
+    const userId=request.principal!.userId;
+    const [track]=await db.select({id:cloudTracks.id,coverObjectKey:cloudTracks.coverObjectKey}).from(cloudTracks)
+      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,userId),eq(cloudTracks.status,'ready'))).limit(1);
     if(!track)return reply.code(404).send({error:'cloud_track_not_found'});
-    const extension=body.data.contentType==='image/png'?'png':'jpg';
-    const key='users/'+request.principal!.userId+'/'+track.id+'.'+extension;
+    const result=createCoverTicket(settings,{
+      userId,trackId:track.id,previousKey:track.coverObjectKey,
+      contentType:body.data.contentType,size:body.data.size,
+    });
     reply.header('Cache-Control','no-store');
-    return {uploadUrl:presignR2(settings,'PUT',key,600,body.data.contentType),
+    return {ticket:result.token,
+      uploadUrl:presignR2(settings,'PUT',result.key,600,body.data.contentType),
       contentType:body.data.contentType,expiresInSeconds:600,maxBytes:MAX_CLOUD_ARTWORK_BYTES};
   });
 
@@ -206,27 +214,34 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const settings=readR2Settings();
     if(!settings)return reply.code(503).send({error:'storage_not_configured'});
     const params=idInput.safeParse(request.params);
-    const body=coverInput.safeParse(request.body);
-    if(!params.success||!body.success)return reply.code(400).send({error:'invalid_cover_upload'});
-    const [track]=await db.select({id:cloudTracks.id,coverObjectKey:cloudTracks.coverObjectKey}).from(cloudTracks)
-      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'ready'))).limit(1);
+    const body=coverCompleteInput.safeParse(request.body);
+    if(!params.success||!body.success)return reply.code(400).send({error:'invalid_cover_completion'});
+    const userId=request.principal!.userId;
+    const ticket=verifyCoverTicket(settings,body.data.ticket,userId,params.data.id);
+    if(!ticket)return reply.code(400).send({error:'invalid_or_expired_cover_ticket'});
+    const [track]=await db.select({id:cloudTracks.id}).from(cloudTracks)
+      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,userId),eq(cloudTracks.status,'ready'))).limit(1);
     if(!track)return reply.code(404).send({error:'cloud_track_not_found'});
-    const extension=body.data.contentType==='image/png'?'png':'jpg';
-    const key='users/'+request.principal!.userId+'/'+track.id+'.'+extension;
     let object:Awaited<ReturnType<typeof inspectR2Object>>;
-    try{object=await inspectR2Object(settings,key);}
+    try{object=await inspectR2Object(settings,ticket.key);}
     catch{return reply.code(502).send({error:'storage_unavailable'});}
     if(!object)return reply.code(409).send({error:'cover_not_uploaded'});
-    if(object.size!==body.data.size||object.contentType!==body.data.contentType||object.size>MAX_CLOUD_ARTWORK_BYTES)
+    if(object.size!==ticket.size||object.contentType!==ticket.contentType||object.size>MAX_CLOUD_ARTWORK_BYTES)
       return reply.code(422).send({error:'cover_mismatch'});
-    await db.update(cloudTracks).set({coverObjectKey:key})
-      .where(and(eq(cloudTracks.id,track.id),eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'ready')));
-    if(track.coverObjectKey && track.coverObjectKey!==key){
-      try{await deleteR2Object(settings,track.coverObjectKey);}
+    // Compare-and-swap prevents an older ticket completing after a newer cover.
+    const [updated]=await db.update(cloudTracks).set({coverObjectKey:ticket.key})
+      .where(and(eq(cloudTracks.id,track.id),eq(cloudTracks.userId,userId),eq(cloudTracks.status,'ready'),
+        ticket.previousKey===null?isNull(cloudTracks.coverObjectKey):eq(cloudTracks.coverObjectKey,ticket.previousKey)))
+      .returning({id:cloudTracks.id});
+    if(!updated)return reply.code(409).send({error:'cover_replaced_during_upload'});
+    // Previous R2 tokens may live for up to 1h; delete best effort only after
+    // the new database pointer is committed and never on CAS failure.
+    if(ticket.previousKey&&ticket.previousKey!==ticket.key){
+      try{await deleteR2Object(settings,ticket.previousKey);}
       catch{app.log.warn({trackId:track.id},'Previous private cover cleanup failed after replacement');}
     }
     reply.header('Cache-Control','no-store');
-    return {coverUrl:presignR2(settings,'GET',key,3600)};
+    return {coverUrl:presignR2(settings,'GET',ticket.key,3600)};
   });
 
   app.get('/v1/library/cloud/:id/play', { preHandler: requireAuth }, async (request, reply) => {
