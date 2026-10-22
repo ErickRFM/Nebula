@@ -229,7 +229,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     const fillerIds=Array.from({length:501},()=>randomUUID());
     await pool.query(`INSERT INTO cloud_tracks
       (id,user_id,object_key,title,artist,mime_type,byte_size,status)
-      SELECT track_id,$2,'users/'||$2||'/'||track_id||'.mp3',
+      SELECT track_id,$2::uuid,'users/'||($2::uuid)::text||'/'||track_id::text||'.mp3',
         'Pista moderna','Artista','audio/mpeg',123,'ready'
       FROM unnest($1::uuid[]) AS filler(track_id)`,[fillerIds,ownerId]);
     const auth=(token:string)=>({authorization:'Bearer '+token});
