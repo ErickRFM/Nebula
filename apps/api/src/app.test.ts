@@ -217,6 +217,45 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect((await app.inject({method:'DELETE',url:itemUrl+'/'+itemId,headers:header(owner.token)})).statusCode).toBe(204);
   });
 
+  it('hydrates a playlist track older than the 500-song cloud listing without exposing other accounts',async()=>{
+    const owner=await register('large-playlist-owner','198.51.100.112');
+    const stranger=await register('large-playlist-stranger','198.51.100.113');
+    const ownerId=(await pool.query<{id:string}>('SELECT id FROM users WHERE email=$1',[owner.email])).rows[0].id;
+    const oldId=randomUUID();
+    await pool.query(`INSERT INTO cloud_tracks
+      (id,user_id,object_key,title,artist,album,genre,mime_type,byte_size,status,created_at)
+      VALUES ($1,$2,$3,'Pista antigua de playlist','Grupo Real','Álbum Archivo','Rock','audio/mpeg',123,'ready','2020-01-01')`,
+      [oldId,ownerId,'users/'+ownerId+'/'+oldId+'.mp3']);
+    const fillerIds=Array.from({length:501},()=>randomUUID());
+    await pool.query(`INSERT INTO cloud_tracks
+      (id,user_id,object_key,title,artist,mime_type,byte_size,status)
+      SELECT track_id,$2,'users/'||$2||'/'||track_id||'.mp3',
+        'Pista moderna','Artista','audio/mpeg',123,'ready'
+      FROM unnest($1::uuid[]) AS filler(track_id)`,[fillerIds,ownerId]);
+    const auth=(token:string)=>({authorization:'Bearer '+token});
+    const playlist=await app.inject({method:'POST',url:'/v1/playlists',
+      headers:auth(owner.token),payload:{name:'Colección sin límite de biblioteca'}});
+    expect(playlist.statusCode).toBe(201);
+    const path='/v1/playlists/'+playlist.json().playlist.id+'/items';
+    const create=await app.inject({method:'POST',url:path,
+      headers:auth(owner.token),payload:{source:'cloud',trackId:oldId}});
+    expect(create.statusCode).toBe(201);
+    const listing=await app.inject({method:'GET',url:'/v1/library/cloud',
+      headers:auth(owner.token)});
+    expect(listing.statusCode).toBe(200);
+    expect((listing.json().items as {id:string}[]).some(row=>row.id===oldId)).toBe(false);
+    const result=await app.inject({method:'GET',url:path,headers:auth(owner.token)});
+    expect(result.statusCode).toBe(200);
+    expect(result.headers['cache-control']).toBe('no-store');
+    expect(result.json().items).toHaveLength(1);
+    expect(result.json().items[0].cloud).toMatchObject({
+      id:oldId,title:'Pista antigua de playlist',artist:'Grupo Real',
+      album:'Álbum Archivo',genre:'Rock',
+    });
+    expect(result.json().items[0].cloudCoverKey).toBeUndefined();
+    expect((await app.inject({method:'GET',url:path,headers:auth(stranger.token)})).statusCode).toBe(404);
+  });
+
   it('allows owner-scoped Internet Archive metadata references, not third-party hosts',async()=>{
     const owner=await register('archive-reference','198.51.100.90');
     const stranger=await register('archive-outsider','198.51.100.91');
