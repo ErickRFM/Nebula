@@ -20,6 +20,20 @@ describe('acoustic QA measurement primitives', () => {
     expect(detectAcousticPeaks(new Array(4000).fill(0.01), 48000)).toEqual([]);
     expect(relativeAcousticDelayMs(impulse(10), new Array(48_000).fill(0), 48000)).toBeNull();
   });
+  it('reads browser Float32Array audio directly without copying PCM samples',()=>{
+    const buffer=new Float32Array(48_000);
+    buffer[4800]=.8;
+    buffer[4801]=.2;
+    buffer[24000]=1;
+    const peaks=detectAcousticPeaks(buffer,48_000,{minimumGapMs:180,thresholdRatio:.5});
+    expect(peaks).toHaveLength(2);
+    expect(peaks.map(p=>p.ms)).toEqual([100,500]);
+    expect(buffer[4800]).toBeCloseTo(.8,5);
+  });
+  it('rejects non-finite PCM noise rather than inventing an impulse',()=>{
+    const samples=Float32Array.from([Number.NaN,Number.POSITIVE_INFINITY,0,.06,0]);
+    expect(detectAcousticPeaks(samples,48000,{thresholdRatio:.4})).toHaveLength(1);
+  });
   it('enforces calibration settings and quantifies P95', () => {
     expect(() => detectAcousticPeaks([0, 1], 0)).toThrow('invalid_sample_rate');
     expect(() => detectAcousticPeaks([0, 1], 48000, { thresholdRatio: -1 })).toThrow('invalid_detection_options');
