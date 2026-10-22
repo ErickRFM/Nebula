@@ -8,7 +8,7 @@
 export interface AcousticPeak { sample: number; ms: number; amplitude: number }
 
 export function detectAcousticPeaks(
-  samples: readonly number[],
+  samples: ArrayLike<number>,
   sampleRateHz: number,
   options: { minimumGapMs?: number; thresholdRatio?: number } = {},
 ): AcousticPeak[] {
@@ -21,23 +21,32 @@ export function detectAcousticPeaks(
       !Number.isFinite(thresholdRatio) || thresholdRatio < 0.1 || thresholdRatio > 0.95) {
     throw new Error('invalid_detection_options');
   }
-  const gapSamples = Math.ceil(sampleRateHz * minimumGapMs / 1000);
-  const amplitudes = samples.map(value => Number.isFinite(value) ? Math.abs(value) : 0);
-  const maximum = amplitudes.reduce((m, value) => Math.max(m, value), 0);
-  if (maximum < 0.05) return [];
-  const threshold = Math.max(0.05, maximum * thresholdRatio);
-  const peaks: AcousticPeak[] = [];
-  let nextAllowed = 0;
-  for (let index = 0; index < amplitudes.length; index++) {
-    if (index < nextAllowed || amplitudes[index] < threshold) continue;
-    // Within a single impulse, use the strongest sample, not its leading edge.
-    const end = Math.min(amplitudes.length, index + gapSamples);
-    let sample = index;
-    for (let probe = index + 1; probe < end; probe++) {
-      if (amplitudes[probe] > amplitudes[sample]) sample = probe;
+  // Scan Float32Array directly: converting two 30s browser audio channels to
+  // JS arrays triples memory pressure on low-RAM Android devices.
+  const abs=(index:number):number=>{
+    const value=samples[index];
+    return Number.isFinite(value)?Math.abs(value):0;
+  };
+  let maximum=0;
+  for(let i=0;i<samples.length;i++){
+    const amplitude=abs(i);
+    if(amplitude>maximum)maximum=amplitude;
+  }
+  if(maximum<0.05)return [];
+  const threshold=Math.max(0.05,maximum*thresholdRatio);
+  const gapSamples=Math.ceil(sampleRateHz*minimumGapMs/1000);
+  const peaks:AcousticPeak[]=[];
+  let nextAllowed=0;
+  for(let i=0;i<samples.length;i++){
+    if(i<nextAllowed||abs(i)<threshold)continue;
+    const end=Math.min(samples.length,i+gapSamples);
+    let strongest=i,strongestValue=abs(i);
+    for(let j=i+1;j<end;j++){
+      const amplitude=abs(j);
+      if(amplitude>strongestValue){strongest=j;strongestValue=amplitude;}
     }
-    peaks.push({ sample, ms: sample * 1000 / sampleRateHz, amplitude: amplitudes[sample] });
-    nextAllowed = end;
+    peaks.push({sample:strongest,ms:strongest*1000/sampleRateHz,amplitude:strongestValue});
+    nextAllowed=end;
   }
   return peaks;
 }
