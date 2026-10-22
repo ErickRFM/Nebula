@@ -21,7 +21,14 @@ describe('private versioned artwork reservations',()=>{
   it('rejects tampering, invalid signatures and mismatched key types',()=>{
     const {token}=createCoverTicket(settings,{userId,trackId,previousKey:null,contentType:'image/jpeg',size:200},now);
     const [payload,signature]=token.split('.');
-    expect(verifyCoverTicket(settings,payload+'.'+signature.slice(0,-1)+'A',userId,trackId,now)).toBeNull();
+    const tamperedStart=(signature[0]==='A'?'B':'A')+signature.slice(1);
+    expect(verifyCoverTicket(settings,payload+'.'+tamperedStart,userId,trackId,now)).toBeNull();
+    // Noncanonical Base64 tail bits are rejected, even if decoded HMAC bytes match.
+    const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    const originalTail=alphabet.indexOf(signature.at(-1)!);
+    const aliasTail=alphabet[(originalTail&60)|((originalTail+1)&3)];
+    if(aliasTail!==signature.at(-1))
+      expect(verifyCoverTicket(settings,payload+'.'+signature.slice(0,-1)+aliasTail,userId,trackId,now)).toBeNull();
     expect(verifyCoverTicket({...settings,secretAccessKey:'different'},token,userId,trackId,now)).toBeNull();
     expect(verifyCoverTicket(settings,token+'...',userId,trackId,now)).toBeNull();
     expect(verifyCoverTicket(settings,token,userId,trackId,now-601000)).toBeNull();
