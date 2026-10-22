@@ -12,5 +12,11 @@ The React playlist now consumes these entries directly, no longer downloads two 
 - An unrelated user's request for the playlist returns 404.
 - Existing playlist create/rename/delete, external references and Playwright flows continue under CI.
 
+## Playlist pagination
+
+The authenticated `GET /v1/playlists/:id/items` now supports `?limit=50&cursor=<playlist-item-uuid>`. It returns `{items,hasMore,nextCursor}`; clients without query parameters retain the legacy 500-item default to avoid changing older app behavior. The web app requests 50 and displays **Mostrar más canciones**.
+
+Pagination compares PostgreSQL `(created_at,id)` tuples against the selected cursor row directly in SQL to preserve microsecond timestamps. A cursor must exist within the already-authorized playlist. This rejects deleted/foreign cursors with HTTP 400 after the owner check and prevents duplicate or missing rows when many entries share close creation times. The integration test loads 502 items across 11 pages and asserts every ID appears once.
+
 ## Remaining
-This fixes **catalog-induced invisibility**, not the separate cap of 500 **entries per playlist**. Paginating large playlists and atomic playlist reorder are later work, ideally with keyset pagination and proper per-playlist ordered positions. No migration or new env vars are needed.
+Automatic infinite scrolling, playlist order reconfiguration, and syncing the currently playing queue after playlist edits are later work. No migration or new env vars are needed.
