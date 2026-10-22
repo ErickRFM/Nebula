@@ -7,6 +7,8 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
  account:AccountApi;playlistId:string;onPlay:(track:Track)=>void;
 }){
  const [items,setItems]=useState<AccountPlaylistItem[]>([]);
+ const [loadedScope,setLoadedScope]=useState('');
+ const scope=(account.user?.id||'logged-out')+':'+playlistId;
  const [nextCursor,setNextCursor]=useState<string|null>(null);
  const [loadingMore,setLoadingMore]=useState(false);
  const [busy,setBusy]=useState(false);
@@ -16,19 +18,19 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
  const request=account.cloudRequest;
  const load=useCallback(async()=>{
    const active=++generation.current;
-   setBusy(true);setError('');setItems([]);setNextCursor(null);
+   setBusy(true);setError('');setItems([]);setNextCursor(null);setLoadedScope('');
    try{
      // The endpoint joins owner-scoped metadata for the referenced items.
      // A playlist must not depend on the first 500 cloud library tracks.
      const response=await getItems(playlistId,{limit:50});
-     if(active===generation.current){setItems(response.items);setNextCursor(response.nextCursor);}
+     if(active===generation.current){setItems(response.items);setNextCursor(response.nextCursor);setLoadedScope(scope);}
    }catch(cause){
      if(active===generation.current)
        setError(cause instanceof Error?cause.message:'No se pudo abrir la playlist.');
    }finally{
      if(active===generation.current)setBusy(false);
    }
- },[playlistId,getItems]);
+ },[playlistId,getItems,scope]);
  useEffect(()=>{void load();return()=>{generation.current++;};},[load]);
  async function loadMore(){
    if(!nextCursor||busy||loadingMore)return;
@@ -81,11 +83,12 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
        setError(cause instanceof Error?cause.message:'No se pudo reproducir la canción.');
    }
  }
+ const visibleItems=loadedScope===scope&&account.user?items:[];
  return <section className="content-section" aria-label="Canciones de playlist de cuenta">
-   {busy&&<p role="status" className="disclosure">Sincronizando canciones…</p>}
+   {(busy||(loadedScope!==scope&&Boolean(account.user)))&&<p role="status" className="disclosure">Sincronizando canciones…</p>}
    {error&&<p role="alert" className="account-error">{error}</p>}
-   {!busy&&items.length===0&&<p className="empty-note">Esta playlist todavía no contiene canciones. Agrégalas desde Mi música en la nube.</p>}
-   <div className="track-list glass">{items.map(item=>{
+   {!busy&&loadedScope===scope&&visibleItems.length===0&&<p className="empty-note">Esta playlist todavía no contiene canciones. Agrégalas desde Mi música en la nube.</p>}
+   <div className="track-list glass">{visibleItems.map(item=>{
      const cloud=item.cloud;
      const external=item.external;
      const name=cloud?.title??external?.title??'Referencia no disponible';
@@ -96,7 +99,7 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
        <button type="button" className="icon-button" disabled={busy} aria-label={'Quitar '+name+' de la playlist'} onClick={()=>{void remove(item.id);}}>Quitar</button>
      </div>;
    })}</div>
-   {nextCursor&&<button type="button" className="button secondary small" disabled={busy||loadingMore}
+   {loadedScope===scope&&nextCursor&&<button type="button" className="button secondary small" disabled={busy||loadingMore}
      onClick={()=>{void loadMore();}}>{loadingMore?'Cargando más canciones…':'Mostrar más canciones'}</button>}
  </section>;
 }
