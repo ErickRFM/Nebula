@@ -31,6 +31,8 @@ export function RoomAcousticQaPanel(){
         throw new Error('Hay varias formas plausibles de emparejar los clics. Repite la toma con intervalos irregulares y sin impulsos faltantes.');
       if(aligned.kind==='insufficient')
         throw new Error('No hay suficientes clics coincidentes. Aísla cada altavoz y graba al menos 3 impulsos claros por canal.');
+      if(aligned.kind!=='matched')
+        throw new Error('No fue posible validar la alineación acústica.');
       const delays=aligned.pairs.map(pair=>pair.delayMs);
       const summary=acousticDelaySummary(delays);
       if(!summary)throw new Error('Grabación insuficiente para analizar desfases.');
