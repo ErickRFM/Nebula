@@ -107,5 +107,5 @@ export function shouldAcceptRevision(currentRevision: number, incomingRevision: 
   return Number.isSafeInteger(incomingRevision) && incomingRevision > currentRevision;
 }
 
-export { detectAcousticPeaks, relativeAcousticDelayMs, acousticDelaySummary } from './acoustic';
-export type { AcousticPeak } from './acoustic';
+export { detectAcousticPeaks, relativeAcousticDelayMs, acousticDelaySummary, alignAcousticPeaks } from './acoustic';
+export type { AcousticPeak, AcousticAlignment, AcousticPair } from './acoustic';
