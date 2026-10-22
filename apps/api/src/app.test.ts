@@ -253,6 +253,30 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       album:'Álbum Archivo',genre:'Rock',
     });
     expect(result.json().items[0].cloudCoverKey).toBeUndefined();
+    await pool.query(`INSERT INTO playlist_items(id,playlist_id,cloud_track_id)
+      SELECT gen_random_uuid(),$1,track_id FROM unnest($2::uuid[]) AS filler(track_id)`,
+      [playlist.json().playlist.id,fillerIds]);
+    let nextCursor:string|null=null;
+    let total=0;
+    let pages=0;
+    const allIds=new Set<string>();
+    do{
+      const query=new URLSearchParams({limit:'50'});
+      if(nextCursor)query.set('cursor',nextCursor);
+      const page=await app.inject({method:'GET',url:path+'?'+query,headers:auth(owner.token)});
+      expect(page.statusCode).toBe(200);
+      expect(page.json().items.length).toBeGreaterThan(0);
+      expect(page.json().items.length).toBeLessThanOrEqual(50);
+      for(const item of page.json().items as {id:string}[])allIds.add(item.id);
+      total+=page.json().items.length;
+      pages++;
+      nextCursor=page.json().nextCursor as string|null;
+      expect(pages).toBeLessThanOrEqual(12);
+    }while(nextCursor);
+    expect(total).toBe(502);
+    expect(allIds.size).toBe(502);
+    expect(pages).toBe(11);
+    expect((await app.inject({method:'GET',url:path+'?cursor=invalid',headers:auth(owner.token)})).statusCode).toBe(400);
     expect((await app.inject({method:'GET',url:path,headers:auth(stranger.token)})).statusCode).toBe(404);
   });
 
