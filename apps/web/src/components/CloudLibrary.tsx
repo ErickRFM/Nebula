@@ -82,13 +82,13 @@ export function CloudLibrary({
     if(!await validatedCoverFile(file))throw new Error('La portada debe ser PNG o JPEG real de 12 bytes a 256 KB.');
     if(controller.signal.aborted)throw new Error('Carga cancelada.');
     const base='/v1/library/cloud/'+encodeURIComponent(itemId);
-    const ticket=await account.cloudRequest<{uploadUrl:string;contentType:string}>(base+'/cover-ticket',{
+    const ticket=await account.cloudRequest<{ticket:string;uploadUrl:string;contentType:string}>(base+'/cover-ticket',{
       method:'POST',body:JSON.stringify({contentType:file.type,size:file.size}),
     });
     await putPrivateAudio(ticket.uploadUrl,ticket.contentType,file,controller.signal,()=>{});
     if(controller.signal.aborted)throw new Error('Carga cancelada.');
     await account.cloudRequest(base+'/cover-complete',{
-      method:'POST',body:JSON.stringify({contentType:file.type,size:file.size}),
+      method:'POST',body:JSON.stringify({ticket:ticket.ticket}),
     });
   }
 
