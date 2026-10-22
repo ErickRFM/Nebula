@@ -7,6 +7,8 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
  account:AccountApi;playlistId:string;onPlay:(track:Track)=>void;
 }){
  const [items,setItems]=useState<AccountPlaylistItem[]>([]);
+ const [nextCursor,setNextCursor]=useState<string|null>(null);
+ const [loadingMore,setLoadingMore]=useState(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const generation=useRef(0);
@@ -14,12 +16,12 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
  const request=account.cloudRequest;
  const load=useCallback(async()=>{
    const active=++generation.current;
-   setBusy(true);setError('');setItems([]);
+   setBusy(true);setError('');setItems([]);setNextCursor(null);
    try{
      // The endpoint joins owner-scoped metadata for the referenced items.
      // A playlist must not depend on the first 500 cloud library tracks.
-     const response=await getItems(playlistId);
-     if(active===generation.current)setItems(response.items);
+     const response=await getItems(playlistId,{limit:50});
+     if(active===generation.current){setItems(response.items);setNextCursor(response.nextCursor);}
    }catch(cause){
      if(active===generation.current)
        setError(cause instanceof Error?cause.message:'No se pudo abrir la playlist.');
@@ -28,6 +30,26 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
    }
  },[playlistId,getItems]);
  useEffect(()=>{void load();return()=>{generation.current++;};},[load]);
+ async function loadMore(){
+   if(!nextCursor||busy||loadingMore)return;
+   const active=generation.current;
+   const expectedCursor=nextCursor;
+   setLoadingMore(true);setError('');
+   try{
+     const page=await getItems(playlistId,{limit:50,cursor:expectedCursor});
+     if(active!==generation.current)return;
+     setItems(existing=>{
+       const seen=new Set(existing.map(item=>item.id));
+       return [...existing,...page.items.filter(item=>!seen.has(item.id))];
+     });
+     setNextCursor(page.nextCursor);
+   }catch(cause){
+     if(active===generation.current)
+       setError(cause instanceof Error?cause.message:'No se pudieron cargar más canciones.');
+   }finally{
+     if(active===generation.current)setLoadingMore(false);
+   }
+ }
  async function remove(id:string){
    const active=generation.current;
    setBusy(true);setError('');
@@ -74,5 +96,7 @@ export function AccountPlaylistTracks({account,playlistId,onPlay}:{
        <button type="button" className="icon-button" disabled={busy} aria-label={'Quitar '+name+' de la playlist'} onClick={()=>{void remove(item.id);}}>Quitar</button>
      </div>;
    })}</div>
+   {nextCursor&&<button type="button" className="button secondary small" disabled={busy||loadingMore}
+     onClick={()=>{void loadMore();}}>{loadingMore?'Cargando más canciones…':'Mostrar más canciones'}</button>}
  </section>;
 }
