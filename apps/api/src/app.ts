@@ -214,14 +214,14 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
     if (!params.success) return reply.code(400).send(fail('invalid_playlist_id'));
     if (!pagination.success)return reply.code(400).send(fail('invalid_playlist_page'));
     const cursor=pagination.data.cursor;
-    if(cursor){
-      const [exists]=await db.select({id:playlistItems.id}).from(playlistItems)
-        .where(and(eq(playlistItems.id,cursor),eq(playlistItems.playlistId,params.data.id))).limit(1);
-      if(!exists)return reply.code(400).send(fail('invalid_playlist_cursor'));
-    }
     const [owner] = await db.select({ id: playlists.id }).from(playlists)
       .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, principalId(request)))).limit(1);
     if (!owner) return reply.code(404).send(fail('playlist_not_found'));
+    if(cursor){
+      const [exists]=await db.select({id:playlistItems.id}).from(playlistItems)
+        .where(and(eq(playlistItems.id,cursor),eq(playlistItems.playlistId,owner.id))).limit(1);
+      if(!exists)return reply.code(400).send(fail('invalid_playlist_cursor'));
+    }
     const userId=principalId(request);
     // Hydrate exactly the referenced items from the database. Reading the
     // first 500 cloud tracks separately made older playlist songs disappear.
