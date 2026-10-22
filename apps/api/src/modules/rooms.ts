@@ -41,7 +41,11 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
   const { requireAuth } = createGuards(drizzle(pool));
 
   // Four-timestamp probe: client records monotonic send/receive and bridges to wall time.
-  app.get('/v1/rooms/clock', { preHandler: requireAuth }, async () => {
+  app.get('/v1/rooms/clock', { preHandler: requireAuth }, async (_request, reply) => {
+    // Each probe must reach the API: caching makes clock-offset estimates invalid.
+    // Private authenticated clock data must not be stored by browser or CDN caches.
+    reply.header('Cache-Control', 'private, no-store, max-age=0');
+    reply.header('Pragma', 'no-cache');
     const serverReceivedMs = Date.now();
     return { serverReceivedMs, serverSentMs: Date.now() };
   });
