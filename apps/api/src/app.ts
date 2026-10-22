@@ -4,7 +4,7 @@ import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, or } from 'drizzle-orm';
 import {presignR2,readR2Settings} from './storage/r2.js';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -202,9 +202,24 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
     source: z.enum(['cloud', 'external']),
     trackId: z.string().uuid(),
   });
+  const playlistItemsQuery=z.object({
+    limit:z.coerce.number().int().min(1).max(500).default(500),
+    cursor:z.string().max(180).optional(),
+  });
+  const playlistCursor=z.object({t:z.string().datetime({offset:true}),id:z.string().uuid()});
+  function parsePlaylistCursor(value:string){
+    try{
+      const result=playlistCursor.safeParse(JSON.parse(Buffer.from(value,'base64url').toString('utf8')));
+      return result.success?result.data:null;
+    }catch{return null;}
+  }
   app.get('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
     const params = idInput.safeParse(request.params);
+    const pagination=playlistItemsQuery.safeParse(request.query);
     if (!params.success) return reply.code(400).send(fail('invalid_playlist_id'));
+    if (!pagination.success)return reply.code(400).send(fail('invalid_playlist_page'));
+    const cursor=pagination.data.cursor?parsePlaylistCursor(pagination.data.cursor):null;
+    if(pagination.data.cursor&&!cursor)return reply.code(400).send(fail('invalid_playlist_cursor'));
     const [owner] = await db.select({ id: playlists.id }).from(playlists)
       .where(and(eq(playlists.id, params.data.id), eq(playlists.userId, principalId(request)))).limit(1);
     if (!owner) return reply.code(404).send(fail('playlist_not_found'));
@@ -230,10 +245,21 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
       .leftJoin(externalLibraryItems,and(
         eq(externalLibraryItems.id,playlistItems.externalItemId),
         eq(externalLibraryItems.userId,userId)))
-      .where(eq(playlistItems.playlistId,owner.id))
-      .orderBy(playlistItems.createdAt,playlistItems.id).limit(500);
+      .where(and(
+        eq(playlistItems.playlistId,owner.id),
+        cursor?or(
+          gt(playlistItems.createdAt,new Date(cursor.t)),
+          and(eq(playlistItems.createdAt,new Date(cursor.t)),gt(playlistItems.id,cursor.id)),
+        ):undefined,
+      ))
+      .orderBy(asc(playlistItems.createdAt),asc(playlistItems.id))
+      .limit(pagination.data.limit+1);
+    const hasMore=rows.length>pagination.data.limit;
+    const page=rows.slice(0,pagination.data.limit);
+    const tail=page.at(-1);
+    const nextCursor=hasMore&&tail?Buffer.from(JSON.stringify({t:tail.createdAt.toISOString(),id:tail.id})).toString('base64url'):null;
     const settings=readR2Settings();
-    const items=rows.map(({cloudCoverKey,...row})=>({
+    const items=page.map(({cloudCoverKey,...row})=>({
       ...row,
       cloud:row.cloud?{
         ...row.cloud,
@@ -241,7 +267,7 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
       }:null,
     }));
     reply.header('Cache-Control','no-store');
-    return {items};
+    return {items,hasMore,nextCursor};
   });
   app.post('/v1/playlists/:id/items', { preHandler: requireAuth }, async (request, reply) => {
     const params = idInput.safeParse(request.params);
