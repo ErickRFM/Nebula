@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { playlists, playlistItems, cloudTracks, users, externalLibraryItems } from './db/schema.js';
 import { externalInput, externalDelete } from './library/external-input.js';
 import { DiscoveryService } from './discovery/service.js';
+import { searchMainstream } from './discovery/mainstream.js';
 import { MusicBrainzMetadata } from './metadata/musicbrainz.js';
 import { loadConfig } from './config.js';
 import { createGuards, registerAdminRoutes, registerAuthRoutes } from './modules/auth.js';
@@ -119,6 +120,22 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
       .limit(1);
     if (!user) return reply.code(404).send(fail('user_not_found'));
     return { user };
+  });
+
+  // Public catalog metadata only: never proxy tracks, previews, cookies or credentials.
+  // Rate-limited independently; Deezer holds the licensing and playback experience.
+  app.get('/v1/discovery/mainstream', {
+    config: { rateLimit: { max: 12, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    const parsed = z.object({ q: z.string().trim().min(2).max(100) }).safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send(fail('invalid_mainstream_query'));
+    try {
+      const items = await searchMainstream(parsed.data.q);
+      reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+      return { source: 'deezer', items, playback: 'official_embed_only' };
+    } catch {
+      return reply.code(502).send(fail('mainstream_catalog_unavailable'));
+    }
   });
 
   app.get('/v1/discovery/providers', { preHandler: requireAuth }, async () => ({ providers: discovery.list() }));
