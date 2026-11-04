@@ -16,6 +16,8 @@
     "mobile:sync": "npm run build && npx cap sync",
     "test:e2e": "playwright test",
     "api:dev": "npm run dev -w @nebula/api",
+    "bridge:dev": "node tools/private-bridge/main.mjs",
+    "test:bridge": "node --test tools/private-bridge/*.test.mjs",
     "api:build": "npm run build -w @nebula/api",
     "db:migrate": "npm run db:migrate -w @nebula/api",
     "owner:bootstrap": "npm run owner:bootstrap -w @nebula/api"

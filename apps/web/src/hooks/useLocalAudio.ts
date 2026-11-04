@@ -6,6 +6,7 @@ import { deleteSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack
 import { readAudioMetadata } from '../lib/audio-metadata';
 import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
 import {clearTransientPlaybackNotice} from '../lib/notice-lifecycle';
+import {isPlayableExternalUrl} from '../lib/private-bridge';
 
 export type Player = {
   tracks: Track[];
@@ -292,7 +293,7 @@ export function useLocalAudio(): Player {
   }, [selectTrack]);
 
   const playExternal = useCallback((track: Track) => {
-    if(track.source!=='external' || !track.audioUrl || !track.audioUrl.startsWith('https://')) {
+    if(track.source!=='external' || !isPlayableExternalUrl(track.audioUrl)) {
       setNotice('La pista externa no tiene una fuente segura de audio.');
       return;
     }
