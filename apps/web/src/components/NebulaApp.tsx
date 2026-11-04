@@ -17,6 +17,7 @@ import { usePlaylists } from '../hooks/usePlaylists';
 import { useAccount } from '../hooks/useAccount';
 import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
+import { PublicAudiusPanel } from './PublicAudiusPanel';
 import { ExternalMediaBridges } from './ExternalMediaBridges';
 import { CloudLibrary } from './CloudLibrary';
 import { CloudSearchResults } from './CloudSearchResults';
@@ -78,7 +79,7 @@ function MiniPlayer({player,onExpand}: {player: PlayerApi; onExpand: () => void}
   if (!current) return null;
   return <div className="mini-player glass">
     <button className="mini-track" type="button" onClick={onExpand}>
-      <TrackCover track={current} className="mini-cover"/><span><strong>{current.title}</strong><small>{current.artist}</small></span>
+      <TrackCover track={current} className="mini-cover"/><span><strong>{current.title}</strong><small>{player.state==='loading'||player.state==='buffering'?'Cargando audio…':player.state==='error'?'Audio no disponible':current.artist}</small></span>
     </button>
     <button type="button" className="icon-button mini-heart" aria-label="Favorito" onClick={() => player.toggleFavorite(current.id)}><Heart size={18} fill={player.favorites.includes(current.id) ? 'currentColor' : 'none'}/></button>
     <div className="mini-controls">
@@ -271,12 +272,13 @@ export function NebulaApp() {
               <div className="chip-row search-genre-filter" aria-label="Filtrar la biblioteca">{genres.map(name=><button type="button" key={name} className={'chip '+(genre===name?'active':'')} aria-pressed={genre===name} onClick={()=>setGenre(name)}>{name}</button>)}</div>
               <div className="track-list glass">{filteredTracks.length?filteredTracks.map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>):<p className="empty-note">No hay coincidencias entre tus archivos locales. Consulta las fuentes en línea o importa música desde Biblioteca.</p>}</div>
             </section>
+            {!account.accessToken && <PublicAudiusPanel initialQuery={search} onPlay={player.playExternal}/>}
             <CloudSearchResults query={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
             <section className="content-section search-online"><div className="section-heading"><div><h2>Música en línea</h2><p className="search-section-note">Resultados de los proveedores disponibles para tu cuenta</p></div></div>
               <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
-              <ExternalMediaBridges account={account} initialQuery={search} embedded onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
             </section>
           </>}
+          <ExternalMediaBridges account={account} initialQuery={search} embedded onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
         </section>}
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>
@@ -331,7 +333,7 @@ export function NebulaApp() {
           <div className="disclosure">La música local y las playlists de este dispositivo se guardan en el navegador. La biblioteca privada en la nube requiere iniciar sesión y almacenamiento configurado.</div>
         </>}
         {screen === 'cuenta' && <AccountPanel account={account}/>}
-        {screen === 'explorar' && <><ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
+        {screen === 'explorar' && <>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}

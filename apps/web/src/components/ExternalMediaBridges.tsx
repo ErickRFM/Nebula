@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState,type FormEvent} from 'react';
+import {useEffect,useRef,useState,type FormEvent} from 'react';
 import type {AccountApi} from '../hooks/useAccount';
 import {parseExternalEmbed,type ExternalEmbed} from '../lib/external-embeds';
 type Video={videoId:string;title:string;artist:string;thumbnail:string|null;sourceUrl:string};
@@ -15,6 +15,14 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
  const [youtubeReady,setYoutubeReady]=useState(false);
  const [searching,setSearching]=useState(false);
  const [error,setError]=useState('');
+ const playerRef=useRef<HTMLDivElement>(null);
+ const incomingLink=embedded?parseExternalEmbed(initialQuery??''):null;
+ useEffect(()=>{
+   if(!active)return;
+   // The official player must remain visible; never autoplay it while hidden.
+   const frame=window.requestAnimationFrame(()=>playerRef.current?.scrollIntoView({behavior:'smooth',block:'center'}));
+   return ()=>window.cancelAnimationFrame(frame);
+ },[active]);
  useEffect(()=>{
    if(!account.accessToken||!configured){setYoutubeReady(false);return;}
    let alive=true;
@@ -63,16 +71,16 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
    }catch(err){setVideos([]);setError(err instanceof Error?err.message:'Error de búsqueda.');}
    finally{setSearching(false);}
  }
- if(embedded&&(initialQuery??'').trim().length<2&&!active)return null;
  return <section className="content-section external-bridges" aria-label="Reproductor musical de YouTube y SoundCloud">
-   <div className="section-heading"><h2>{embedded?'Videos musicales de YouTube':'Reproductores externos'}</h2></div>
-   <p className="page-description">{embedded?'Resultados por nombre obtenidos por el backend de NÉBULA. Toca un video para reproducirlo aquí.':'Escucha enlaces compatibles con los reproductores oficiales de YouTube o SoundCloud sin importar archivos a tu nube.'}</p>
-   {!embedded && <form className="playlist-create glass" onSubmit={event=>{event.preventDefault();activate(link);}}>
+   <div className="section-heading"><h2>{embedded?'Escucha con YouTube o SoundCloud':'Reproductores externos'}</h2></div>
+   <p className="page-description">{embedded?'Pega un enlace de video compatible para reproducirlo aquí. La búsqueda por nombre en YouTube requiere la API configurada.':'Abre enlaces compatibles con los reproductores oficiales, sin importar ni descargar audio a tu nube.'}</p>
+   <form className="playlist-create glass" onSubmit={event=>{event.preventDefault();activate(link);}}>
      <label htmlFor="external-embed-link" className="sr-only">Enlace de YouTube o SoundCloud</label>
      <input id="external-embed-link" type="url" value={link} onChange={event=>setLink(event.target.value)}
        placeholder="https://youtube.com/watch?v=… o https://soundcloud.com/…" required/>
-     <button className="button primary small" type="submit">Abrir reproductor</button>
-   </form>}
+     <button className="button primary small" type="submit" disabled={!link.trim()}>Abrir reproductor</button>
+   </form>
+   {embedded&&incomingLink&&<div className="search-source-hint"><span>Enlace de {incomingLink.provider==='youtube'?'YouTube':'SoundCloud'} reconocido. </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>Reproducir este enlace</button></div>}
    {!embedded&&account.accessToken&&youtubeReady ? <form className="playlist-create glass" onSubmit={event=>{void searchYoutube(event);}}>
      <label htmlFor="youtube-search" className="sr-only">Buscar videos musicales en YouTube</label>
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
@@ -91,12 +99,13 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
      <span className="track-descriptor"><strong>{video.title}</strong><small>{video.artist} · YouTube</small></span>
      <button type="button" className="button secondary small" onClick={()=>activate(video.sourceUrl)}>Reproducir video</button>
    </div>)}</div>}
-   {active&&<div className="bridge-player glass">
-     <div className="section-heading"><h2>{active.provider==='youtube'?'YouTube':'SoundCloud'}</h2><button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar</button></div>
+   {active&&<div ref={playerRef} className="bridge-player glass" role="region" aria-label="Reproductor externo activo">
+     <div className="section-heading"><h2>{active.provider==='youtube'?'YouTube':'SoundCloud'}</h2><button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button></div>
      <iframe key={active.src} className="bridge-iframe" src={active.src}
        title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':'SoundCloud')}
-       loading="lazy" referrerPolicy="strict-origin-when-cross-origin"
+       loading="eager" referrerPolicy="strict-origin-when-cross-origin"
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>
+     <p className="disclosure">Pulsa reproducir dentro del reproductor oficial. Este contenido no usa el mini-reproductor de audio de NÉBULA.</p>
      <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir contenido en su plataforma</a>
    </div>}
  </section>;

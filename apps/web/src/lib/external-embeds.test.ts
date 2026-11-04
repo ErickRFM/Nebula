@@ -12,8 +12,12 @@ describe('official external embeds',()=>{
    expect(parseExternalEmbed('https://soundcloud.com/search?q=x')).toBeNull();
  });
  it('rejects untrusted hosts, non-HTTPS and ambiguous paths',()=>{
-   for(const url of ['http://youtube.com/watch?v=dQw4w9WgXcQ','https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ','https://youtu.be/invalid','javascript:alert(1)','https://soundcloud.com.evil.test/a/b']){
+   for(const url of ['http://youtube.com/watch?v=dQw4w9WgXcQ','https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ','https://youtu.be/invalid','javascript:alert(1)','https://soundcloud.com.evil.test/a/b','https://youtu.be/dQw4w9WgXcQ/another-video','https://youtube.com:8443/watch?v=dQw4w9WgXcQ','https://youtube.com/embed/dQw4w9WgXcQ/extra']){
      expect(parseExternalEmbed(url)).toBeNull();
    }
+ });
+ it('canonicalizes YouTube Music links and removes untrusted parameters',()=>{
+   const media=parseExternalEmbed('https://music.youtube.com/watch?v=dQw4w9WgXcQ&redirect=https%3A%2F%2Fevil.example');
+   expect(media).toEqual({provider:'youtube',src:'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',sourceUrl:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'});
  });
 });
