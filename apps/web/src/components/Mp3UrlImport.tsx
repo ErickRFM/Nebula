@@ -31,6 +31,10 @@ export function Mp3UrlImport({onImport}:{onImport:(files:File[])=>void}){
    const downloaded=await retrieveAuthorizedAudio(direct.url,next.signal,setPercent);
    if(next.signal.aborted)return;
    if(!['audio/mpeg','audio/mp3'].includes(downloaded.type))throw new Error('El servidor no entregó un MP3.');
+   const header=new Uint8Array(await downloaded.slice(0,3).arrayBuffer());
+   const looksMp3=(header[0]===73&&header[1]===68&&header[2]===51) ||
+    (header[0]===255&&(header[1]&0xe0)===0xe0);
+   if(!looksMp3)throw new Error('El archivo no tiene una cabecera MP3 reconocible.');
    setFile(downloaded);
    onImport([downloaded]);
    setMessage('MP3 recibido: '+downloaded.name+'. Se está agregando a tu biblioteca local. Puedes guardar una copia en Descargas.');

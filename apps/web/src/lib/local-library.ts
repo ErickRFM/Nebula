@@ -14,6 +14,7 @@ export interface SavedSong {
   cover: string;
   duration: string;
   mimeType: string;
+  filename?: string;
   blob: Blob;
   createdAt: number;
 }
@@ -58,6 +59,14 @@ export function saveSong(song: SavedSong): Promise<void> {
     request.onsuccess = () => resolve(undefined);
     request.onerror = () => reject(request.error);
   }, 'readwrite');
+}
+
+export function getSavedSong(id: string): Promise<SavedSong | null> {
+  return transaction((store, resolve, reject) => {
+    const request = store.get(id);
+    request.onsuccess = () => resolve((request.result as SavedSong | undefined) ?? null);
+    request.onerror = () => reject(request.error);
+  }, 'readonly');
 }
 
 export function deleteSavedSong(id: string): Promise<void> {

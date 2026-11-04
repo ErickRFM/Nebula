@@ -17,7 +17,7 @@ export function exportedSongFilename(song:SavedSong):string{
  const ext=knownExt??originalExt??'audio';
  const label=original.replace(SAFE_EXT,'')||[song.artist,song.title].filter(Boolean).join(' - ')||'cancion';
  const safe=label.normalize('NFC').replace(/[<>:"/\\|?*\x00-\x1f]+/g,'-')
-  .replace(/^\.+/,'').replace(/\.+$/,'').trim().slice(0,140);
+  .replace(/^[.\s-]+/,'').replace(/\.+$/,'').trim().slice(0,140);
  return (safe||'cancion')+'.'+ext;
 }
 export function downloadLocalAudioBlob(blob:Blob,filename:string):void{

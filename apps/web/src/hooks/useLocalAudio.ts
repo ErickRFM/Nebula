@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { nextIndex, previousIndex, type PlaybackState, type RepeatMode } from '@nebula/player-core';
 import { artwork, demoTracks, type Track } from '../lib/catalog';
-import { deleteSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack, type SavedSong } from '../lib/local-library';
+import { deleteSavedSong, getSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack, type SavedSong } from '../lib/local-library';
+import {downloadLocalAudioBlob,exportedSongFilename} from '../lib/local-audio-download';
 import { readAudioMetadata } from '../lib/audio-metadata';
 import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
 import {clearTransientPlaybackNotice} from '../lib/notice-lifecycle';
@@ -24,6 +25,7 @@ export type Player = {
   loadingLibrary: boolean;
   importFiles: (list: FileList | File[] | null) => void;
   removeLocalTrack: (id: string) => Promise<boolean>;
+  downloadLocalTrack: (id: string) => Promise<void>;
   selectTrack: (track: Track) => void;
   playQueue: (songs: Track[]) => void;
   playExternal: (track: Track) => void;
@@ -340,7 +342,7 @@ export function useLocalAudio(): Player {
         urlsRef.current.set(id,url);
         const record:SavedSong={
           id,title:tags.title,artist:tags.artist,album:tags.album,genre:tags.genre,
-          duration:'--:--',cover:tags.coverDataUrl??artwork[index%artwork.length],mimeType:file.type,blob:file,
+          duration:'--:--',cover:tags.coverDataUrl??artwork[index%artwork.length],mimeType:file.type,filename:file.name,blob:file,
           createdAt:Date.now()+index,
         };
         return {record,track:songToTrack(record,url)};
@@ -359,6 +361,21 @@ export function useLocalAudio(): Player {
       setNotice('No se pudieron procesar algunos archivos. Intenta de nuevo con un lote más pequeño.');
     });
   }, [selectTrack]);
+
+  const downloadLocalTrack = useCallback(async (id: string): Promise<void> => {
+    if(!id.startsWith('local-') || !tracksRef.current.some(item=>item.id===id&&Boolean(item.audioUrl))){
+      setNotice('Esta pista no es un archivo de tu biblioteca local.');return;
+    }
+    try{
+      const song=await getSavedSong(id);
+      if(!song){setNotice('No se encontró el archivo guardado. Puedes volver a importarlo desde tu equipo.');return;}
+      const name=exportedSongFilename(song);
+      downloadLocalAudioBlob(song.blob,name);
+      setNotice('Descarga iniciada: '+name+'. Se conserva el formato de audio original.');
+    }catch{
+      setNotice('No pudimos descargar el archivo de la biblioteca. Comprueba los permisos del navegador.');
+    }
+  }, []);
 
   const removeLocalTrack = useCallback(async (id: string): Promise<boolean> => {
     const track = tracksRef.current.find((item)=>item.id===id);
@@ -427,7 +444,7 @@ export function useLocalAudio(): Player {
 
   return {
     tracks, ownTracks, current, state, notice, setNotice, time, duration, volume, shuffle, repeat, favorites,
-    loadingLibrary, importFiles, removeLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
+    loadingLibrary, importFiles, removeLocalTrack, downloadLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
     toggleShuffle: () => setShuffle((value)=>!value),
     cycleRepeat: () => setRepeat((value)=>value==='off' ? 'all' : value==='all' ? 'one' : 'off'),
     toggleFavorite,
