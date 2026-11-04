@@ -11,6 +11,17 @@ describe('official external embeds',()=>{
    expect(result?.src).toContain('w.soundcloud.com/player/');
    expect(parseExternalEmbed('https://soundcloud.com/search?q=x')).toBeNull();
  });
+ it('accepts Spotify and Deezer official embeds without trusting query parameters',()=>{
+   expect(parseExternalEmbed('https://open.spotify.com/track/0123456789ABCDEFGHIJKL?si=not-trusted')).toEqual({
+     provider:'spotify',src:'https://open.spotify.com/embed/track/0123456789ABCDEFGHIJKL',
+     sourceUrl:'https://open.spotify.com/track/0123456789ABCDEFGHIJKL',
+   });
+   expect(parseExternalEmbed('https://www.deezer.com/mx/track/3135556')?.src).toBe('https://widget.deezer.com/widget/dark/track/3135556');
+   expect(parseExternalEmbed('https://open.spotify.com.evil.test/track/0123456789ABCDEFGHIJKL')).toBeNull();
+   expect(parseExternalEmbed('https://deezer.com.evil.test/track/123')).toBeNull();
+   expect(parseExternalEmbed('https://open.spotify.com/track/INVALID')).toBeNull();
+   expect(parseExternalEmbed('https://deezer.com/track/1/extra')).toBeNull();
+ });
  it('rejects untrusted hosts, non-HTTPS and ambiguous paths',()=>{
    for(const url of ['http://youtube.com/watch?v=dQw4w9WgXcQ','https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ','https://youtu.be/invalid','javascript:alert(1)','https://soundcloud.com.evil.test/a/b','https://youtu.be/dQw4w9WgXcQ/another-video','https://youtube.com:8443/watch?v=dQw4w9WgXcQ','https://youtube.com/embed/dQw4w9WgXcQ/extra']){
      expect(parseExternalEmbed(url)).toBeNull();
