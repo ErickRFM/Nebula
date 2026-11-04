@@ -18,6 +18,24 @@ describe('original recordings via Deezer metadata',()=>{
   expect(rows[0].sourceUrl).toBe('https://www.deezer.com/track/2');
   expect('audioUrl' in rows[0]).toBe(false);
  });
+ it('separates other performers and covers for a clearly requested original',()=>{
+  const list=normalizeMainstream({data:[
+   make(908604612,'Blinding Lights','The Weeknd',984833),
+   make(2282985187,'Blinding Lights The Weeknd','Pancadão GD Som',394412),
+   make(1146504462,'Blinding Lights (Original by The Weeknd)','Piano Cover by Lily Morgan',194622),
+  ]},'The Weeknd Blinding Lights');
+  expect(list[0].artist).toBe('The Weeknd');
+  expect(list[0].isVariant).toBe(false);
+  expect(list.filter(x=>!x.isVariant).map(x=>x.id)).toEqual(['908604612']);
+  expect(list.filter(x=>x.isVariant)).toHaveLength(2);
+ });
+ it('does not force one artist for generic searches',()=>{
+  const list=normalizeMainstream({data:[
+   make(1,'Random Song','Singer A',987000),
+   make(2,'Different Song','Singer B',849000),
+  ]},'pop');
+  expect(list.every(x=>!x.isVariant)).toBe(true);
+ });
  it('skips bogus IDs, spoofed artwork, malformed rows, duplicates',()=>{
   const rows=normalizeMainstream({data:[
    {...make(3,'Original','Artist'),album:{title:'A',cover_medium:'https://evil.example/img.png'}},
