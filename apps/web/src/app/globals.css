@@ -640,3 +640,18 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .mainstream-full-form .button{width:100%}
  .mainstream-official-search{width:100%;justify-content:center}
 }
+
+
+/* Personal MP3 import: one clear URL field with accessible touch targets. */
+.mp3-url-import{min-width:0}
+.mp3-url-import .section-heading h2{display:flex;align-items:center;gap:9px}
+.mp3-url-import .authorized-web-import{margin-top:12px}
+.mp3-input-row{display:flex;align-items:center;gap:10px;min-width:0}
+.mp3-input-row>svg{flex:none;color:#cbb7f2}
+.mp3-input-row input{flex:1;min-width:0;min-height:46px;max-width:100%;
+  color:var(--ink);background:#ffffff0b;border:1px solid var(--edge);
+  border-radius:11px;padding:10px 13px;font-size:.89rem}
+.mp3-input-row input:focus-visible{outline:2px solid #c7a6ff;outline-offset:2px}
+.mp3-url-import>button{margin-top:10px;min-height:42px}
+.mp3-url-import [role=status]{margin-top:8px;color:#d7cfed}
+@media(max-width:600px){.mp3-url-import .authorized-web-import>.button{width:100%;justify-self:stretch}}
