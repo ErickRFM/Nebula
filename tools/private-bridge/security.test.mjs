@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
+import {request} from 'node:http';
 import {createBridgeServer} from './bridge-core.mjs';
 import {Readable} from 'node:stream';
 
@@ -11,8 +12,14 @@ test('private bridge blocks DNS rebinding via invalid Host header',async()=>{
  const info=await app.listen();
  try{
   const port=info.port;
-  const response=await fetch('http://127.0.0.1:'+port+'/health',{headers:{Host:'evil.test'}});
-  assert.equal(response.status,403);
+  // Node fetch/undici may rewrite Host; use raw node:http to exercise DNS-rebinding defense.
+  const status=await new Promise((resolve,reject)=>{
+   const req=request({hostname:'127.0.0.1',port,path:'/health',headers:{Host:'evil.test'}},res=>{
+    res.resume();res.on('end',()=>resolve(res.statusCode));
+   });
+   req.on('error',reject);req.end();
+  });
+  assert.equal(status,403);
  }finally{await app.close();}
 });
 test('bridge refuses disabled provider rather than pretending a stream exists',async()=>{
