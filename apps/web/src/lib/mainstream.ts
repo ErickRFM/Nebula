@@ -16,7 +16,7 @@ export function parseMainstreamResults(data:unknown):MainstreamTrack[]{
   if(typeof id!=='string'||!(/^[1-9][0-9]{0,17}$/).test(id)||seen.has(id))return [];
   if(typeof item.title!=='string'||typeof item.artist!=='string')return [];
   seen.add(id);
-  const cover=typeof item.cover==='string'&& /^https:\/\/(?:e-)?cdns-images\.dzcdn\.net\//.test(item.cover)?item.cover:null;
+  const cover=typeof item.cover==='string'&& /^https:\/\/(?:e-cdns-images|cdns-images|cdn-images)\.dzcdn\.net\//.test(item.cover)?item.cover:null;
   const duration=item.durationSeconds;
   return [{id,title:item.title.slice(0,180),artist:item.artist.slice(0,180),
     album:typeof item.album==='string'?item.album.slice(0,180):'Álbum',
