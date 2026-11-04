@@ -79,7 +79,7 @@ function MiniPlayer({player,onExpand}: {player: PlayerApi; onExpand: () => void}
   if (!current) return null;
   return <div className="mini-player glass">
     <button className="mini-track" type="button" onClick={onExpand}>
-      <TrackCover track={current} className="mini-cover"/><span><strong>{current.title}</strong><small>{current.artist}</small></span>
+      <TrackCover track={current} className="mini-cover"/><span><strong>{current.title}</strong><small>{player.state==='loading'||player.state==='buffering'?'Cargando audio…':player.state==='error'?'Audio no disponible':current.artist}</small></span>
     </button>
     <button type="button" className="icon-button mini-heart" aria-label="Favorito" onClick={() => player.toggleFavorite(current.id)}><Heart size={18} fill={player.favorites.includes(current.id) ? 'currentColor' : 'none'}/></button>
     <div className="mini-controls">

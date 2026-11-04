@@ -140,7 +140,15 @@ export function useLocalAudio(): Player {
     const onDuration = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
     const onPlay = () => { setState('playing'); setNotice(''); };
     const onPause = () => {persist();setState((old) => old === 'ended' || old === 'error' ? old : 'paused');};
-    const onWaiting = () => setState('buffering');
+    const onPlaying = () => { setState('playing'); setNotice(''); };
+    const onWaiting = () => {
+      setState('buffering');
+      if(currentRef.current?.startsWith('remote-'))setNotice('El proveedor está cargando el audio. Si no avanza, prueba otra canción.');
+    };
+    const onStalled = () => {
+      setState('buffering');
+      if(currentRef.current?.startsWith('remote-'))setNotice('La transmisión se detuvo temporalmente. Revisa tu conexión o selecciona otra pista.');
+    };
     const onError = () => {
       // Signed R2 URLs may expire while the listener is mounted. A private
       // resolver is only available for the owner's own cloud entries.
@@ -152,14 +160,18 @@ export function useLocalAudio(): Player {
         return;
       }
       setState('error');
-      setNotice('El navegador no pudo cargar el audio. Revisa tu red, el formato o renueva la pista.');
+      setNotice(currentRef.current?.startsWith('remote-')
+        ? 'El proveedor no pudo servir esta canción. Prueba otra pista o abre la fuente oficial.'
+        : 'El navegador no pudo cargar el audio. Revisa tu red, el formato o renueva la pista.');
     };
     const onEnded = () => { setState('ended'); nextRef.current(); };
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('durationchange', onDuration);
     audio.addEventListener('play', onPlay);
+    audio.addEventListener('playing', onPlaying);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('stalled', onStalled);
     audio.addEventListener('error', onError);
     audio.addEventListener('ended', onEnded);
     return () => {

@@ -15,6 +15,7 @@ export function PublicAudiusPanel({initialQuery='',standalone=false,onPlay}:{
  const [loading,setLoading]=useState(false);
  const [error,setError]=useState('');
  const [searched,setSearched]=useState(false);
+ const [refresh,setRefresh]=useState(0);
  const controllerRef=useRef<AbortController|null>(null);
  const query=(standalone?typed:initialQuery).trim();
  useEffect(()=>{
@@ -24,6 +25,7 @@ export function PublicAudiusPanel({initialQuery='',standalone=false,onPlay}:{
   }
   const controller=new AbortController();
   controllerRef.current=controller;
+  setTracks([]);setSearched(false);setError('');
   const timer=window.setTimeout(()=>{
    setLoading(true);setError('');
    const url=new URL(SEARCH_ENDPOINT);
@@ -41,7 +43,7 @@ export function PublicAudiusPanel({initialQuery='',standalone=false,onPlay}:{
     .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
   },650);
   return()=>{window.clearTimeout(timer);controller.abort();};
- },[query]);
+ },[query,refresh]);
  function choose(song:PublicAudiusTrack){
   const seconds=song.durationSeconds;
   onPlay({
@@ -51,7 +53,7 @@ export function PublicAudiusPanel({initialQuery='',standalone=false,onPlay}:{
    cover:song.artworkUrl??'/art/orbita.svg',audioUrl:song.streamUrl,source:'external',
   });
  }
- function searchNow(event:FormEvent<HTMLFormElement>){event.preventDefault();setTyped(typed.trim());}
+ function searchNow(event:FormEvent<HTMLFormElement>){event.preventDefault();if(query.length>=2)setRefresh(previous=>previous+1);}
  return <section className="content-section public-audius" aria-label="Catálogo público de Audius">
   <div className="section-heading"><h2>Música abierta de Audius</h2></div>
   <p className="page-description">Prueba canciones públicas sin cuenta de NÉBULA ni clave de YouTube. Audius recibe el término de búsqueda y ofrece sus propios streams; no garantiza todos los lanzamientos comerciales.</p>

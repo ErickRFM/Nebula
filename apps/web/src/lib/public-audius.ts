@@ -29,11 +29,11 @@ export function normalizePublicAudiusTracks(payload:unknown):PublicAudiusTrack[]
  const data=obj(payload)?.data;
  if(!Array.isArray(data))return [];
  const unique=new Set<string>();
- return data.slice(0,12).flatMap((item):PublicAudiusTrack[]=>{
+ return data.slice(0,24).flatMap((item):PublicAudiusTrack[]=>{
   const row=obj(item);
   if(!row||typeof row.id!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(row.id)||unique.has(row.id))return [];
   // The content owner must allow streaming through Audius' public API.
-  if(row.is_stream_gated!==false||row.is_scheduled_release===true||row.is_streamable===false||obj(row.access)?.stream===false)return [];
+  if(row.is_stream_gated!==false||row.is_scheduled_release===true||row.is_streamable===false||row.is_available===false||row.is_delete===true||obj(row.access)?.stream===false)return [];
   const sourceUrl=safePermalink(row.permalink);
   if(!sourceUrl)return [];
   const art=obj(row.artwork);
@@ -47,5 +47,5 @@ export function normalizePublicAudiusTracks(payload:unknown):PublicAudiusTrack[]
    sourceUrl,streamUrl:'https://api.audius.co/v1/tracks/'+encodeURIComponent(row.id)+'/stream',
    durationSeconds:typeof duration==='number'&&Number.isFinite(duration)&&duration>=0&&duration<1_000_000?Math.round(duration):null,
   }];
- });
+ }).sort((a,b)=>Number(a.durationSeconds!==null&&a.durationSeconds>900)-Number(b.durationSeconds!==null&&b.durationSeconds>900)).slice(0,12);
 }
