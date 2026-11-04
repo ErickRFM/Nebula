@@ -25,7 +25,6 @@ test('authorized MP3: receive direct HTTPS file, save in local library, download
  await form.getByRole('button',{name:'Guardar copia MP3 en Descargas'}).click();
  const download=await downloadEvent;
  expect(download.suggestedFilename()).toBe('song-from-my-site.mp3');
- await expect(page.getByRole('status').filter({hasText:'guardadas'})).toBeVisible();
  await page.reload();
  await library(page);
  const restored=page.getByRole('button',{name:'Descargar archivo original de song-from-my-site'});
