@@ -1,15 +1,23 @@
 import {randomBytes} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
 import {createBridgeServer,normalizeOrigins} from './bridge-core.mjs';
 import {createYtdlpRunner} from './yt-dlp-runner.mjs';
 
 const token=process.env.NEBULA_BRIDGE_TOKEN||randomBytes(32).toString('hex');
 const port=Number(process.env.NEBULA_BRIDGE_PORT||4177);
 if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid NEBULA_BRIDGE_PORT');
-const runner=createYtdlpRunner({
- enabled:process.env.NEBULA_ENABLE_YTDLP==='true',
- ytdlp:process.env.NEBULA_YTDLP_PATH||'yt-dlp',
- ffmpeg:process.env.NEBULA_FFMPEG_PATH||'ffmpeg',
-});
+const ytdlp=process.env.NEBULA_YTDLP_PATH||'yt-dlp';
+const ffmpeg=process.env.NEBULA_FFMPEG_PATH||'ffmpeg';
+const enabled=process.env.NEBULA_ENABLE_YTDLP==='true';
+if(enabled){
+ for(const [binary,arg] of [[ytdlp,'--version'],[ffmpeg,'-version']]){
+  const result=spawnSync(binary,[arg],{stdio:'ignore',windowsHide:true,timeout:6000});
+  if(result.error||result.status!==0){
+   throw Error('Missing/unusable executable: '+binary+'. Install yt-dlp and FFmpeg before enabling the private bridge.');
+  }
+ }
+}
+const runner=createYtdlpRunner({enabled,ytdlp,ffmpeg});
 const app=createBridgeServer({
  secret:token,port,origins:normalizeOrigins(process.env.NEBULA_BRIDGE_ORIGINS),runner,
  logger:(event)=>console.error('[bridge]',event),
