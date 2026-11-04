@@ -20,7 +20,7 @@ function artwork(value:unknown):string|null{
  try {
   const url=new URL(value);
   return url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&
-   (url.hostname==='e-cdns-images.dzcdn.net'||url.hostname==='cdns-images.dzcdn.net')?url.href:null;
+   (['e-cdns-images.dzcdn.net','cdns-images.dzcdn.net','cdn-images.dzcdn.net'].includes(url.hostname))?url.href:null;
  }catch{return null;}
 }
 const VARIANT=/\b(remix|cover|karaoke|tribute|instrumental|live|slowed|sped.?up|nightcore|reverb|dj edit|bootleg|mashup|acoustic version|8d audio|reaction)\b/i;
