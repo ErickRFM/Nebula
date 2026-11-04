@@ -5,6 +5,7 @@ import { artwork, demoTracks, type Track } from '../lib/catalog';
 import { deleteSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack, type SavedSong } from '../lib/local-library';
 import { readAudioMetadata } from '../lib/audio-metadata';
 import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
+import {clearTransientPlaybackNotice} from '../lib/notice-lifecycle';
 
 export type Player = {
   tracks: Track[];
@@ -138,9 +139,9 @@ export function useLocalAudio(): Player {
       }
     };
     const onDuration = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    const onPlay = () => { setState('playing'); setNotice(''); };
+    const onPlay = () => { setState('playing'); setNotice(clearTransientPlaybackNotice); };
     const onPause = () => {persist();setState((old) => old === 'ended' || old === 'error' ? old : 'paused');};
-    const onPlaying = () => { setState('playing'); setNotice(''); };
+    const onPlaying = () => { setState('playing'); setNotice(clearTransientPlaybackNotice); };
     const onWaiting = () => {
       setState('buffering');
       if(currentRef.current?.startsWith('remote-'))setNotice('El proveedor está cargando el audio. Si no avanza, prueba otra canción.');
