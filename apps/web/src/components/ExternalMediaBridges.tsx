@@ -53,7 +53,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
  },[embedded,initialQuery,youtubeReady,account.accessToken]);
  function activate(source:string){
    const media=parseExternalEmbed(source);
-   if(!media){setError('Pega un enlace HTTPS válido de video de YouTube o pista de SoundCloud.');return;}
+   if(!media){setError('Pega un enlace HTTPS válido de YouTube, SoundCloud, Spotify o Deezer.');return;}
    onActivate();
    setError('');
    setActive(media);
@@ -71,16 +71,16 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
    }catch(err){setVideos([]);setError(err instanceof Error?err.message:'Error de búsqueda.');}
    finally{setSearching(false);}
  }
- return <section className="content-section external-bridges" aria-label="Reproductor musical de YouTube y SoundCloud">
-   <div className="section-heading"><h2>{embedded?'Escucha con YouTube o SoundCloud':'Reproductores externos'}</h2></div>
-   <p className="page-description">{embedded?'Pega un enlace de video compatible para reproducirlo aquí. La búsqueda por nombre en YouTube requiere la API configurada.':'Abre enlaces compatibles con los reproductores oficiales, sin importar ni descargar audio a tu nube.'}</p>
+ return <section className="content-section external-bridges" aria-label="Reproductores oficiales de música">
+   <div className="section-heading"><h2>{embedded?'Escuchar desde otras plataformas':'Reproductores externos'}</h2></div>
+   <p className="page-description">{embedded?'Pega un enlace de YouTube, Spotify, Deezer o SoundCloud para abrir su reproductor oficial aquí; la duración depende de cada plataforma.':'Abre canciones compatibles con los reproductores oficiales, sin copiar audio a tu nube.'}</p>
    <form className="playlist-create glass" onSubmit={event=>{event.preventDefault();activate(link);}}>
-     <label htmlFor="external-embed-link" className="sr-only">Enlace de YouTube o SoundCloud</label>
+     <label htmlFor="external-embed-link" className="sr-only">Enlace de YouTube, SoundCloud, Spotify o Deezer</label>
      <input id="external-embed-link" type="url" value={link} onChange={event=>setLink(event.target.value)}
-       placeholder="https://youtube.com/watch?v=… o https://soundcloud.com/…" required/>
+       placeholder="https://open.spotify.com/track/… o https://youtu.be/…" required/>
      <button className="button primary small" type="submit" disabled={!link.trim()}>Abrir reproductor</button>
    </form>
-   {embedded&&incomingLink&&<div className="search-source-hint"><span>Enlace de {incomingLink.provider==='youtube'?'YouTube':'SoundCloud'} reconocido. </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>Reproducir este enlace</button></div>}
+   {embedded&&incomingLink&&<div className="search-source-hint"><span>Enlace de {incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Deezer'} reconocido. </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>Reproducir este enlace</button></div>}
    {!embedded&&account.accessToken&&youtubeReady ? <form className="playlist-create glass" onSubmit={event=>{void searchYoutube(event);}}>
      <label htmlFor="youtube-search" className="sr-only">Buscar videos musicales en YouTube</label>
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
@@ -100,7 +100,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
      <button type="button" className="button secondary small" onClick={()=>activate(video.sourceUrl)}>Reproducir video</button>
    </div>)}</div>}
    {active&&<div ref={playerRef} className="bridge-player glass" role="region" aria-label="Reproductor externo activo">
-     <div className="section-heading"><h2>{active.provider==='youtube'?'YouTube':'SoundCloud'}</h2><button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button></div>
+     <div className="section-heading"><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer'}</h2><button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button></div>
      <iframe key={active.src} className="bridge-iframe" src={active.src}
        title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':'SoundCloud')}
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
