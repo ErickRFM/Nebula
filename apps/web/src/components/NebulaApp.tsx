@@ -274,9 +274,9 @@ export function NebulaApp() {
             <CloudSearchResults query={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
             <section className="content-section search-online"><div className="section-heading"><div><h2>Música en línea</h2><p className="search-section-note">Resultados de los proveedores disponibles para tu cuenta</p></div></div>
               <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
-              <ExternalMediaBridges account={account} initialQuery={search} embedded onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
             </section>
           </>}
+          <ExternalMediaBridges account={account} initialQuery={search} embedded onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
         </section>}
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>

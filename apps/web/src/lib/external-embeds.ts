@@ -3,14 +3,17 @@ const VIDEO=/^[A-Za-z0-9_-]{11}$/;
 export function parseExternalEmbed(input:string):ExternalEmbed|null{
  let url:URL;
  try{url=new URL(input.trim());}catch{return null;}
- if(url.protocol!=='https:'||url.username||url.password)return null;
+ if(url.protocol!=='https:'||url.username||url.password||url.port)return null;
  const host=url.hostname.toLowerCase();
  const youtubeHosts=['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtu.be'];
  if(youtubeHosts.includes(host)){
    let id:string|null=null;
-   if(host==='youtu.be')id=url.pathname.split('/')[1]??null;
-   else if(url.pathname==='/watch')id=url.searchParams.get('v');
-   else if(/^\/(shorts|live|embed)\//.test(url.pathname))id=url.pathname.split('/')[2]??null;
+   const segments=url.pathname.split('/').filter(Boolean);
+   if(host==='youtu.be'){
+     if(segments.length!==1)return null;
+     id=segments[0];
+   }else if(url.pathname==='/watch')id=url.searchParams.get('v');
+   else if(segments.length===2&&['shorts','live','embed'].includes(segments[0]))id=segments[1];
    if(!id||!VIDEO.test(id))return null;
    return {provider:'youtube',src:'https://www.youtube-nocookie.com/embed/'+id,sourceUrl:'https://www.youtube.com/watch?v='+id};
  }

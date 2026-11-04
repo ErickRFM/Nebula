@@ -320,7 +320,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .external-bridges .track-row{min-width:0;gap:12px}
 .external-bridges .track-descriptor{min-width:0;overflow-wrap:anywhere}
 .bridge-player{padding:clamp(12px,2vw,24px);border-radius:20px;margin-top:16px;min-width:0}
-.bridge-iframe{display:block;width:100%;max-width:100%;aspect-ratio:16/9;border:0;border-radius:14px;background:#090913}
+.bridge-iframe{display:block;width:100%;max-width:100%;min-height:200px;aspect-ratio:16/9;border:0;border-radius:14px;background:#090913}
 .bridge-player>a{display:inline-block;margin-top:12px;color:#c9beff;overflow-wrap:anywhere}
 @media(max-width:720px){
   .external-bridges .playlist-create{flex-direction:column;align-items:stretch}
@@ -435,9 +435,9 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .search-start svg{flex:none;color:#c9a6ff}.search-page .content-section{margin-top:28px}.search-page .chip-row{margin:14px 0}
 .search-page .search-local .track-list{max-width:1100px}
 .search-page .search-online .explore-page{max-width:none}.search-page .search-online .explore-page .chip-row{margin-top:0}
-.search-page .search-online .external-bridges{margin-top:24px;padding-top:18px;border-top:1px solid var(--edge)}
-.search-page .search-online .external-bridges .section-heading{margin-bottom:7px}
-.search-page .search-online .external-bridges .page-description{margin-bottom:12px;font-size:.8rem}
+.search-page > .external-bridges{margin-top:24px;padding-top:18px;border-top:1px solid var(--edge)}
+.search-page > .external-bridges .section-heading{margin-bottom:7px}
+.search-page > .external-bridges .page-description{margin-bottom:12px;font-size:.8rem}
 .search-source-hint{margin:10px 0 0;color:#bfb6d7;font-size:.78rem;padding:11px 13px;border:1px solid var(--edge);border-radius:12px;background:rgba(35,34,67,.52)}
 @media(max-width:850px){.room-grid{grid-template-columns:1fr}.search-page .genre-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.rooms-overview{gap:7px}.rooms-overview span{font-size:.67rem}.rooms-page>.heading-with-action>svg{display:none}.rooms-page .room-card{padding:18px}.room-card-header{gap:10px}.room-card-icon{width:39px;height:39px}.room-entry-state{display:none}.search-page .genre-grid{grid-template-columns:1fr 1fr}.search-page .genre-card{height:100px;padding:13px}.search-start{align-items:flex-start}.rooms-page .room-hero .button{width:100%;margin:7px 0}}
