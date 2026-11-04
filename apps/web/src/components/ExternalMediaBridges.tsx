@@ -102,7 +102,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
    {active&&<div ref={playerRef} className="bridge-player glass" role="region" aria-label="Reproductor externo activo">
      <div className="section-heading"><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer'}</h2><button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button></div>
      <iframe key={active.src} className="bridge-iframe" src={active.src}
-       title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':'SoundCloud')}
+       title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer')}
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>
      <p className="disclosure">Pulsa reproducir dentro del reproductor oficial. Este contenido no usa el mini-reproductor de audio de NÉBULA.</p>
