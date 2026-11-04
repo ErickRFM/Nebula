@@ -18,7 +18,8 @@ function safeArtwork(value:unknown):string|null{
 function safePermalink(value:unknown):string|null{
  if(typeof value!=='string'||value.length>2048)return null;
  try{
-  const url=new URL(value);
+  if(!value.startsWith('https://')&&!(value.startsWith('/')&&!value.startsWith('//')))return null;
+  const url=new URL(value,'https://audius.co');
   return url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&
    ['audius.co','www.audius.co'].includes(url.hostname.toLowerCase())?url.href:null;
  }catch{return null;}
@@ -32,7 +33,7 @@ export function normalizePublicAudiusTracks(payload:unknown):PublicAudiusTrack[]
   const row=obj(item);
   if(!row||typeof row.id!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(row.id)||unique.has(row.id))return [];
   // The content owner must allow streaming through Audius' public API.
-  if(row.is_stream_gated!==false||row.is_scheduled_release===true)return [];
+  if(row.is_stream_gated!==false||row.is_scheduled_release===true||row.is_streamable===false||obj(row.access)?.stream===false)return [];
   const sourceUrl=safePermalink(row.permalink);
   if(!sourceUrl)return [];
   const art=obj(row.artwork);

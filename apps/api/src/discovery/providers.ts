@@ -85,6 +85,17 @@ export function createOpenverseProvider(fetchImpl:JsonFetch=fetch):AudioProvider
   };
 }
 
+/** Audius sends relative permalinks in its public API. Resolve only to its canonical host. */
+function audiusPermalink(value:unknown):string|null{
+  if(typeof value!=='string'||value.length>2048)return null;
+  if(!value.startsWith('https://')&&!(value.startsWith('/')&&!value.startsWith('//')))return null;
+  try{
+    const url=new URL(value,'https://audius.co');
+    return url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&
+      ['audius.co','www.audius.co'].includes(url.hostname.toLowerCase())?url.href:null;
+  }catch{return null;}
+}
+
 export function createAudiusProvider(fetchImpl:JsonFetch=fetch):AudioProvider {
   return {
     id:'audius',enabled:true,
@@ -96,10 +107,11 @@ export function createAudiusProvider(fetchImpl:JsonFetch=fetch):AudioProvider {
       const json=await loadProviderJson(url,fetchImpl) as {data?:unknown};
       return array(json?.data).flatMap((row):ExternalTrack[]=>{
         const externalId=stringField(row.id);
-        const sourceUrl=safeHttpsUrl(row.permalink);
+        const sourceUrl=audiusPermalink(row.permalink);
         if(!externalId || !/^[a-zA-Z0-9_-]+$/.test(externalId) || !sourceUrl) return [];
         const artwork=row.artwork && typeof row.artwork==='object' ? row.artwork as Record<string,unknown> : {};
-        const isPublicStream=row.is_stream_gated===false && row.is_scheduled_release!==true;
+        const access=row.access&&typeof row.access==='object'?row.access as Record<string,unknown>:{};
+        const isPublicStream=row.is_stream_gated===false && row.is_scheduled_release!==true && row.is_streamable!==false && access.stream!==false;
         const streamUrl=isPublicStream?'https://api.audius.co/v1/tracks/'+encodeURIComponent(externalId)+'/stream':null;
         return [track('audius',externalId,{
           title:stringField(row.title,'Sin título'),

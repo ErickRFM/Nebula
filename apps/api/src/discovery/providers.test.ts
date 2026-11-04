@@ -58,18 +58,29 @@ describe('music provider adapters',()=>{
     const provider=createAudiusProvider(async(url)=> {
       expect(url).toContain('gate_condition=ungated');
       return new Response(JSON.stringify({data:[
-        {id:'A1',title:'Public',permalink:'https://audius.co/a/1',is_stream_gated:false,is_scheduled_release:false},
+        {id:'A1',title:'Public',permalink:'/a/1',is_stream_gated:false,is_streamable:true,is_scheduled_release:false},
         {id:'A2',title:'Gated',permalink:'https://audius.co/a/2',is_stream_gated:true},
       ]}),{status:200});
     });
     const [publicTrack,blockedTrack]=await provider.search(request);
     expect(publicTrack.canStream).toBe(true);
+    expect(publicTrack.sourceUrl).toBe('https://audius.co/a/1');
     expect(publicTrack.streamUrl).toBe('https://api.audius.co/v1/tracks/A1/stream');
     expect(publicTrack.canStorePrivateCopy).toBe(false);
     expect(blockedTrack.canStream).toBe(false);
     expect(blockedTrack.streamUrl).toBeNull();
   });
 
+  it('respects Audius API opt-out and rejects spoofed permalinks',async()=>{
+    const provider=createAudiusProvider(fake({data:[
+      {id:'ONE',title:'Opt out',permalink:'/a/one',is_stream_gated:false,is_streamable:false},
+      {id:'TWO',title:'Blocked',permalink:'/a/two',is_stream_gated:false,access:{stream:false}},
+      {id:'BAD',title:'Spoof',permalink:'//evil.example/a/b',is_stream_gated:false},
+    ]}));
+    const results=await provider.search(request);
+    expect(results).toHaveLength(2);
+    expect(results.every(item=>!item.canStream&&item.streamUrl===null)).toBe(true);
+  });
   it('filters invalid URLs, handles partial provider failures',async()=>{
     expect(safeHttpsUrl('http://127.0.0.1/private')).toBeNull();
     expect(safeHttpsUrl('https://name:pass@example.org')).toBeNull();

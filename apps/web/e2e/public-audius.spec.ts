@@ -8,7 +8,7 @@ test('public Audius search offers playable tracks without authentication or YouT
  await page.route('https://api.audius.co/v1/tracks/search?**',route=>route.fulfill({
   status:200,contentType:'application/json',
   body:JSON.stringify({data:[{id:'Track_Fixture',title:'Demo Audius Pública',
-   user:{name:'Artista Audius'},permalink:'https://audius.co/artist/song',is_stream_gated:false,duration:132}]}),
+   user:{name:'Artista Audius'},permalink:'/artist/song',is_stream_gated:false,is_streamable:true,duration:132}]}),
  }));
  await page.route('https://api.audius.co/v1/tracks/Track_Fixture/stream',route=>route.fulfill({status:503,body:'fixture: no real audio'}));
  await page.goto('/');

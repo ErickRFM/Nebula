@@ -2,7 +2,7 @@ import {describe,it,expect} from 'vitest';
 import {normalizePublicAudiusTracks} from './public-audius';
 
 const song={
- id:'Abc_123',title:'A track',user:{name:'An artist'},permalink:'https://audius.co/artist/a-track',
+ id:'Abc_123',title:'A track',user:{name:'An artist'},permalink:'/artist/a-track',is_streamable:true,
  artwork:{'150x150':'https://cdn.audius.co/art.jpg'},duration:153,is_stream_gated:false,
 };
 describe('public Audius catalog safety',()=>{
@@ -16,7 +16,9 @@ describe('public Audius catalog safety',()=>{
  it('rejects gated streams, untrusted source URLs, unsafe IDs and duplicates',()=>{
   const data=[{...song,is_stream_gated:true},{...song,id:'../evil'},
    {...song,id:'Evil',permalink:'https://audius.co.evil.test/artist/x'},
-   song,song,{...song,id:'Later',is_scheduled_release:true}];
+   song,song,{...song,id:'Blocked',is_streamable:false},
+   {...song,id:'NotAllowed',access:{stream:false}},
+   {...song,id:'Later',is_scheduled_release:true}];
   expect(normalizePublicAudiusTracks({data})).toHaveLength(1);
  });
  it('bounds the input and does not trust artwork protocols',()=>{
