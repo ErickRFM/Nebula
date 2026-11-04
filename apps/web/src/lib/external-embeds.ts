@@ -1,4 +1,4 @@
-export type ExternalEmbed = {provider:'youtube'|'soundcloud'; src:string; sourceUrl:string};
+export type ExternalEmbed = {provider:'youtube'|'soundcloud'|'spotify'|'deezer'; src:string; sourceUrl:string};
 const VIDEO=/^[A-Za-z0-9_-]{11}$/;
 export function parseExternalEmbed(input:string):ExternalEmbed|null{
  let url:URL;
@@ -16,6 +16,23 @@ export function parseExternalEmbed(input:string):ExternalEmbed|null{
    else if(segments.length===2&&['shorts','live','embed'].includes(segments[0]))id=segments[1];
    if(!id||!VIDEO.test(id))return null;
    return {provider:'youtube',src:'https://www.youtube-nocookie.com/embed/'+id,sourceUrl:'https://www.youtube.com/watch?v='+id};
+ }
+ if(host==='open.spotify.com'){
+   const segments=url.pathname.split('/').filter(Boolean);
+   const allowed=['track','album','playlist'];
+   if(segments.length===2&&allowed.includes(segments[0])&&/^[A-Za-z0-9]{22}$/.test(segments[1])){
+     const sourceUrl='https://open.spotify.com/'+segments[0]+'/'+segments[1];
+     return {provider:'spotify',src:'https://open.spotify.com/embed/'+segments[0]+'/'+segments[1],sourceUrl};
+   }
+   return null;
+ }
+ if(host==='deezer.com'||host==='www.deezer.com'){
+   const segments=url.pathname.split('/').filter(Boolean);
+   const parts=segments.length===3&&/^[a-z]{2}(?:-[A-Z]{2})?$/.test(segments[0])?segments.slice(1):segments;
+   if(parts.length===2&&parts[0]==='track'&&/^[1-9][0-9]{0,17}$/.test(parts[1])){
+     return {provider:'deezer',src:'https://widget.deezer.com/widget/dark/track/'+parts[1],sourceUrl:'https://www.deezer.com/track/'+parts[1]};
+   }
+   return null;
  }
  if(host==='soundcloud.com'||host==='www.soundcloud.com'){
    const segments=url.pathname.split('/').filter(Boolean);
