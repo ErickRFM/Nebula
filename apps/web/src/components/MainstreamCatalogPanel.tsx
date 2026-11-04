@@ -8,9 +8,10 @@ import {officialDeezerEmbed,officialMusicSearch,parseMainstreamResults,type Main
 const base=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'')??'';
 const configured=Boolean(base)||process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API==='true';
 
-export function MainstreamCatalogPanel({query,onActivate}:{
- query:string;onActivate:()=>void;
+export function MainstreamCatalogPanel({query='',standalone=false,onActivate}:{
+ query?:string;standalone?:boolean;onActivate:()=>void;
 }){
+ const [typed,setTyped]=useState('');
  const [tracks,setTracks]=useState<MainstreamTrack[]>([]);
  const [active,setActive]=useState<MainstreamTrack|null>(null);
  const [loading,setLoading]=useState(false);
@@ -18,7 +19,7 @@ export function MainstreamCatalogPanel({query,onActivate}:{
  const [showVariants,setShowVariants]=useState(false);
  const [searched,setSearched]=useState(false);
  const playerRef=useRef<HTMLDivElement>(null);
- const text=query.trim();
+ const text=(standalone?typed:query).trim();
  useEffect(()=>{
   const abort=new AbortController();
   setTracks([]);setError('');setLoading(false);setSearched(false);setActive(null);setShowVariants(false);
@@ -58,6 +59,7 @@ export function MainstreamCatalogPanel({query,onActivate}:{
   <div className="section-heading"><div><h2><Disc3 size={19} aria-hidden="true"/> Catálogo de artistas y grabaciones</h2>
    <p className="search-section-note">Deezer · versiones de estudio primero, remixes separados</p></div></div>
   <p className="page-description">Busca lanzamientos de artistas conocidos, no solo música independiente. La disponibilidad depende de Deezer. El reproductor oficial puede limitar la escucha a una muestra.</p>
+  {standalone&&<div className="explore-form glass" role="search"><label className="sr-only" htmlFor="studio-discovery-query">Buscar canción o artista comercial</label><input id="studio-discovery-query" value={typed} maxLength={100} onChange={event=>setTyped(event.target.value)} placeholder="Canción original o artista" /></div>}
   {loading&&<p className="disclosure" role="status">Buscando canciones y artistas en Deezer…</p>}
   {error&&<p className="search-source-hint" role="alert">{error}</p>}
   {searched&&!loading&&!error&&tracks.length===0&&<p className="empty-note">No encontramos grabaciones en Deezer con ese nombre. Prueba agregar el artista.</p>}
