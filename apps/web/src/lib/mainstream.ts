@@ -12,7 +12,8 @@ export function parseMainstreamResults(data:unknown):MainstreamTrack[]{
  const seen=new Set<string>();
  return source.items.slice(0,16).flatMap((entry):MainstreamTrack[]=>{
   const item=asRecord(entry);
-  const id=item?.id;
+  if(!item)return [];
+  const id=item.id;
   if(typeof id!=='string'||!(/^[1-9][0-9]{0,17}$/).test(id)||seen.has(id))return [];
   if(typeof item.title!=='string'||typeof item.artist!=='string')return [];
   seen.add(id);
