@@ -41,7 +41,7 @@ export function normalizeMainstream(payload:unknown,query:string):MainstreamTrac
  const data=row(payload)?.data;
  if(!Array.isArray(data))return [];
  const seen=new Set<string>();
- return data.slice(0,40).flatMap((value):MainstreamTrack[]=>{
+ const ordered=data.slice(0,40).flatMap((value):MainstreamTrack[]=>{
   const r=row(value);
   const id=r?.id;
   if((typeof id!=='number'&&!/^[1-9]\d*$/.test(String(id??'')))||!Number.isSafeInteger(Number(id))||Number(id)<=0)return [];
