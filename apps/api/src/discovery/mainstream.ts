@@ -23,7 +23,7 @@ function artwork(value:unknown):string|null{
    (['e-cdns-images.dzcdn.net','cdns-images.dzcdn.net','cdn-images.dzcdn.net'].includes(url.hostname))?url.href:null;
  }catch{return null;}
 }
-const VARIANT=/\b(remix|cover|karaoke|tribute|instrumental|live|slowed|sped.?up|nightcore|reverb|dj edit|bootleg|mashup|acoustic version|8d audio|reaction)\b/i;
+const VARIANT=/\b(remix|cover|karaoke|tribute|instrumental|live|slowed|sped.?up|nightcore|reverb|dj edit|bootleg|mashup|acoustic version|8d audio|reaction|original(?:ly)? by|piano version)\b/i;
 function normalized(value:string):string{
  return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 }
@@ -58,9 +58,24 @@ export function normalizeMainstream(payload:unknown,query:string):MainstreamTrac
    durationSeconds:Number.isFinite(duration)&&duration>=0&&duration<100000?Math.round(duration):null,
    sourceUrl:'https://www.deezer.com/track/'+key,
    rank:typeof r.rank==='number'&&Number.isFinite(r.rank)?r.rank:0,
-   isVariant:VARIANT.test(title)&&!VARIANT.test(query),
+   isVariant:(VARIANT.test(title)||VARIANT.test(artistName)||VARIANT.test(short(album.title,'')))&&!VARIANT.test(query),
   }];
  }).sort((a,b)=>rankSong(b,query)-rankSong(a,query)).slice(0,16);
+ // If the search clearly targets one recording (artist + title, or an
+ // unambiguous popular title), prefer that credited artist. Metadata cannot
+ // certify recording rights, so alternatives remain accessible in a
+ // separate variants tab instead of disappearing from search.
+ const anchor=ordered.find(item=>!item.isVariant&&item.rank>=300000);
+ const q=normalized(query);
+ const sameArtist=anchor?normalized(anchor.artist):'';
+ const songTitle=anchor?normalized(anchor.title):'';
+ const both=q.includes(sameArtist)&&q.includes(songTitle)&&sameArtist.length>=4&&songTitle.length>=4;
+ const titleOnly=q===songTitle&&songTitle.length>=8&&anchor!==undefined&&anchor.rank>=700000;
+ const enforce=anchor!==undefined&&!VARIANT.test(query)&&(both||titleOnly);
+ return ordered.map(item=>({
+  ...item,
+  isVariant:item.isVariant||(enforce&&normalized(item.artist)!==sameArtist),
+ }));
 }
 export async function searchMainstream(query:string,fetchImpl:JsonFetch=fetch):Promise<MainstreamTrack[]>{
  if(query.length<2||query.length>100)throw Error('invalid_query');
