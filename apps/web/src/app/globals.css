@@ -626,3 +626,17 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .mainstream-row .track-descriptor{flex:1 1 calc(100% - 65px)}
  .mainstream-row .button{flex:1;justify-content:center;min-height:42px}
 }
+
+
+/* Full-track choices must never disguise a 30-second preview as complete audio. */
+.mainstream-full-player{margin-top:18px;min-width:0}
+.mainstream-full-player .mainstream-official-search{display:inline-flex;align-items:center;gap:8px;text-decoration:none;min-height:44px}
+.mainstream-full-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:15px 0;min-width:0}
+.mainstream-full-form input{flex:1 1 240px;min-width:180px}
+.mainstream-video{display:block;min-height:230px;aspect-ratio:16/9;max-height:460px}
+.mainstream-row .button.primary{flex-shrink:0}
+@media(max-width:650px){
+ .mainstream-full-form input{flex-basis:100%}
+ .mainstream-full-form .button{width:100%}
+ .mainstream-official-search{width:100%;justify-content:center}
+}
