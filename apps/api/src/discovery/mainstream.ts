@@ -33,7 +33,7 @@ function rankSong(item:MainstreamTrack,query:string):number {
  const combined=title+' '+artist;
  const hits=q.filter(word=>combined.includes(word)).length;
  const exact=normalized(item.title)===normalized(query)?6:0;
- const variantPenalty=item.isVariant&&!VARIANT.test(query)?15:0;
+ const variantPenalty=item.isVariant&&!VARIANT.test(query)?(/\b(karaoke|tribute|nightcore|instrumental)\b/i.test(item.title)?25:15):0;
  // Deezer's popularity rank is an ordering hint, not a license verification.
  return hits*12+exact+Math.min(item.rank/100000,6)-variantPenalty;
 }
