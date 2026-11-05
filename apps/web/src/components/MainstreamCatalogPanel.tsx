@@ -86,7 +86,7 @@ export function MainstreamCatalogPanel({query='',standalone=false,onActivate}:{
  return <section className="content-section mainstream-catalog" aria-label="Grabaciones de artistas populares">
   <div className="section-heading"><div><h2><Disc3 size={19} aria-hidden="true"/> Grabaciones de artistas</h2>
    <p className="search-section-note">Deezer identifica canciones y álbumes; no proporciona audio completo a NÉBULA</p></div></div>
-  <p className="page-description">Encuentra la versión original y el artista correcto. Para escucharla entera usa un video oficial permitido, un reproductor con acceso propio o un archivo de tu biblioteca. La escucha de Deezer aquí es solo una muestra de 30 segundos.</p>
+  <p className="page-description">Identifica la grabación original y el artista. Las muestras de Deezer duran 30 segundos; para otras opciones de escucha abre la canción.</p>
   {standalone&&<div className="explore-form glass" role="search"><label className="sr-only" htmlFor="studio-discovery-query">Buscar canción o artista comercial</label><input id="studio-discovery-query" value={typed} maxLength={100} onChange={event=>setTyped(event.target.value)} placeholder="Canción original o artista" /></div>}
   {loading&&<p className="disclosure" role="status">Buscando canciones y artistas en Deezer…</p>}
   {error&&<p className="search-source-hint" role="alert">{error}</p>}
@@ -98,7 +98,7 @@ export function MainstreamCatalogPanel({query='',standalone=false,onActivate}:{
   {visible.length>0&&<div className="track-list glass">{visible.map(track=><div key={track.id} className="track-row mainstream-row">
    {track.cover?<img src={track.cover} alt="" width={48} height={48} loading="lazy" className="mainstream-cover"/>:<div className="mainstream-cover mainstream-placeholder" aria-hidden="true"><Disc3 size={20}/></div>}
    <span className="track-descriptor"><strong>{track.title}</strong><small>{track.artist} · {track.album}</small></span>
-   <button type="button" className="button primary small" onClick={()=>chooseFull(track)} aria-label={'Opciones para escuchar completa: '+track.title}><Headphones size={15}/> Canción completa</button>
+   <button type="button" className="button primary small" onClick={()=>chooseFull(track)} aria-label={'Opciones para escuchar '+track.title}><Headphones size={15}/> Cómo escuchar</button>
    <button type="button" className="button secondary small" onClick={()=>showPreview(track)} aria-label={'Muestra de 30 segundos: '+track.title}>Muestra 30 s</button>
   </div>)}</div>}
   {(first||searched)&&<div className="mainstream-alternatives"><span>Más opciones</span>
