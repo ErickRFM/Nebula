@@ -261,11 +261,19 @@ test('private rooms can be created, joined and closed across two accounts', asyn
 
   await signIn(page, hostEmail);
   await page.getByLabel('Nombre').fill('Sala E2E privada');
+  const clockProbe = page.waitForResponse(response => response.url().includes('/v1/rooms/clock') && response.status() === 200);
   await page.getByRole('button', { name: 'Crear sala', exact: true }).click();
+  const clock = await clockProbe;
+  expect(clock.headers()['cache-control']).toContain('no-store');
+  expect(clock.headers()['pragma']).toBe('no-cache');
   const codeElement = page.locator('.room-hero code');
   await expect(codeElement).toBeVisible();
   const code = (await codeElement.textContent())?.trim() ?? '';
   expect(code.length).toBeGreaterThan(20);
+  // New hosts must have a visible path from the room to an authorized cloud track.
+  await expect(page.getByText('No tienes canciones cloud listas para compartir.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ir a Biblioteca y subir música' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Compartir y empezar' })).toBeDisabled();
 
   const guestContext = await browser.newContext();
   try {
