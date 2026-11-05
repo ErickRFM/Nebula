@@ -16,6 +16,14 @@ describe('safe database failure diagnostics', () => {
     expect(classifyDatabaseFailure({ code: 'XX000', message: 'Circuit breaker open' }))
       .toEqual({ category: 'pooler_capacity', code: 'XX000' });
   });
+  it('finds nested Drizzle/Postgres failures without leaking SQL or secrets',()=>{
+    const wrapped=new Error('Failed query with a sensitive database URL');
+    (wrapped as Error & {cause?:unknown}).cause={code:'XX000',message:'Tenant or user not found: secret connection'};
+    expect(classifyDatabaseFailure(wrapped)).toEqual({category:'pooler_configuration',code:'XX000'});
+    const loop=new Error('cycle');
+    (loop as Error & {cause?:unknown}).cause=loop;
+    expect(classifyDatabaseFailure(loop)).toEqual({category:'unknown',code:'unknown'});
+  });
   it('describes connection shape without returning credentials or hostname', () => {
     const shape = describeDatabaseConnectionShape('postgresql://postgres.project:password123@aws-1-us-west-2.pooler.supabase.com:5432/postgres');
     expect(shape).toEqual({ valid: true, kind: 'pooler', poolerUsername: true, port: 5432 });

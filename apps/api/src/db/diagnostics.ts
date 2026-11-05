@@ -2,6 +2,21 @@ type DatabaseFailure = { category: 'credentials' | 'network' | 'timeout' | 'tls'
 
 /** Safe for production logs: never include a driver message, URI, host or credentials. */
 export function classifyDatabaseFailure(cause: unknown): DatabaseFailure {
+  // Drizzle wraps PostgreSQL driver failures in an Error.cause. Recursively
+  // inspect the bounded causal chain, returning codes only, never messages.
+  const seen = new Set<object>();
+  let current = cause;
+  for (let depth=0;depth<4;depth++) {
+    if(!current || typeof current!=='object' || seen.has(current))break;
+    seen.add(current);
+    const result=classifySingleFailure(current);
+    if(result.category!=='unknown')return result;
+    current='cause' in current ? (current as {cause?:unknown}).cause : null;
+  }
+  return {category:'unknown',code:'unknown'};
+}
+
+function classifySingleFailure(cause: unknown): DatabaseFailure {
   const raw = cause && typeof cause === 'object' && 'code' in cause ? (cause as { code?: unknown }).code : undefined;
   const code = typeof raw === 'string' && /^[A-Z0-9]{3,12}$/.test(raw) ? raw : 'unknown';
   if (code === '28P01' || code === '28000') return { category: 'credentials', code };

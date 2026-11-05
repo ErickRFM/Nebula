@@ -2,11 +2,12 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import type {AccountApi} from '../hooks/useAccount';
 import {parseExternalEmbed,type ExternalEmbed} from '../lib/external-embeds';
+import {YouTubePlaylistBrowser} from './YouTubePlaylistBrowser';
 type Video={videoId:string;title:string;artist:string;thumbnail:string|null;sourceUrl:string};
 const base=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'')??'';
 const configured=Boolean(base)||process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API==='true';
-export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=false}:{
- account:AccountApi;onActivate:()=>void;initialQuery?:string;embedded?:boolean;
+export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuery,embedded=false}:{
+ account:AccountApi;onActivate:()=>void;onImportMp3:(files:File[])=>void;initialQuery?:string;embedded?:boolean;
 }){
  const [link,setLink]=useState('');
  const [active,setActive]=useState<ExternalEmbed|null>(null);
@@ -101,10 +102,12 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
    </div>)}</div>}
    {active&&<div ref={playerRef} className="bridge-player glass" role="region" aria-label="Reproductor externo activo">
      <div className="section-heading"><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer'}</h2><button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button></div>
-     <iframe key={active.src} className="bridge-iframe" src={active.src}
+     {active.provider==='youtube'&&active.collection
+      ? <YouTubePlaylistBrowser key={active.src} media={active} onImport={onImportMp3}/>
+      : <iframe key={active.src} className="bridge-iframe" src={active.src}
        title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer')}
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
-       allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>
+       allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>}
      {active.collection&&<div className="search-source-hint" role="status"><strong>{active.collection.kind==='mix'?'Mix / radio dinámica de YouTube':'Playlist de YouTube'}</strong><p>{active.collection.kind==='mix'?'La radio RD es dinámica: aquí suena el video inicial. El enlace original conserva la mezcla para seguir en YouTube. No es una lista fija.':'Playlist incrustada con los controles oficiales. La disponibilidad de cada video depende de YouTube.'}</p></div>}
      <p className="disclosure">Pulsa reproducir dentro del reproductor oficial. Este contenido no usa el mini-reproductor de audio de NÉBULA.</p>
      <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir contenido en su plataforma</a>

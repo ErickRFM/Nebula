@@ -66,7 +66,7 @@ test('YouTube playlist and RD Mix retain the list identity',async({page})=>{
  await field.fill('https://www.youtube.com/playlist?list=PL1234567890ABCDEFGHIJKL');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await expect(bridges.getByTitle('Reproductor oficial de YouTube')).toHaveAttribute('src',
-  'https://www.youtube-nocookie.com/embed?listType=playlist&list=PL1234567890ABCDEFGHIJKL');
+  /youtube-nocookie\.com\/embed\?listType=playlist&list=PL1234567890ABCDEFGHIJKL&enablejsapi=1/);
  await expect(bridges.getByText('Playlist de YouTube',{exact:true})).toBeVisible();
  await bridges.getByRole('button',{name:'Cerrar reproductor'}).click();
  await field.fill('https://www.youtube.com/watch?v=M-E8rmhUxyw&list=RDM-E8rmhUxyw');
@@ -74,4 +74,39 @@ test('YouTube playlist and RD Mix retain the list identity',async({page})=>{
  await expect(bridges.getByText('Mix / radio dinámica de YouTube')).toBeVisible();
  await expect(bridges.getByText('No es una lista fija',{exact:false})).toBeVisible();
  await expect(bridges.getByRole('link',{name:'Abrir contenido en su plataforma'})).toHaveAttribute('href',/list=RDM-E8rmhUxyw/);
+});
+
+test('official YouTube IFrame API shows songs, current playback and per-song MP3 controls',async({page})=>{
+ const fixture=[
+   "window.YT={Player:function(frame,opts){",
+   "const api={getPlaylist:()=>['ABCDEFGHIJK','dQw4w9WgXcQ','M-E8rmhUxyw'],",
+   "getPlaylistIndex:()=>0,getVideoData:()=>({video_id:'ABCDEFGHIJK',title:'Primera canción',author:'Artista'}),",
+   "playVideoAt:(i)=>{window.__played_index=i},destroy:()=>{}};",
+   "setTimeout(()=>opts.events.onReady({target:api}),20);return api;}};",
+   "window.onYouTubeIframeAPIReady?.();",
+ ].join('');
+ await page.route('https://www.youtube.com/iframe_api',route=>route.fulfill({status:200,contentType:'text/javascript',body:fixture}));
+ await page.route('https://www.youtube-nocookie.com/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Fixture</title>'}));
+ await page.route('**/v1/discovery/youtube/video-metadata?*',route=>route.fulfill({
+   status:200,contentType:'application/json',
+   body:JSON.stringify({items:[
+    {videoId:'ABCDEFGHIJK',title:'Primera canción',artist:'Artista'},
+    {videoId:'dQw4w9WgXcQ',title:'Segunda canción',artist:'Artista'},
+    {videoId:'M-E8rmhUxyw',title:'Tercera canción',artist:'Artista'},
+   ]}),
+ }));
+ await page.goto('/');await navigateToSearch(page);
+ const bridges=page.locator('.search-page > .external-bridges');
+ await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'})
+  .fill('https://www.youtube.com/playlist?list=PL1234567890ABCDEFGHIJKL');
+ await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
+ const tracks=bridges.getByRole('region',{name:'Canciones de la lista de YouTube'});
+ await expect(tracks.getByText('3 videos disponibles',{exact:false})).toBeVisible({timeout:15000});
+ await expect(tracks.getByText('Segunda canción')).toBeVisible();
+ const second=tracks.locator('.yt-collection-item').nth(1);
+ await second.getByRole('button',{name:'Escuchar'}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as Window & {__played_index?:number}).__played_index)).toBe(1);
+ await second.getByRole('button',{name:'Añadir MP3'}).click();
+ await expect(second.getByRole('textbox',{name:'Enlace directo a MP3 autorizado'})).toBeVisible();
+ await expect(second.getByRole('button',{name:'Descargar y añadir a Biblioteca'})).toBeDisabled();
 });
