@@ -158,7 +158,7 @@ test('private explorer saves a real provider reference, not an audio file',async
   await expect(page.getByRole('button',{name:'Guardada'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Mi colección externa'})).toBeVisible();
   await expect(page.locator('.content-section').filter({hasText:'Mi colección externa'}).getByText('Noche de prueba')).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('Referencia guardada');
+  await expect(page.locator('.explore-notice[role="status"]')).toContainText('Referencia guardada');
 });
 
 test('MusicBrainz lookup displays reviewed matches without importing audio',async({page})=>{
