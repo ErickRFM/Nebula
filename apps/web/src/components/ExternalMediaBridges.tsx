@@ -79,9 +79,10 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
      <label htmlFor="external-embed-link" className="sr-only">Enlace de YouTube, SoundCloud, Spotify o Deezer</label>
      <input id="external-embed-link" type="url" value={link} onChange={event=>setLink(event.target.value)}
        placeholder="https://open.spotify.com/track/… o https://youtu.be/…" required/>
-     <button className="button primary small" type="submit" disabled={!link.trim()}>Abrir reproductor</button>
+     <button className="button primary small" type="submit">Abrir reproductor</button>
    </form>
-   {embedded&&incomingLink&&<div className="search-source-hint"><span>{incomingLink.collection?(incomingLink.collection.kind==='mix'?'Mezcla automática de YouTube reconocida.':'Playlist de YouTube reconocida.'):'Enlace de '+(incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Deezer')+' reconocido.'} </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>{incomingLink.collection?'Reproducir esta lista':'Reproducir este enlace'}</button></div>}
+   <p className="input-hint">Introduce un enlace HTTPS compatible para abrir el reproductor oficial. Si falta o no es válido, te indicaremos cómo corregirlo.</p>
+    {embedded&&incomingLink&&<div className="search-source-hint"><span>{incomingLink.collection?(incomingLink.collection.kind==='mix'?'Mezcla automática de YouTube reconocida.':'Playlist de YouTube reconocida.'):'Enlace de '+(incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Deezer')+' reconocido.'} </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>{incomingLink.collection?'Reproducir esta lista':'Reproducir este enlace'}</button></div>}
    {!embedded&&account.accessToken&&youtubeReady ? <form className="playlist-create glass" onSubmit={event=>{void searchYoutube(event);}}>
      <label htmlFor="youtube-search" className="sr-only">Buscar videos musicales en YouTube</label>
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
