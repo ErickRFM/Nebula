@@ -74,13 +74,14 @@ test('external YouTube player keeps platform identity and action outside the loc
  if(await desktopSearch.isVisible()) await desktopSearch.click();
  else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Buscar',exact:true}).click();
  const bridges=page.locator('.search-page > .external-bridges');
- const input=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'});
+ const input=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'});
  await input.fill('https://www.youtube.com/watch?v=M-E8rmhUxyw');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  const region=bridges.getByRole('region',{name:'Reproductor externo activo'});
  await expect(region.locator('.official-source-label')).toHaveText('FUENTE OFICIAL');
  await expect(region.getByRole('heading',{name:'YouTube'})).toBeVisible();
- await expect(region.getByRole('link',{name:'Abrir en la plataforma original'})).toHaveAttribute('href',/youtube.com/);
+ await expect(region.getByRole('link',{name:'Abrir en la plataforma original'})).toHaveCount(0);
+ await expect(region.getByRole('button',{name:'Importar o convertir audio propio'})).toBeVisible();
  await region.getByRole('button',{name:'Cerrar reproductor'}).click();
  await expect(region).toHaveCount(0);
 });
