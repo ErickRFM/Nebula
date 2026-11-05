@@ -19,7 +19,9 @@ test('tickets are authenticated, non-predictable and expire',()=>{
  assert.notEqual(a,b);
  assert.equal(verifyTicket(a,SECRET,1001),'abcdefghijk');
  assert.equal(verifyTicket(a,SECRET,121001),null);
- assert.equal(verifyTicket(a.slice(0,-1)+'A',SECRET,1001),null);
+ const [payload,signature]=a.split('.');
+ const changed=(signature[0]==='A'?'B':'A')+signature.slice(1);
+ assert.equal(verifyTicket(payload+'.'+changed,SECRET,1001),null);
  assert.equal(verifyTicket(a,'z'.repeat(64),1001),null);
 });
 test('only exact origins are allowed',()=>{
