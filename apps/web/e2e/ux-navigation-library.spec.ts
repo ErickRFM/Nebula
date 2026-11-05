@@ -25,3 +25,13 @@ test('library leads with music and keeps file utilities discoverable on demand',
  await expect(management.getByRole('heading',{name:'Convertir audio a MP3'})).toBeVisible();
  await expect(management.getByRole('region',{name:'Respaldo musical en ZIP'})).toBeVisible();
 });
+
+test('home shows a real library continuation, never a fake demo queue',async({page})=>{
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Encuentra tu próxima canción.'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Buscar música'})).toBeVisible();
+ await page.getByRole('navigation',{name:'Navegación principal'})
+  .getByRole('button',{name:'Buscar',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'¿Qué quieres escuchar?'})).toBeVisible();
+ await expect(page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'})).toBeFocused();
+});
