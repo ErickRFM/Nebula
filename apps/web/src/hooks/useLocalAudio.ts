@@ -53,6 +53,8 @@ export function useLocalAudio(): Player {
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(0.85);
+  const volumeRef=useRef(0.85);
+  const volumeRampRef=useRef<number|null>(null);
   const [notice, setNotice] = useState('');
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
@@ -97,6 +99,7 @@ export function useLocalAudio(): Player {
       const storedVolume = Number(localStorage.getItem('nebula:volume:v1'));
       if (Number.isFinite(storedVolume) && localStorage.getItem('nebula:volume:v1') !== null) {
         const nextVolume = Math.min(1, Math.max(0, storedVolume));
+        volumeRef.current=nextVolume;
         setVolumeState(nextVolume);
         if (localAudioRef.current) localAudioRef.current.volume = nextVolume;
         if (externalAudioRef.current) externalAudioRef.current.volume = nextVolume;
@@ -180,7 +183,22 @@ export function useLocalAudio(): Player {
     const onDuration = () => { if(isActive())setDuration(Number.isFinite(audio.duration) ? audio.duration : 0); };
     const onPlay = () => { if(!isActive())return; setState('playing'); setNotice(clearTransientPlaybackNotice); };
     const onPause = () => {if(!isActive())return;persist();setState((old) => old === 'ended' || old === 'error' ? old : 'paused');};
-    const onPlaying = () => {if(!isActive())return; setState('playing'); setNotice(clearTransientPlaybackNotice); };
+    const onPlaying = () => {
+      if(!isActive())return;
+      setState('playing');setNotice(clearTransientPlaybackNotice);
+      // Short ramp at the moment samples actually start prevents hard-start clicks
+      // on slow-loading MP3s, remote media and resumed playback.
+      if(volumeRampRef.current!==null)cancelAnimationFrame(volumeRampRef.current);
+      audio.volume=0;
+      const begun=performance.now();
+      const ramp=(now:number)=>{
+        if(audioRef.current!==audio)return;
+        const progress=Math.min(1,Math.max(0,(now-begun)/90));
+        audio.volume=volumeRef.current*progress;
+        volumeRampRef.current=progress<1?requestAnimationFrame(ramp):null;
+      };
+      volumeRampRef.current=requestAnimationFrame(ramp);
+    };
     const onWaiting = () => {
       if(!isActive())return;
       setState('buffering');
@@ -222,6 +240,8 @@ export function useLocalAudio(): Player {
     attachListeners(externalAudio);
     return () => {
       if(signedTimerRef.current)clearTimeout(signedTimerRef.current);
+      if(volumeRampRef.current!==null)cancelAnimationFrame(volumeRampRef.current);
+      volumeRampRef.current=null;
       signedRenewRef.current=null;
       for(const element of [audio,externalAudio]){
         element.pause();
@@ -347,6 +367,8 @@ export function useLocalAudio(): Player {
     const audio=isLocal?localAudioRef.current:externalAudioRef.current;
     if(!audio)return;
     if(audioRef.current!==audio){
+      if(volumeRampRef.current!==null)cancelAnimationFrame(volumeRampRef.current);
+      volumeRampRef.current=null;
       const oldAudio=audioRef.current;
       audioRef.current=audio;
       if(oldAudio){
@@ -377,6 +399,7 @@ export function useLocalAudio(): Player {
     setDuration(0);
     setState('loading');
     audio.pause();
+    audio.volume=0;
     audio.src = track.audioUrl;
     audio.load();
     void audio.play().catch((error: unknown) => {
@@ -530,6 +553,7 @@ export function useLocalAudio(): Player {
 
   const setVolume = useCallback((value: number) => {
     const nextValue = Math.min(1,Math.max(0,value));
+    volumeRef.current=nextValue;
     setVolumeState(nextValue);
     if (localAudioRef.current) localAudioRef.current.volume = nextValue;
     if (externalAudioRef.current) externalAudioRef.current.volume = nextValue;
