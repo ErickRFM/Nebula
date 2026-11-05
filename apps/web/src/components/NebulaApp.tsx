@@ -87,7 +87,7 @@ function MiniPlayer({player,onExpand}: {player: PlayerApi; onExpand: () => void}
     <button className="mini-track" type="button" onClick={onExpand}>
       <TrackCover track={current} className="mini-cover"/><span><strong>{current.title}</strong><small>{player.state==='loading'||player.state==='buffering'?'Cargando audio…':player.state==='error'?'Audio no disponible':current.artist}</small></span>
     </button>
-    <button type="button" className="icon-button mini-heart" aria-label="Favorito" onClick={() => player.toggleFavorite(current.id)}><Heart size={18} fill={player.favorites.includes(current.id) ? 'currentColor' : 'none'}/></button>
+    <button type="button" className="icon-button mini-heart" aria-label={player.favorites.includes(current.id)?'Quitar de favoritos':'Añadir a favoritos'} aria-pressed={player.favorites.includes(current.id)} onClick={() => player.toggleFavorite(current.id)}><Heart size={18} fill={player.favorites.includes(current.id) ? 'currentColor' : 'none'}/></button>
     <div className="mini-controls">
       <button aria-label="Anterior" className="icon-button" onClick={player.previous} type="button"><SkipBack size={19}/></button>
       <button aria-label={player.state === 'playing' ? 'Pausar' : 'Reproducir'} className="mini-play" onClick={player.toggle} type="button">{player.state === 'playing' ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}</button>
@@ -109,7 +109,7 @@ function FullPlayer({player,onBack}: {player: PlayerApi; onBack: () => void}) {
       <div className="player-art"><Cover source={current?.cover ?? artwork[0]} alt={current ? 'Portada del álbum ' + current.album : 'Arte visual NÉBULA'} className="player-cover"/></div>
       <div className="player-detail">
         <Tag>AHORA SUENA EN TU ESPACIO</Tag>
-        <div className="player-title"><div><h1>{current?.title ?? 'Tu próximo descubrimiento'}</h1><p>{current?.artist ?? 'Importa música para comenzar'}</p></div>{current && <button type="button" aria-label="Favorito" className="icon-button heart-button" onClick={() => player.toggleFavorite(current.id)}><Heart size={24} fill={player.favorites.includes(current.id) ? 'currentColor' : 'none'}/></button>}</div>
+        <div className="player-title"><div><h1>{current?.title ?? 'Tu próximo descubrimiento'}</h1><p>{current?.artist ?? 'Importa música para comenzar'}</p></div>{current && <button type="button" aria-label={player.favorites.includes(current.id)?'Quitar de favoritos':'Añadir a favoritos'} aria-pressed={player.favorites.includes(current.id)} className="icon-button heart-button" onClick={() => player.toggleFavorite(current.id)}><Heart size={24} fill={player.favorites.includes(current.id) ? 'currentColor' : 'none'}/></button>}</div>
         <label className="sr-only" htmlFor="playback-seek">Posición de reproducción</label>
         <input id="playback-seek" className="seek-range" type="range" min="0" max={player.duration || 1} step=".1" value={Math.min(player.time, player.duration || 1)} onChange={(e)=>player.seek(Number(e.target.value))} disabled={!current}/>
         <div className="timestamps"><span>{formatTime(player.time)}</span><span>{formatTime(player.duration)}</span></div>
@@ -144,6 +144,8 @@ export function NebulaApp() {
   const [activePlaylist, setActivePlaylist] = useState<string | null>(null);
   const [pendingPlaylistTrack, setPendingPlaylistTrack] = useState<string | null>(null);
   const playlistDialogRef = useRef<HTMLDialogElement>(null);
+  const mobileMenuRef = useRef<HTMLElement>(null);
+  const mobileMoreButtonRef = useRef<HTMLButtonElement>(null);
 
   const localCount = player.ownTracks.length;
   const personalAlbums = groupPlayableAlbums(player.ownTracks);
@@ -231,6 +233,25 @@ export function NebulaApp() {
   useEffect(() => {
     if(screen==='buscar')document.querySelector<HTMLInputElement>('.search-field input')?.focus();
   },[screen]);
+  useEffect(()=>{
+    if(!mobileMoreOpen)return;
+    const dismissOnEscape=(event:KeyboardEvent)=>{
+      if(event.key!=='Escape')return;
+      setMobileMoreOpen(false);
+      mobileMoreButtonRef.current?.focus();
+    };
+    const dismissOutside=(event:PointerEvent)=>{
+      if(!(event.target instanceof Node))return;
+      if(mobileMenuRef.current?.contains(event.target) || mobileMoreButtonRef.current?.contains(event.target))return;
+      setMobileMoreOpen(false);
+    };
+    document.addEventListener('keydown',dismissOnEscape);
+    document.addEventListener('pointerdown',dismissOutside);
+    return()=>{
+      document.removeEventListener('keydown',dismissOnEscape);
+      document.removeEventListener('pointerdown',dismissOutside);
+    };
+  },[mobileMoreOpen]);
   function navigate(target: Screen) {
     if (target === 'reproductor' && screen !== 'reproductor') setPreviousScreen(screen);
     setScreen(target);
@@ -252,10 +273,10 @@ export function NebulaApp() {
         <div className="mobile-brand"><Brand/></div><div className="desktop-location"><span>{screen==='reproductor'?'Reproduciendo ahora':navigation.find(item=>item.id===screen)?.label??'NÉBULA Music'}</span></div>
         <div className="topbar-actions">
           <button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>
-          <button className="icon-button glass-chip mobile-only" title="Más secciones" aria-label="Más secciones" aria-expanded={mobileMoreOpen} type="button" onClick={()=>setMobileMoreOpen(open=>!open)}><MoreHorizontal size={19}/></button>
+          <button ref={mobileMoreButtonRef} className="icon-button glass-chip mobile-only" title="Más secciones" aria-label="Más secciones" aria-expanded={mobileMoreOpen} aria-controls="nebula-mobile-more-menu" type="button" onClick={()=>setMobileMoreOpen(open=>!open)}><MoreHorizontal size={19}/></button>
           <button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>
         </div>
-        {mobileMoreOpen && <nav className="mobile-more-menu" aria-label="Más secciones de NÉBULA">
+        {mobileMoreOpen && <nav ref={mobileMenuRef} id="nebula-mobile-more-menu" className="mobile-more-menu" aria-label="Más secciones de NÉBULA">
           {navigation.filter(item=>['explorar','playlists','ajustes','cuenta'].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
         </nav>}
       </header>
