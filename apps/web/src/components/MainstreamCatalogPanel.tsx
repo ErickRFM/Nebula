@@ -106,8 +106,8 @@ export function MainstreamCatalogPanel({query='',standalone=false,onActivate}:{
    <a href={officialMusicSearch('spotify',searchFallback)} target="_blank" rel="noopener noreferrer">Spotify</a>
    <a href={officialMusicSearch('apple',searchFallback)} target="_blank" rel="noopener noreferrer">Apple Music</a>
   </div>}
-  {selected&&<div ref={playerRef} className="bridge-player glass mainstream-full-player" role="region" aria-label={'Opciones de reproducción de '+selected.title}>
-   <div className="section-heading"><h2>{selected.title} — {selected.artist}</h2><button className="button secondary small" type="button" onClick={()=>{setSelected(null);setFullEmbed(null);}}>Cerrar</button></div>
+  {selected&&<div ref={playerRef} className="bridge-player glass mainstream-full-player official-player-surface" role="region" aria-label={'Opciones de reproducción de '+selected.title}>
+   <div className="section-heading official-player-header"><div className="official-player-identity"><span className="official-source-label">OPCIONES DE ESCUCHA</span><h2>{selected.title} — {selected.artist}</h2><small>Selecciona la fuente oficial que tengas disponible.</small></div><button className="button secondary small" type="button" onClick={()=>{setSelected(null);setFullEmbed(null);}}>Cerrar</button></div>
    <p className="page-description">Esta ficha no contiene el archivo de audio. Encuentra el video oficial de la canción en YouTube, copia su enlace y reprodúcelo aquí. El video debe permitir reproducción incrustada y su duración no está limitada por la muestra de Deezer.</p>
    <a className="button primary small mainstream-official-search" href={officialMusicSearch('youtube',selected)} target="_blank" rel="noopener noreferrer"><Search size={16}/> 1. Buscar video oficial de la canción</a>
    <form className="playlist-create glass mainstream-full-form" onSubmit={activateFull}>
@@ -126,8 +126,8 @@ export function MainstreamCatalogPanel({query='',standalone=false,onActivate}:{
     <a href={fullEmbed.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir en la plataforma original</a>
    </div>}
   </div>}
-  {preview&&officialDeezerEmbed(preview.id)&&<div ref={playerRef} className="bridge-player glass" role="region" aria-label="Muestra de 30 segundos de Deezer">
-   <div className="section-heading"><h2>Muestra de 30 s · {preview.title}</h2><button type="button" className="button secondary small" onClick={()=>setPreview(null)}>Cerrar</button></div>
+  {preview&&officialDeezerEmbed(preview.id)&&<div ref={playerRef} className="bridge-player glass official-player-surface" role="region" aria-label="Muestra de 30 segundos de Deezer">
+   <div className="section-heading official-player-header"><div className="official-player-identity"><span className="official-source-label">MUESTRA · DEEZER</span><h2>{preview.title}</h2><small>Fragmento de 30 segundos, no es la grabación completa.</small></div><button type="button" className="button secondary small" onClick={()=>setPreview(null)}>Cerrar</button></div>
    <iframe key={preview.id} className="bridge-iframe mainstream-iframe" src={officialDeezerEmbed(preview.id)!}
      title={'Muestra de '+preview.title+' en Deezer'} loading="eager" referrerPolicy="strict-origin-when-cross-origin"
      allow="autoplay; encrypted-media; clipboard-write"/>
