@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import {
   AudioLines, Bell, ChevronLeft, ChevronRight, CircleUserRound, CloudUpload,
   Compass, Disc3, Download, Headphones, Heart, Home, Library, ListMusic,
@@ -142,16 +142,36 @@ export function NebulaApp() {
   const [cloudPlaylistTitle, setCloudPlaylistTitle] = useState('');
   const [selectedAccountPlaylistId,setSelectedAccountPlaylistId]=useState<string|null>(null);
   const [activePlaylist, setActivePlaylist] = useState<string | null>(null);
+  const [pendingPlaylistTrack, setPendingPlaylistTrack] = useState<string | null>(null);
+  const playlistDialogRef = useRef<HTMLDialogElement>(null);
 
   const localCount = player.ownTracks.length;
   const personalAlbums = groupPlayableAlbums(player.ownTracks);
   const currentPlaylist = playlistStore.playlists.find((item)=>item.id === activePlaylist);
+  // Choosing a destination is deliberate: never silently add songs to the first list.
   function addToPlaylist(trackId: string) {
-    const target = currentPlaylist ?? playlistStore.playlists[0];
-    if (!target) { player.setNotice('Crea primero una playlist para añadir canciones.'); navigate('playlists'); return; }
-    playlistStore.addSong(target.id, trackId);
-    player.setNotice('Canción añadida a ' + target.title + '.');
+    if (!playlistStore.playlists.length) {
+      player.setNotice('Crea primero una playlist para añadir canciones.');
+      navigate('playlists');
+      return;
+    }
+    setPendingPlaylistTrack(trackId);
   }
+  function saveToPlaylist(id: string) {
+    const target = playlistStore.playlists.find(item=>item.id===id);
+    if (!target || !pendingPlaylistTrack) return;
+    if (!target.trackIds.includes(pendingPlaylistTrack)) {
+      playlistStore.addSong(target.id,pendingPlaylistTrack);
+      player.setNotice('Canción añadida a '+target.title+'.');
+    }
+    setPendingPlaylistTrack(null);
+  }
+  useEffect(()=>{
+    const dialog=playlistDialogRef.current;
+    if(!dialog) return;
+    if(pendingPlaylistTrack && !dialog.open) dialog.showModal();
+    if(!pendingPlaylistTrack && dialog.open) dialog.close();
+  },[pendingPlaylistTrack]);
   function deleteFromLibrary(trackId: string) {
     if (!window.confirm('¿Eliminar esta canción guardada de este navegador?')) return;
     void player.removeLocalTrack(trackId).then((deleted)=>{if(deleted) playlistStore.removeFromAll(trackId);});
@@ -361,6 +381,27 @@ export function NebulaApp() {
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
       <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>['inicio','buscar','biblioteca','salas'].includes(item.id)).map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
     </div>
+    <dialog ref={playlistDialogRef} className="playlist-picker-dialog" aria-label="Elegir playlist"
+      onClose={()=>setPendingPlaylistTrack(null)}>
+      <div className="playlist-picker-header">
+        <div><span className="eyebrow">TU COLECCIÓN</span><h2>Guardar en playlist</h2>
+          <p>Elige dónde guardar {player.tracks.find(track=>track.id===pendingPlaylistTrack)?.title??'esta canción'}.</p>
+        </div>
+        <button type="button" className="icon-button" aria-label="Cerrar selector de playlists" onClick={()=>setPendingPlaylistTrack(null)}><X size={20}/></button>
+      </div>
+      <div className="playlist-picker-options">
+        {playlistStore.playlists.map(list=>{
+          const alreadySaved=Boolean(pendingPlaylistTrack&&list.trackIds.includes(pendingPlaylistTrack));
+          return <button type="button" key={list.id} className="playlist-picker-option"
+            disabled={alreadySaved} onClick={()=>saveToPlaylist(list.id)}>
+            <span className="playlist-picker-icon"><ListMusic size={19}/></span>
+            <span className="playlist-picker-label"><strong>{list.title}</strong>
+              <small>{alreadySaved?'Ya está en esta playlist':list.trackIds.length+' canciones · Guardar aquí'}</small></span>
+            <ChevronRight size={18} aria-hidden="true"/>
+          </button>;
+        })}
+      </div>
+    </dialog>
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;
 }
