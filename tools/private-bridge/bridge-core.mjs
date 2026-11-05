@@ -121,7 +121,10 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
    }catch(e){reply(res,400,{error:e.message==='payload_too_large'?'payload_too_large':'invalid_json'});}
    return;
   }
-  if(req.method==='GET'&&url.pathname==='/stream'){
+  if(req.method==='GET'&&(url.pathname==='/stream'||url.pathname==='/download')){
+   // Download uses the same short-lived signed ticket as streaming; never accept raw URLs.
+   const downloading=url.pathname==='/download';
+   if(url.searchParams.size!==1||!url.searchParams.has('ticket')){reply(res,400,{error:'invalid_stream_params'});return;}
    const id=verifyTicket(url.searchParams.get('ticket'),secret,clock());
    if(!id){reply(res,401,{error:'expired_or_invalid_ticket'});return;}
    if(runner.enabled===false){reply(res,503,{error:'bridge_disabled'});return;}
@@ -148,6 +151,10 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
    res.on('close',release);
    res.setHeader('Content-Type','audio/mpeg');
    res.setHeader('Accept-Ranges','none');
+   if(downloading){
+    res.setHeader('Content-Disposition','attachment; filename="Nebula-'+id+'.mp3"');
+    res.setHeader('X-Nebula-Download','1');
+   }
    stream.output.pipe(res);
    return;
   }

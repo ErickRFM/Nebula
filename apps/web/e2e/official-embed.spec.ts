@@ -11,12 +11,18 @@ test('official YouTube embed works from a pasted HTTPS link without an API key',
  await page.goto('/');
  await navigateToSearch(page);
  const bridges=page.locator('.search-page > .external-bridges');
- await expect(bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'})).toBeVisible();
- await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'}).fill('https://music.youtube.com/watch?v=dQw4w9WgXcQ&feature=share');
+ await expect(bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'})).toBeVisible();
+ await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'}).fill('https://music.youtube.com/watch?v=dQw4w9WgXcQ&feature=share');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  const iframe=bridges.getByTitle('Reproductor oficial de YouTube');
  await expect(iframe).toHaveAttribute('src','https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
  await expect(bridges.getByText('Reproduce desde los controles de YouTube',{exact:false})).toBeVisible();
+ await bridges.getByRole('button',{name:'Importar o convertir audio propio'}).click();
+ await expect(page.getByRole('heading',{name:'Tu biblioteca'})).toBeVisible();
+ await expect(page.locator('details.library-management')).toHaveAttribute('open');
+ await navigateToSearch(page);
+ await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'}).fill('https://music.youtube.com/watch?v=dQw4w9WgXcQ&feature=share');
+ await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await bridges.getByRole('button',{name:'Cerrar reproductor'}).click();
  await expect(iframe).toHaveCount(0);
 });
@@ -35,34 +41,35 @@ test('rejects fake YouTube hosts without mounting an external player',async({pag
  await page.goto('/');
  await navigateToSearch(page);
  const bridges=page.locator('.search-page > .external-bridges');
- await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'}).fill('https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ');
+ await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'}).fill('https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await expect(bridges.getByRole('alert')).toContainText('enlace HTTPS válido');
  await expect(bridges.locator('iframe')).toHaveCount(0);
 });
 
 
-test('official Spotify and Deezer links mount safe in-page players',async({page})=>{
+test('Spotify embeds locally and Deezer previews are rejected',async({page})=>{
  await page.route('https://open.spotify.com/embed/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Fixture Spotify</title>'}));
  await page.route('https://widget.deezer.com/widget/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Fixture Deezer</title>'}));
  await page.goto('/');
  await navigateToSearch(page);
  const bridges=page.locator('.search-page > .external-bridges');
- const input=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'});
+ const input=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'});
  await input.fill('https://open.spotify.com/track/0123456789ABCDEFGHIJKL?si=share');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await expect(bridges.getByTitle('Reproductor oficial de Spotify')).toHaveAttribute('src','https://open.spotify.com/embed/track/0123456789ABCDEFGHIJKL');
  await bridges.getByRole('button',{name:'Cerrar reproductor'}).click();
  await input.fill('https://www.deezer.com/track/3135556');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
- await expect(bridges.getByTitle('Reproductor oficial de Deezer')).toHaveAttribute('src','https://widget.deezer.com/widget/dark/track/3135556');
+ await expect(bridges.getByRole('alert')).toContainText('NÉBULA no reproduce muestras de 30 segundos');
+ await expect(bridges.getByTitle('Reproductor oficial de Deezer')).toHaveCount(0);
 });
 
 test('YouTube playlist and RD Mix retain the list identity',async({page})=>{
  await page.route('https://www.youtube-nocookie.com/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Playlist fixture</title>'}));
  await page.goto('/');await navigateToSearch(page);
  const bridges=page.locator('.search-page > .external-bridges');
- const field=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'});
+ const field=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'});
  await field.fill('https://www.youtube.com/playlist?list=PL1234567890ABCDEFGHIJKL');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await expect(bridges.getByTitle('Reproductor oficial de YouTube')).toHaveAttribute('src',
@@ -73,7 +80,8 @@ test('YouTube playlist and RD Mix retain the list identity',async({page})=>{
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await expect(bridges.getByText('Mix / radio dinámica de YouTube')).toBeVisible();
  await expect(bridges.getByText('No es una lista fija',{exact:false})).toBeVisible();
- await expect(bridges.getByRole('link',{name:'Abrir en la plataforma original'})).toHaveAttribute('href',/list=RDM-E8rmhUxyw/);
+ await expect(bridges.getByRole('link',{name:'Abrir en la plataforma original'})).toHaveCount(0);
+ await expect(bridges.getByRole('button',{name:'Importar o convertir audio propio'})).toBeVisible();
 });
 
 test('official YouTube IFrame API shows songs, current playback and per-song MP3 controls',async({page})=>{
@@ -97,7 +105,7 @@ test('official YouTube IFrame API shows songs, current playback and per-song MP3
  }));
  await page.goto('/');await navigateToSearch(page);
  const bridges=page.locator('.search-page > .external-bridges');
- await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'})
+ await bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'})
   .fill('https://www.youtube.com/playlist?list=PL1234567890ABCDEFGHIJKL');
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  const tracks=bridges.getByRole('region',{name:'Canciones de la lista de YouTube'});
@@ -107,6 +115,7 @@ test('official YouTube IFrame API shows songs, current playback and per-song MP3
  await second.getByRole('button',{name:'Escuchar'}).click();
  await expect.poll(()=>page.evaluate(()=>(window as Window & {__played_index?:number}).__played_index)).toBe(1);
  await second.locator('.yt-track-more > summary').click();
+ await expect(second.getByRole('button',{name:'Descargar MP3 (puente local)'})).toBeVisible();
  await second.getByRole('button',{name:'Importar MP3 propio'}).click();
  await expect(second.getByRole('textbox',{name:'Enlace directo a MP3 autorizado'})).toBeVisible();
  await expect(second.getByRole('button',{name:'Descargar y añadir a Biblioteca'})).toBeDisabled();

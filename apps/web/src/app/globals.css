@@ -869,3 +869,12 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
   .playlist-picker-create-row>input,.playlist-picker-create-row>.button{flex:1 1 100%}
 }
 @media(prefers-reduced-motion:reduce){.genre-card{transition:none;transform:none!important}}
+
+/* Local audio controls: compact, accessible, and consistent with NÉBULA surfaces. */
+.audio-profile-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 0;border-top:1px solid var(--edge);font-size:.84rem}
+.audio-profile-row label{font-weight:700}
+.audio-profile-row small{width:100%;color:var(--muted)}
+.audio-profile-row select,.audio-setting-select{min-height:42px;max-width:100%;border:1px solid var(--edge);border-radius:12px;padding:9px 12px;background:#17182f;color:var(--ink);font:inherit}
+.audio-profile-row select:focus-visible,.audio-setting-select:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.audio-setting-select{flex:0 0 auto;max-width:175px}
+@media(max-width:560px){.audio-profile-row{align-items:stretch}.audio-profile-row select{flex:1 1 auto}.settings-panel .setting-row{flex-wrap:wrap}.audio-setting-select{width:100%;max-width:none}}

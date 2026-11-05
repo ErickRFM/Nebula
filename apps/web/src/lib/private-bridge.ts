@@ -1,10 +1,12 @@
 /**
  * A private stream is reachable ONLY from an explicit loopback origin.
- * The opt-in env flag is compiled at build time; production defaults to off.
- * Never allow arbitrary http URLs, host aliases, alternate ports or credentials.
+ * The MP3 bridge interface is available by default, but actual extraction requires
+ * the user to run and pair their own authenticated localhost service.
+ * Never allow arbitrary HTTP URLs, host aliases, alternate ports or credentials.
+ * Operators may explicitly disable this feature at build time.
  */
 export const BRIDGE_URL='http://127.0.0.1:4177';
-export const BRIDGE_ENABLED=process.env.NEXT_PUBLIC_ENABLE_PRIVATE_BRIDGE==='true';
+export const BRIDGE_ENABLED=process.env.NEXT_PUBLIC_ENABLE_PRIVATE_BRIDGE!=='false';
 const TICKET=/^[A-Za-z0-9_-]{20,300}\.[A-Za-z0-9_-]{30,80}$/;
 export function isPlayableExternalUrl(value:unknown,bridgeEnabled=BRIDGE_ENABLED):value is string {
  if(typeof value!=='string'||value.length>2048)return false;
