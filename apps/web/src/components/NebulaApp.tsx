@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   AudioLines, Bell, ChevronLeft, ChevronRight, CircleUserRound, CloudUpload,
   Compass, Disc3, Download, Headphones, Heart, Home, Library, ListMusic,
@@ -60,10 +60,17 @@ function SectionHeader({title, action, onAction}: {title: string; action?: strin
   return <div className="section-heading"><h2>{title}</h2>{action && <button className="text-action" type="button" onClick={onAction}>{action}<ChevronRight size={15}/></button>}</div>;
 }
 function UploadButton({ onFiles, small=false }: {onFiles: (files: FileList | null) => void; small?: boolean}) {
-  return <label className={small ? 'button primary small' : 'button primary'}>
-    <Plus size={16}/> Importar música
-    <input className="file-input" type="file" multiple accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.opus,.aac" onChange={(e: ChangeEvent<HTMLInputElement>) => { onFiles(e.target.files); e.target.value = ''; }} aria-label="Importar archivos de audio propios"/>
-  </label>;
+  const inputRef=useRef<HTMLInputElement>(null);
+  const helpId=useId();
+  return <span className="upload-control">
+    <button type="button" className={small ? 'button primary small' : 'button primary'}
+      aria-describedby={helpId} onClick={()=>inputRef.current?.click()}><Plus size={16}/> Importar música</button>
+    <input ref={inputRef} tabIndex={-1} className="file-input" type="file" multiple
+      accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.opus,.aac"
+      onChange={(e: ChangeEvent<HTMLInputElement>) => { onFiles(e.target.files); e.target.value = ''; }}
+      aria-label="Importar archivos de audio propios"/>
+    <span className="sr-only" id={helpId}>Abre el selector de archivos para añadir audio propio a esta biblioteca local. No se sube automáticamente a la nube.</span>
+  </span>;
 }
 function TrackRow({ track, player, index, onRemove, onAdd, onDownload }: { track: Track; player: PlayerApi; index?: number; onRemove?: (id: string) => void; onAdd?: (id: string) => void; onDownload?: (id: string) => void }) {
   const favorite = player.favorites.includes(track.id);
@@ -316,7 +323,7 @@ export function NebulaApp() {
       <main className={'main-area ' + (screen === 'reproductor' ? 'main-player' : '')}>
         {screen === 'inicio' && <>
           <section className="hero glass">
-            <div className="hero-copy"><Tag>✦ TU MÚSICA, TU UNIVERSO</Tag>
+            <div className="hero-copy"><Tag>TU MÚSICA, TU UNIVERSO</Tag>
               <h1>{player.current ? 'Tu música sigue ' : localCount ? 'Vuelve a lo que ' : 'Encuentra tu '}<em>{player.current?'contigo.':localCount?'te mueve.':'próxima canción.'}</em></h1>
               <p>{player.current ? 'Continúa escuchando '+player.current.title+' o descubre algo nuevo.' : localCount ? 'Escucha tu colección y descubre canciones sin perder tu lugar.' : 'Busca artistas y canciones, o añade tus propios archivos para escucharlos aquí.'}</p>
               <div className="hero-actions">
@@ -335,7 +342,7 @@ export function NebulaApp() {
             <SectionHeader title="De tu colección" action="Abrir biblioteca" onAction={()=>navigate('biblioteca')}/>
             <div className="album-grid">{personalAlbums.slice(0,4).map(album=><AlbumCard key={album.id} title={album.title} subtitle={album.artist+' · '+album.tracks.length+' canciones'} cover={album.cover} onClick={()=>player.playQueue(album.tracks)}/>)}</div>
           </section>}
-          <section className="content-section"><SectionHeader title="Escucha de nuevo" action="Ver toda mi música" onAction={()=>navigate('biblioteca')}/>
+          <section className="content-section"><SectionHeader title="Escucha de nuevo" action={player.ownTracks.length?'Ver toda mi música':undefined} onAction={()=>navigate('biblioteca')}/>
             {player.ownTracks.length ? <div className="track-list glass">{player.ownTracks.slice(0,6).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>)}</div>
               : <div className="music-empty glass"><span className="music-empty-icon"><Headphones size={25}/></span><div><strong>Tu biblioteca empieza aquí</strong><p>Importa un álbum o abre Buscar para descubrir música disponible.</p></div><button className="button secondary small" type="button" onClick={()=>navigate('biblioteca')}>Ir a biblioteca</button></div>}
           </section>
@@ -369,7 +376,7 @@ export function NebulaApp() {
           <ExternalMediaBridges account={account} initialQuery={search} embedded onImportMp3={player.importFiles} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
         </section>}
         {screen === 'biblioteca' && <>
-          <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>
+          <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar. Los archivos importados se guardan en este dispositivo.</p></div><UploadButton onFiles={player.importFiles} small/></div>
           <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length+account.accountFavorites.length} <span>guardadas</span></strong><small>Favoritos locales y de cuenta</small></div></div>
           <section className="content-section"><SectionHeader title="Colección musical" action="Playlists" onAction={()=>navigate('playlists')}/><div className="chip-row">{(['canciones','favoritos','albumes'] as const).map((item)=><button type="button" key={item} className={'chip ' + (libraryFilter === item ? 'active' : '')} onClick={()=>setLibraryFilter(item)}>{item === 'albumes' ? 'Álbumes' : item === 'favoritos' ? 'Favoritos' : 'Canciones'}</button>)}</div>{libraryFilter === 'albumes' ? (personalAlbums.length ? <div className="album-grid">{personalAlbums.map(album=><AlbumCard key={album.id} title={album.title} subtitle={album.artist+' · '+album.tracks.length+' canciones'} cover={album.cover} onClick={()=>player.playQueue(album.tracks)}/>)}</div> : <div className="music-empty glass"><Music2 size={25}/><span>Importa canciones con etiquetas de álbum para verlas agrupadas aquí.</span></div>) : <div className="track-list glass">{player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).length ? player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i} onAdd={addToPlaylist} onRemove={deleteFromLibrary} onDownload={(id)=>{void player.downloadLocalTrack(id);}}/>) : <p className="empty-note">{libraryFilter==='favoritos'?'Todavía no tienes favoritos locales.':'Todavía no hay canciones en este dispositivo. Puedes importar música arriba.'}</p>}</div>}</section>
           <CloudLibrary account={account} onPlay={player.playExternal}/>
