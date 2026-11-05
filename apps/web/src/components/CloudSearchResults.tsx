@@ -10,7 +10,7 @@ type CloudTrack={id:string;title:string;artist:string;album?:string;genre?:strin
 type SearchPage={items:CloudTrack[];nextCursor:string|null;hasMore:boolean};
 const PAGE_SIZE=25;
 
-/** Indexed on the server and scoped by the bearer principal; never download an entire library. */
+/** Indexed and paginated shared cloud catalog; no account sign-in needed. */
 export function CloudSearchResults({query,account,onAccount,onPlay}:{
   query:string;account:AccountApi;onAccount:()=>void;onPlay:(track:Track)=>void;
 }){
@@ -33,7 +33,7 @@ export function CloudSearchResults({query,account,onAccount,onPlay}:{
         if(!active)return;
         setItems(Array.isArray(data.items)?data.items:[]);setCursor(data.nextCursor);
       }).catch(cause=>{
-        if(active)setError(cause instanceof Error?cause.message:'No se pudo consultar tu música en la nube.');
+        if(active)setError(cause instanceof Error?cause.message:'No se pudo consultar el catálogo compartido.');
       }).finally(()=>{if(active)setLoading(false);});
     },320);
     return()=>{active=false;clearTimeout(timer);};
@@ -63,17 +63,17 @@ export function CloudSearchResults({query,account,onAccount,onPlay}:{
         genre:item.genre||'Mi música',cover:item.coverUrl||artwork[0],duration:'--:--',audioUrl:url.toString(),source:'external',
         signedAudioExpiresInSeconds:result.expiresInSeconds,
         renewAudioUrl:()=>account.cloudRequest<{url:string;expiresInSeconds:number}>('/v1/library/cloud/'+encodeURIComponent(item.id)+'/play')});
-    }catch(cause){setError(cause instanceof Error?cause.message:'No fue posible reproducir la canción privada.');}
+    }catch(cause){setError(cause instanceof Error?cause.message:'No fue posible reproducir la canción.');}
     finally{setPlayingId(null);}
   }
   if(query.trim().length<2)return null;
-  return <section className="content-section cloud-search" aria-label="Resultados de tu música en la nube">
-    <div className="section-heading"><div><h2><Cloud size={19}/> Tu música en la nube</h2><p className="search-section-note">Búsqueda privada con páginas de {PAGE_SIZE} pistas</p></div>
+  return <section className="content-section cloud-search" aria-label="Resultados del catálogo compartido">
+    <div className="section-heading"><div><h2><Cloud size={19}/> NÉBULA Cloud</h2><p className="search-section-note">Biblioteca compartida · {PAGE_SIZE} pistas por página</p></div>
       {account.user&&<button type="button" className="icon-button glass-chip" aria-label="Actualizar música en la nube" disabled={loading||moreBusy} onClick={()=>setReload(v=>v+1)}><RefreshCw size={17}/></button>}
     </div>
-    {!account.user?<div className="search-start glass"><span>Inicia sesión para buscar las canciones de tu R2 privado.</span><button type="button" className="button secondary small" onClick={onAccount}>Mi cuenta</button></div>:
+    {!account.user?<div className="search-start glass"><span>{account.restoring ? 'Conectando con la música compartida…' : 'No se pudo conectar con NÉBULA Cloud.'}</span><button type="button" className="button secondary small" onClick={onAccount}>Ver biblioteca</button></div>:
       loading?<div className="search-start glass" role="status">Buscando en tu nube…</div>:
-      items.length===0&&!error?<p className="empty-note glass">No encontramos pistas coincidentes en tu nube. Sube música desde Biblioteca.</p>:
+      items.length===0&&!error?<p className="empty-note glass">No encontramos canciones coincidentes en NÉBULA Cloud. Puedes subirlas desde Biblioteca.</p>:
       <div className="track-list glass">{items.map(item=><div className="track-row" key={item.id}>
         <PrivateCloudCover key={item.id} trackId={item.id} coverUrl={item.coverUrl} account={account} fallback={<span className="cloud-track-icon"><Cloud size={17}/></span>}/>
         <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · {item.album||'NÉBULA Cloud'}</small></span>

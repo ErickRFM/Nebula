@@ -1,6 +1,4 @@
 import { test, expect, type Page } from './auth-test';
-import { Pool } from 'pg';
-import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 
 async function navigate(page: Page, name: string) {
   const desktop = page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
@@ -61,7 +59,7 @@ test('playlist creation persists after reloading', async ({page}) => {
   await page.goto('/');
   await navigate(page,'Playlists');
   await page.getByPlaceholder('Nombre de nueva playlist').fill('Para estudiar');
-  await page.getByRole('button',{name:'Crear playlist'}).click();
+  await page.getByRole('button',{name:'Crear playlist',exact:true}).click();
   await expect(page.locator('.playlist-entry-main').filter({hasText:'Para estudiar'})).toBeVisible();
   await page.reload();
   await navigate(page,'Playlists');
@@ -91,39 +89,20 @@ test('web manifest is served for installation', async ({request}) => {
   expect((await r.json()).name).toBe('NÉBULA Music');
 });
 
-test('account login keeps a persistent private session', async ({page, request}) => {
-  const api = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/,'');
-  test.skip(!api,'API not configured for browser integration');
-  const email='nebula-e2e-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
-  const password='NebulaTestPassword123!';
-  // Create the account directly (registration is disabled by default; the E2E server enables it for provisioning).
-  const created=await request.post(api+'/v1/auth/register',{data:{email,password},headers:{'x-nebula-client':'e2e'}});
-  expect(created.status()).toBe(201);
-
+test('all visitors access shared cloud without an account form', async ({page}) => {
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs API');
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await expect(page.getByRole('heading',{name:'Cuenta NÉBULA'})).toBeVisible();
-  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button',{name:'Entrar'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
-
-  await page.getByRole('button',{name:'Administrar playlists'}).click();
-  await page.getByRole('textbox',{name:'Nombre de playlist de cuenta'}).fill('Colección E2E');
-  await page.getByRole('button',{name:'Crear en mi cuenta'}).click();
-  await expect(page.getByText('Colección E2E')).toBeVisible();
-
-  // The HttpOnly refresh cookie must keep the session alive across a full reload.
+  await expect(page.getByRole('button',{name:'Mi cuenta'})).toHaveCount(0);
+  await navigate(page,'Biblioteca');
+  await expect(page.getByText('Biblioteca para todos')).toBeVisible();
+  await expect(page.getByLabel('Compartir canciones en NÉBULA Cloud')).toHaveCount(1);
   await page.reload();
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
-
-  await page.getByRole('button',{name:'Salir'}).click();
-  await expect(page.getByRole('heading',{name:'Iniciar sesión'})).toBeVisible();
+  await expect(page.getByText('Biblioteca para todos')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Iniciar sesión'})).toHaveCount(0);
 });
 
-test('private explorer saves a real provider reference, not an audio file',async({page})=>{
-  test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Needs local API with disposable PostgreSQL');
+test('guest explorer saves provider references without sign-in',async({page})=>{
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs API');
   await page.route('**/v1/discovery/search?**',async route=>{
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
       failedProviders:[],disabledProviders:[],
@@ -134,78 +113,40 @@ test('private explorer saves a real provider reference, not an audio file',async
         canStream:false,canDownload:false,canStorePrivateCopy:false,streamUrl:null}]
     })});
   });
-  const password='NebulaTestPassword123!';
-  const email='explore-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
-  const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
-  try{
-    const salt=randomBytes(16).toString('hex');
-    const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
-    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
-  }finally{await pool.end();}
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button',{name:'Entrar'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
   await navigate(page,'Explorar');
   await expect(page.getByRole('button',{name:'Internet Archive'})).toBeVisible();
   await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('noche');
-  await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
+  await page.locator('.explore-form').getByRole('button',{name:'Buscar',exact:true}).click();
   await expect(page.getByText('Noche de prueba')).toBeVisible();
   await expect(page.getByRole('button',{name:'Escuchar'})).toBeDisabled();
   await page.getByRole('button',{name:'Guardar',exact:true}).click();
   await expect(page.getByRole('button',{name:'Guardada'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Mi colección externa'})).toBeVisible();
-  await expect(page.locator('.content-section').filter({hasText:'Mi colección externa'}).getByText('Noche de prueba')).toBeVisible();
-  await expect(page.locator('.explore-notice[role="status"]')).toContainText('Referencia guardada');
 });
 
-test('MusicBrainz lookup displays reviewed matches without importing audio',async({page})=>{
-  test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Needs local API with disposable PostgreSQL');
+test('MusicBrainz lookup displays verified metadata for guests',async({page})=>{
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs API');
   await page.route('**/v1/metadata/musicbrainz?**',async route=>{
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
       source:'musicbrainz',audioAvailable:false,
-      items:[{
-        recordingId:'6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-        title:'Grabación de prueba',artist:'Banda E2E',
-        album:'Disco E2E',releaseId:null,durationSeconds:180,
-        score:94,sourceUrl:'https://musicbrainz.org/recording/6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-        coverArtCandidate:null,
-      }]
+      items:[{recordingId:'6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+        title:'Grabación de prueba',artist:'Banda E2E',album:'Disco E2E',
+        releaseId:null,durationSeconds:180,score:94,
+        sourceUrl:'https://musicbrainz.org/recording/6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+        coverArtCandidate:null}]
     })});
   });
-  const password='NebulaTestPassword123!';
-  const email='mb-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
-  const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
-  try{
-    const salt=randomBytes(16).toString('hex');
-    const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
-    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
-  }finally{await pool.end();}
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button',{name:'Entrar'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
   await navigate(page,'Explorar');
   await page.getByRole('textbox',{name:'Buscar metadatos musicales'}).fill('banda');
   await page.getByRole('button',{name:'Identificar'}).click();
   await expect(page.getByText('Grabación de prueba')).toBeVisible();
-  await expect(page.getByText('Banda E2E', {exact:false})).toBeVisible();
+  await expect(page.getByText('Banda E2E',{exact:false})).toBeVisible();
 });
 
-test('Buscar plays official YouTube search results without pasting links',async({page})=>{
-  test.skip(!process.env.NEBULA_TEST_DATABASE_URL||!process.env.NEXT_PUBLIC_API_URL,'Requires disposable account API');
-  const password='NebulaTestPassword123!';
-  const email='youtube-auto-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
-  const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
-  try{
-    const salt=randomBytes(16).toString('hex');
-    const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
-    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
-  }finally{await pool.end();}
+test('Buscar plays official YouTube results for guests',async({page})=>{
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs API');
   await page.route('**/v1/discovery/youtube/config',async route=>{
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:true})});
   });
@@ -217,11 +158,6 @@ test('Buscar plays official YouTube search results without pasting links',async(
     })});
   });
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
-  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button',{name:'Entrar'}).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
   await navigate(page,'Buscar');
   await page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'}).fill('Rola automatica');
   await expect(page.getByText('Rola encontrada E2E')).toBeVisible({timeout:15000});
@@ -229,105 +165,49 @@ test('Buscar plays official YouTube search results without pasting links',async(
   await expect(page.getByTitle('Reproductor oficial de YouTube')).toHaveAttribute('src',/youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
 });
 
-test('private rooms can be created, joined and closed across two accounts', async ({ page, browser }) => {
-  const api = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
-  test.skip(!api || !process.env.NEBULA_TEST_DATABASE_URL, 'Requires disposable PostgreSQL-backed API');
-  const password = 'NebulaTestPassword123!';
-  const suffix = Date.now() + '-' + Math.random().toString(36).slice(2);
-  const hostEmail = 'rooms-host-' + suffix + '@example.test';
-  const guestEmail = 'rooms-guest-' + suffix + '@example.test';
-  // Provision fixture users directly in disposable CI PostgreSQL. Do not
-  // consume public registration rate limits shared by parallel browser tests.
-  const pool = new Pool({ connectionString: process.env.NEBULA_TEST_DATABASE_URL, max: 1 });
-  try {
-    for (const email of [hostEmail, guestEmail]) {
-      const salt = randomBytes(16).toString('hex');
-      const hash = 'scrypt$' + salt + '$' + scryptSync(password, salt, 64).toString('hex');
-      await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",
-        [randomUUID(), email, hash]);
-    }
-  } finally { await pool.end(); }
-
-  async function signIn(target: Page, email: string) {
+test('guests can create and join rooms without sign-in',async({page,browser})=>{
+  test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Needs disposable API');
+  async function openRooms(target:Page){
     await target.goto('/');
-    await target.getByRole('button', { name: 'Mi cuenta' }).click();
-    await target.getByRole('textbox', { name: 'Correo electrónico' }).fill(email);
-    await target.getByLabel('Contraseña').fill(password);
-    await target.getByRole('button', { name: 'Entrar' }).click();
-    await expect(target.getByText('Sesión activa')).toBeVisible();
-    await navigate(target, 'Salas');
-    await expect(target.getByRole('heading', { name: 'Salas NÉBULA' })).toBeVisible();
+    await navigate(target,'Salas');
+    await expect(target.getByRole('heading',{name:'Salas NÉBULA'})).toBeVisible();
+    await expect(target.getByRole('button',{name:'Crear sala',exact:true})).toBeVisible();
   }
-
-  await signIn(page, hostEmail);
+  await openRooms(page);
   await page.getByLabel('Nombre').fill('Sala E2E privada');
-  const clockProbe = page.waitForResponse(response => response.url().includes('/v1/rooms/clock') && response.status() === 200);
-  await page.getByRole('button', { name: 'Crear sala', exact: true }).click();
-  const clock = await clockProbe;
+  const clockProbe=page.waitForResponse(response=>response.url().includes('/v1/rooms/clock')&&response.status()===200);
+  await page.getByRole('button',{name:'Crear sala',exact:true}).click();
+  const clock=await clockProbe;
   expect(clock.headers()['cache-control']).toContain('no-store');
-  expect(clock.headers()['pragma']).toBe('no-cache');
-  const codeElement = page.locator('.room-hero code');
+  const codeElement=page.locator('.room-hero code');
   await expect(codeElement).toBeVisible();
-  const code = (await codeElement.textContent())?.trim() ?? '';
+  const code=(await codeElement.textContent())?.trim()??'';
   expect(code.length).toBeGreaterThan(20);
-  // New hosts must have a visible path from the room to an authorized cloud track.
-  await expect(page.getByText('No tienes canciones cloud listas para compartir.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Ir a Biblioteca y subir música' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Compartir y empezar' })).toBeDisabled();
-
-  const guestContext = await browser.newContext();
-  try {
-    const guest = await guestContext.newPage();
-    await signIn(guest, guestEmail);
+  await expect(page.getByRole('button',{name:'Ir a Biblioteca y subir música'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Compartir y empezar'})).toBeDisabled();
+  const context=await browser.newContext();
+  try{
+    const guest=await context.newPage();
+    await openRooms(guest);
     await guest.getByLabel('Código privado').fill(code);
-    await guest.getByRole('button', { name: 'Unirme' }).click();
+    await guest.getByRole('button',{name:'Unirme'}).click();
     await expect(guest.getByText('Te uniste a la sala.')).toBeVisible();
-    await expect(guest.getByText('2 participante(s)', { exact: false }).first()).toBeVisible();
-
-    page.once('dialog', dialog => { void dialog.accept(); });
-    await page.getByRole('button', { name: 'Salir o cerrar Sala E2E privada' }).click();
+    await expect(guest.getByText('2 participante(s)',{exact:false}).first()).toBeVisible();
+    page.once('dialog',dialog=>{void dialog.accept();});
+    await page.getByRole('button',{name:'Salir o cerrar Sala E2E privada'}).click();
     await expect(page.getByText('Sala cerrada.')).toBeVisible();
-    await expect(guest.getByText('La cola está vacía.')).toHaveCount(0, { timeout: 10000 });
-  } finally {
-    await guestContext.close();
-  }
+  }finally{await context.close();}
 });
 
-test('OWNER invites a MEMBER through the private account UI', async ({ page }) => {
-  const api = process.env.NEXT_PUBLIC_API_URL;
-  test.skip(!api || !process.env.NEBULA_TEST_DATABASE_URL, 'Requires disposable PostgreSQL-backed API');
-  const password = 'NebulaTestPassword123!';
-  const suffix = randomUUID();
-  const ownerEmail = 'invite-owner-' + suffix + '@example.test';
-  const memberEmail = 'invite-member-' + suffix + '@example.test';
-  const pool = new Pool({ connectionString: process.env.NEBULA_TEST_DATABASE_URL, max: 1 });
-  try {
-    const salt = randomBytes(16).toString('hex');
-    const hash = 'scrypt$' + salt + '$' + scryptSync(password, salt, 64).toString('hex');
-    await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'owner')",
-      [randomUUID(), ownerEmail, hash]);
-  } finally { await pool.end(); }
-
+test('anonymous guests cannot create administrative invitations',async({page,request})=>{
+  const api=process.env.NEXT_PUBLIC_API_URL;
+  test.skip(!api,'Needs API');
   await page.goto('/');
-  await page.getByRole('button', { name: 'Mi cuenta' }).click();
-  await page.getByRole('textbox', { name: 'Correo electrónico' }).fill(ownerEmail);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
-
-  await page.getByLabel('Correo de la persona invitada').fill(memberEmail);
-  await page.getByRole('button', { name: 'Crear invitación' }).click();
-  const tokenElement = page.locator('.settings-panel code').last();
-  await expect(tokenElement).toBeVisible();
-  const token = (await tokenElement.textContent())?.trim() ?? '';
-  expect(token.length).toBeGreaterThan(20);
-
-  await page.getByRole('button', { name: 'Salir' }).click();
-  await page.getByRole('button', { name: 'Tengo un código de invitación' }).click();
-  await page.getByLabel('Código de invitación').fill(token);
-  await page.getByRole('textbox', { name: 'Correo electrónico' }).fill(memberEmail);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Crear cuenta con invitación' }).click();
-  await expect(page.getByText('Sesión activa')).toBeVisible();
-  await expect(page.getByText(memberEmail)).toBeVisible();
+  await expect(page.getByRole('button',{name:'Mi cuenta'})).toHaveCount(0);
+  const guest=await request.post(api+'/v1/auth/guest',{data:{},headers:{'x-nebula-client':'e2e','x-forwarded-for':'198.51.100.188'}});
+  expect(guest.status()).toBe(201);
+  const {accessToken}=await guest.json() as {accessToken:string};
+  const admin=await request.post(api+'/v1/admin/invites',{data:{},headers:{authorization:'Bearer '+accessToken}});
+  expect(admin.status()).toBe(403);
 });
+

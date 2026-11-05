@@ -1,6 +1,4 @@
 import {test,expect,type Page} from './auth-test';
-import {Pool} from 'pg';
-import {randomBytes,randomUUID,scryptSync} from 'node:crypto';
 
 async function navigate(page:Page,name:string){
  const desktop=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
@@ -26,23 +24,10 @@ test('catalog paginates without duplicates and resets results on provider change
   await route.fulfill({status:200,contentType:'application/json',
    body:JSON.stringify({items,failedProviders:[],disabledProviders:[]})});
  });
- const password='NebulaTestPassword123!';
- const email='catalog-pages-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'@example.test';
- const pool=new Pool({connectionString:process.env.NEBULA_TEST_DATABASE_URL,max:1});
- try{
-  const salt=randomBytes(16).toString('hex');
-  const hash='scrypt$'+salt+'$'+scryptSync(password,salt,64).toString('hex');
-  await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
- }finally{await pool.end();}
  await page.goto('/');
- await page.getByRole('button',{name:'Mi cuenta'}).click();
- await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
- await page.getByLabel('Contraseña').fill(password);
- await page.getByRole('button',{name:'Entrar'}).click();
- await expect(page.getByText('Sesión activa')).toBeVisible();
  await navigate(page,'Explorar');
  await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('paginada');
- await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
+ await page.locator('.explore-form').getByRole('button',{name:'Buscar',exact:true}).click();
  await expect(page.locator('.explore-card')).toHaveCount(12);
  await page.getByRole('button',{name:'Cargar más canciones'}).click();
  await expect(page.locator('.explore-card')).toHaveCount(13);

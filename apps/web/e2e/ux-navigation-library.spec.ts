@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-async function openDestination(page:Page,name:'Inicio'|'Buscar'|'Biblioteca'|'Playlists'|'Cuenta'|'Ajustes'){
+async function openDestination(page:Page,name:'Inicio'|'Buscar'|'Biblioteca'|'Playlists'|'Ajustes'){
  const desktop=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
  if(await desktop.isVisible()){await desktop.click();return;}
  const bottom=page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name,exact:true});
@@ -152,19 +152,24 @@ test('navigation history is shareable and supports back, forward and reload',asy
 });
 
 for(const width of [390,1280]){
- test('Cuenta and Ajustes remain reachable and populated at '+width+'px',async({page})=>{
+ test('Biblioteca and Ajustes remain reachable without login at '+width+'px',async({page})=>{
   await page.setViewportSize({width,height:844});
   await page.goto('/');
-  async function open(name:'Cuenta'|'Ajustes'){
+  async function open(name:'Biblioteca'|'Ajustes'){
    if(width>760){
     await page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true}).click();
    }else{
-    await page.getByRole('button',{name:'Más secciones'}).click();
-    await page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name,exact:true}).click();
+    const bottom=page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name,exact:true});
+    if(await bottom.isVisible())await bottom.click();
+    else{
+      await page.getByRole('button',{name:'Más secciones'}).click();
+      await page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name,exact:true}).click();
+    }
    }
   }
-  await open('Cuenta');
-  await expect(page.getByRole('heading',{name:'Cuenta NÉBULA'})).toBeVisible();
+  await open('Biblioteca');
+  await expect(page.getByRole('heading',{name:'Tu biblioteca'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Mi cuenta'})).toHaveCount(0);
   await open('Ajustes');
   await expect(page.getByRole('heading',{name:'Configuración'})).toBeVisible();
   await expect(page.getByRole('switch',{name:'Contraste alto'})).toBeVisible();
@@ -213,14 +218,14 @@ test('external player URL has an actionable browser validation instead of a sile
  expect(await field.evaluate((input:HTMLInputElement)=>input.validity.valueMissing)).toBe(true);
 });
 
-test('switching from a long library view restores the top of Cuenta and Ajustes',async({page})=>{
+test('quick upload shortcut and settings restore scroll position',async({page})=>{
  await page.goto('/');
  await openDestination(page,'Biblioteca');
  await page.locator('details.library-management > summary').click();
  await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
  await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBeGreaterThan(100);
- await page.getByRole('button',{name:'Mi cuenta'}).click();
- await expect(page.getByRole('heading',{name:'Cuenta NÉBULA'})).toBeInViewport();
+ await page.getByRole('button',{name:'Subir música'}).click();
+ await expect(page.getByRole('heading',{name:'Tu biblioteca'})).toBeInViewport();
  await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBeLessThan(10);
  await openDestination(page,'Ajustes');
  await expect(page.getByRole('heading',{name:'Configuración'})).toBeInViewport();

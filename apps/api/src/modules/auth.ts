@@ -116,6 +116,25 @@ export function registerAuthRoutes(
     return signAccess(user, session.id);
   };
 
+  // Music-first entry: silently create a personal guest identity for every visitor.
+  // This is a real, restricted member principal (never an owner) so existing
+  // room membership and upload ownership checks still apply. No shared JWTs.
+  // Credentials are not issued and the random account cannot be signed into.
+  app.post('/v1/auth/guest', {
+    config: { rateLimit: { max: 12, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    const id = randomUUID();
+    const [user] = await db.insert(users).values({
+      id,
+      email: 'guest-' + id + '@nebula.invalid',
+      passwordHash: 'guest-account-disabled',
+      role: 'member',
+    }).returning({ id: users.id, email: users.email, role: users.role });
+    const accessToken = await issueSession(user, request, reply);
+    reply.header('Cache-Control', 'no-store');
+    return reply.code(201).send({ user, accessToken, expiresInSeconds: config.accessTtlSeconds });
+  });
+
   app.post('/v1/auth/register', { config: { rateLimit: { max: 8, timeWindow: '1 minute' } } }, async (request, reply) => {
     if (!config.allowPublicRegistration) return reply.code(403).send(fail('registration_closed'));
     const parsed = accountInput.safeParse(request.body);

@@ -158,10 +158,10 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
       WHERE r.id=$1 AND r.owner_user_id=$2 AND r.status='active'
         AND (NOT $3::boolean OR EXISTS (
           SELECT 1 FROM cloud_tracks c
-          WHERE c.id=r.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+          WHERE c.id=r.track_id AND c.status='ready'
         ) OR EXISTS (
           SELECT 1 FROM room_queue_items q JOIN cloud_tracks c
-            ON c.id=q.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+            ON c.id=q.track_id AND c.status='ready'
           WHERE q.room_id=r.id
         ))
       RETURNING r.share_enabled AS "shareEnabled"
@@ -183,7 +183,7 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
       SELECT r.share_enabled AS "shareEnabled", c.id, c.title, c.artist, c.object_key AS "objectKey"
       FROM rooms r
       JOIN room_members m ON m.room_id=r.id AND m.user_id=$2
-      JOIN cloud_tracks c ON c.id=r.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+      JOIN cloud_tracks c ON c.id=r.track_id AND c.status='ready'
       WHERE r.id=$1 AND r.status='active'
     `, [params.data.id, request.principal!.userId]);
     const item = result.rows[0];
@@ -205,8 +205,8 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     const { trackId, status, positionMs, expectedRevision, rightsConfirmed } = body.data;
     if (trackId) {
       const owned = await pool.query(`
-        SELECT 1 FROM cloud_tracks WHERE id=$1 AND user_id=$2 AND status='ready'
-      `, [trackId, userId]);
+        SELECT 1 FROM cloud_tracks WHERE id=$1 AND status='ready'
+      `, [trackId]);
       if (!owned.rowCount) return reply.code(403).send(error('track_not_available'));
     }
     // Atomic compare-and-swap: stale clients cannot overwrite newer playback events.
@@ -268,8 +268,8 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
       `, [params.data.id, request.principal!.userId]);
       if (!room.rowCount) { await client.query('ROLLBACK'); return reply.code(404).send(error('room_not_found')); }
       const owned = await client.query(`
-        SELECT 1 FROM cloud_tracks WHERE id=$1 AND user_id=$2 AND status='ready'
-      `, [body.data.trackId, request.principal!.userId]);
+        SELECT 1 FROM cloud_tracks WHERE id=$1 AND status='ready'
+      `, [body.data.trackId]);
       if (!owned.rowCount) { await client.query('ROLLBACK'); return reply.code(403).send(error('track_not_available')); }
       const count = await client.query<{count:string;next:number}>(`
         SELECT count(*)::text AS count, (coalesce(max(position),0)+1)::int AS next
@@ -366,9 +366,9 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
       if (!room.shareEnabled) { await client.query('ROLLBACK'); return reply.code(409).send(error('room_audio_not_shared')); }
       const next = await client.query<{id:string;trackId:string}>(`
         SELECT q.id, q.track_id AS "trackId" FROM room_queue_items q
-        JOIN cloud_tracks c ON c.id=q.track_id AND c.user_id=$2 AND c.status='ready'
+        JOIN cloud_tracks c ON c.id=q.track_id AND c.status='ready'
         WHERE q.room_id=$1 ORDER BY q.position ASC LIMIT 1 FOR UPDATE OF q
-      `, [params.data.id, request.principal!.userId]);
+      `, [params.data.id]);
       if (!next.rows[0]) { await client.query('ROLLBACK'); return reply.code(409).send(error('room_queue_empty')); }
       const updated = await client.query<{revision:number}>(`
         UPDATE rooms SET track_id=$3, playback_status='playing', position_ms=0,

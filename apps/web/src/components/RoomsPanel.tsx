@@ -308,7 +308,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
         method: 'POST', body: JSON.stringify({ name: name.trim(), mode }),
       });
       setSelectedId(result.room.id); setIssuedCode(result.inviteCode); setName('');
-      setNotice('Sala creada. Comparte el código con personas que tengan una cuenta NÉBULA.');
+      setNotice('Sala creada. Comparte el código: tus amigos podrán entrar sin iniciar sesión.');
     });
   }
 
@@ -374,8 +374,8 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     </div>
 
     {!account.user ? <div className="disclosure">
-      Necesitas iniciar sesión para crear salas o unirte a ellas.
-      <button type="button" className="button primary small" onClick={onAccount}>Ir a mi cuenta</button>
+      Conectando tu acceso automático a las salas…
+      <button type="button" className="button primary small" onClick={onAccount}>Ver biblioteca</button>
     </div> : <>
       {error && <p className="account-error" role="alert">{error}</p>}
       {notice && <p className="disclosure" role="status">{notice}</p>}
@@ -428,18 +428,18 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
             <code style={{overflowWrap:'anywhere'}}>{issuedCode}</code>
             <button type="button" className="icon-button" aria-label="Copiar código" onClick={()=>{void navigator.clipboard.writeText(issuedCode).then(()=>setNotice('Código copiado.')).catch(()=>setError('No se pudo copiar. Selecciona el código manualmente.'));}}><Copy size={17}/></button>
             <button type="button" className="button small" onClick={()=>{void shareRoomLink();}}>Compartir enlace privado</button>
-            <p>El enlace abre NÉBULA en Salas y rellena el código. La persona invitada necesita su propia cuenta.</p>
+            <p>El enlace abre NÉBULA en Salas y rellena el código. La persona invitada entra automáticamente, sin crear una cuenta.</p>
           </div>}
           {selected.ownerUserId===account.user.id && <div>
-            <label htmlFor="room-cloud-track">Música propia en Cloudflare R2</label>
+            <label htmlFor="room-cloud-track">Música compartida de Cloudflare R2</label>
             <select id="room-cloud-track" value={selectedCloudId} disabled={loadingCloudItems} onChange={e=>{setSelectedCloudId(e.target.value);setRightsConfirmed(false);}}>
               <option value="">Selecciona una canción</option>
               {cloudItems.map(item=><option key={item.id} value={item.id}>{item.title} — {item.artist}</option>)}
             </select>
             <div className="room-track-assistance">
-              {!loadingCloudItems && cloudItems.length===0 && <p role="status">No tienes canciones cloud listas para compartir. Primero sube un archivo MP3 u otro audio permitido a tu nube privada.</p>}
+              {!loadingCloudItems && cloudItems.length===0 && <p role="status">La biblioteca compartida no tiene canciones listas. Sube un MP3 u otro audio permitido desde Biblioteca.</p>}
               <button type="button" className="button secondary small" onClick={onLibrary}>Ir a Biblioteca y subir música</button>
-              <button type="button" className="button secondary small" disabled={loadingCloudItems} onClick={()=>{void refreshCloudItems();}}>Actualizar canciones de mi nube</button>
+              <button type="button" className="button secondary small" disabled={loadingCloudItems} onClick={()=>{void refreshCloudItems();}}>Actualizar canciones de NÉBULA</button>
             </div>
             <label style={{display:'flex',alignItems:'center',gap:8}}>
               <input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>
