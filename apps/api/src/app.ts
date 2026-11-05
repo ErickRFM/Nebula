@@ -99,6 +99,33 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
     }
   });
 
+  // Metadata only. YouTube's public oEmbed endpoint does not grant download
+  // rights or expose audio streams. Accept validated IDs, never arbitrary URLs.
+  app.get('/v1/discovery/youtube/video-metadata', {
+    config:{rateLimit:{max:12,timeWindow:'1 minute'}},
+  },async(request,reply)=>{
+    const raw=(request.query as {ids?:unknown}).ids;
+    if(typeof raw!=='string'||raw.length>320)return reply.code(400).send(fail('invalid_video_ids'));
+    const ids=raw.split(',');
+    if(ids.length<1||ids.length>20||ids.some(id=>!/^[A-Za-z0-9_-]{11}$/.test(id)))
+      return reply.code(400).send(fail('invalid_video_ids'));
+    const unique=[...new Set(ids)];
+    const entries=await Promise.all(unique.map(async(id)=>{
+      try{
+        const url='https://www.youtube.com/oembed?url='+
+          encodeURIComponent('https://www.youtube.com/watch?v='+id)+'&format=json';
+        const res=await fetch(url,{redirect:'error',signal:AbortSignal.timeout(3500)});
+        if(!res.ok)return {videoId:id,title:null,artist:null};
+        const data=await res.json() as {title?:unknown;author_name?:unknown};
+        const title=typeof data.title==='string'?data.title.slice(0,160):null;
+        const artist=typeof data.author_name==='string'?data.author_name.slice(0,100):null;
+        return {videoId:id,title,artist};
+      }catch{return {videoId:id,title:null,artist:null};}
+    }));
+    reply.header('Cache-Control','public,max-age=300');
+    return {items:entries};
+  });
+
   app.get('/v1/auth/config', async () => ({ registrationOpen: config.allowPublicRegistration }));
 
   registerAuthRoutes(app, { db, config });
