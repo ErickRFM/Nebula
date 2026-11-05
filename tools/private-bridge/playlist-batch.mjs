@@ -18,13 +18,13 @@ export function normalizePlaylist(payload){
   const id=typeof candidate==='string'&&VIDEO_ID.test(candidate)?candidate:null;
   if(!id||seen.has(id)||entry.is_live===true||entry.live_status==='is_live')continue;
   seen.add(id);
-  const secs=Number(entry.duration);
+  const secs=Number(entry.duration??NaN);
   items.push({id,title:String(entry.title||'Video '+id).slice(0,180),
    artist:String(entry.channel||entry.uploader||'YouTube').slice(0,100),
    durationSeconds:Number.isFinite(secs)&&secs>=0&&secs<=86400?Math.round(secs):null});
  }
  return {title:String(payload?.title||'Playlist de YouTube').slice(0,180),items,
-  truncated:raw.length>MAX_PLAYLIST_TRACKS};
+  truncated:raw.length>=MAX_PLAYLIST_TRACKS};
 }
 export function createPlaylistBatchManager({runner,downloadDir,clock=Date.now}={}){
  const folder=resolve(downloadDir||join(homedir(),'Downloads','Nebula'));
