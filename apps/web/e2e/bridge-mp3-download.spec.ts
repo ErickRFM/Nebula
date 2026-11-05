@@ -49,7 +49,7 @@ test('private bridge converts an authorized YouTube URL into downloadable librar
  if(await library.isVisible())await library.click();
  else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Biblioteca',exact:true}).click();
  // The library shows the parsed song title without the file extension.
- await expect(page.getByText('Video dQw4w9WgXcQ',{exact:true})).toBeVisible();
+ await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'Video dQw4w9WgXcQ'}).first()).toBeVisible();
  await expect(page.getByRole('button',{name:'Descargar archivo original de Video dQw4w9WgXcQ'})).toBeVisible();
  await page.reload();
  const restored=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Biblioteca',exact:true});
