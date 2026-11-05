@@ -20,9 +20,15 @@ test('private bridge converts an authorized YouTube URL into downloadable librar
    headers:{'Access-Control-Allow-Origin':'*'},
    body:JSON.stringify({ticket:'A'.repeat(40)+'.'+'B'.repeat(43),expiresInSeconds:120})});
  });
- await page.route('http://127.0.0.1:4177/download?*',route=>route.fulfill({
-  status:200,body:mp3,headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':'*','Access-Control-Allow-Private-Network':'true'},
- }));
+ await page.route('http://127.0.0.1:4177/download?*',route=>{
+  if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:{
+   'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, OPTIONS',
+   'Access-Control-Allow-Private-Network':'true',
+  }});
+  return route.fulfill({status:200,body:mp3,headers:{
+   'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':'*','Access-Control-Allow-Private-Network':'true',
+  }});
+ });
  await page.addInitScript(()=>sessionStorage.setItem('nebula:private-bridge-session-token','test-token-'+('x'.repeat(40))));
  await page.goto('/');
  const desktop=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Buscar',exact:true});
