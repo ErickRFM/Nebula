@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
-  AudioLines, Bell, ChevronLeft, ChevronRight, CircleUserRound, CloudUpload,
+  AudioLines, Bell, ChevronLeft, ChevronRight, CloudUpload,
   Compass, Disc3, Download, Headphones, Heart, Home, Library, ListMusic,
   MonitorSpeaker, MoreHorizontal, Music2, Pause, Play, Plus,
   Repeat, Repeat1, Search, Settings2, Shuffle, SkipBack, SkipForward,
@@ -15,7 +15,6 @@ import { Cover, TrackCover } from './Cover';
 import { useLocalAudio } from '../hooks/useLocalAudio';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useAccount } from '../hooks/useAccount';
-import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { PublicAudiusPanel } from './PublicAudiusPanel';
 import { PrivateBridgePanel } from './PrivateBridgePanel';
@@ -30,7 +29,7 @@ import { RoomsPanel } from './RoomsPanel';
 import { roomInviteFromHash } from '../lib/room-invite-link';
 import { groupPlayableAlbums } from '../lib/music-view';
 
-type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'explorar' | 'reproductor';
+type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'explorar' | 'reproductor';
 const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'inicio', label: 'Inicio', icon: Home },
   { id: 'buscar', label: 'Buscar', icon: Search },
@@ -38,12 +37,11 @@ const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'biblioteca', label: 'Biblioteca', icon: Library },
   { id: 'salas', label: 'Salas', icon: Waves },
   { id: 'playlists', label: 'Playlists', icon: ListMusic },
-  { id: 'cuenta', label: 'Cuenta', icon: CircleUserRound },
   { id: 'ajustes', label: 'Ajustes', icon: Settings2 },
 ];
 const primaryDestinations:Screen[]=['inicio','buscar','biblioteca','salas'];
 const collectionDestinations:Screen[]=['playlists','explorar'];
-const settingsDestinations:Screen[]=['cuenta','ajustes'];
+const settingsDestinations:Screen[]=['ajustes'];
 function screenFromUrl():Screen {
   const value=new URL(window.location.href).searchParams.get('vista');
   return navigation.some(item=>item.id===value)?value as Screen:'inicio';
@@ -218,7 +216,7 @@ export function NebulaApp() {
   const filteredTracks = player.ownTracks.filter((track) => {
     const query = search.toLocaleLowerCase('es');
     const matchesText = (track.title + ' ' + track.artist + ' ' + track.album + ' ' + track.genre).toLocaleLowerCase('es').includes(query);
-    return matchesText && (genre === 'Todos' || track.genre === genre) && (!account.user || Boolean(track.audioUrl));
+    return matchesText && (genre === 'Todos' || track.genre === genre) && Boolean(track.audioUrl);
   });
 
   useEffect(() => {
@@ -236,8 +234,7 @@ export function NebulaApp() {
     };
   }, []);
   useEffect(() => {
-    // A guest who followed a room link may need to sign in first. Return to
-    // Salas after authentication without automatically joining the room.
+    // Open a room invite when the invisible guest identity has been restored.
     if (account.user && roomInviteFromHash(window.location.hash)) setScreen('salas');
   }, [account.user?.id]);
   useEffect(() => {
@@ -315,7 +312,7 @@ export function NebulaApp() {
         <div className="sidebar-label extra-label">PREFERENCIAS</div>
         {navigation.filter(item=>settingsDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
       </nav>
-      <div className="sidebar-footer"><span className="status-dot"/> {account.configured ? (account.user ? 'Biblioteca conectada' : 'Inicia sesión para sincronizar') : 'Biblioteca local disponible'}</div>
+      <div className="sidebar-footer"><span className="status-dot"/> {account.configured ? (account.user ? 'Biblioteca compartida conectada' : 'Conectando con NÉBULA Cloud') : 'Biblioteca local disponible'}</div>
     </aside>
     <div className="workspace">
       <header className="topbar glass">
@@ -323,7 +320,7 @@ export function NebulaApp() {
         <div className="topbar-actions">
           {screen!=='buscar'&&<button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>}
           <button ref={mobileMoreButtonRef} className="icon-button glass-chip mobile-only" title="Más secciones" aria-label="Más secciones" aria-expanded={mobileMoreOpen} aria-controls="nebula-mobile-more-menu" type="button" onClick={()=>setMobileMoreOpen(open=>!open)}><MoreHorizontal size={19}/></button>
-          {screen!=='cuenta'&&<button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>}
+          <button className="icon-button glass-chip" title="Subir música" aria-label="Subir música" type="button" onClick={()=>navigate('biblioteca')}><CloudUpload size={20}/></button>
         </div>
         {mobileMoreOpen && <nav ref={mobileMenuRef} id="nebula-mobile-more-menu" className="mobile-more-menu" aria-label="Más secciones de NÉBULA">
           {navigation.filter(item=>[...collectionDestinations,...settingsDestinations].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" aria-current={screen===item.id?'page':undefined} onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
@@ -375,9 +372,9 @@ export function NebulaApp() {
               <div className="track-list glass">{filteredTracks.length?filteredTracks.map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>):<p className="empty-note">No hay coincidencias entre tus archivos locales. Consulta las fuentes en línea o importa música desde Biblioteca.</p>}</div>
             </section>
             {!account.accessToken && <PublicAudiusPanel initialQuery={search} onPlay={player.playExternal}/>}
-            <CloudSearchResults query={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
+            <CloudSearchResults query={search} account={account} onAccount={()=>navigate('biblioteca')} onPlay={player.playExternal}/>
             <section className="content-section search-online"><div className="section-heading"><div><h2>Música en línea</h2><p className="search-section-note">Resultados de los proveedores disponibles para tu cuenta</p></div></div>
-              <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
+              <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('biblioteca')} onPlay={player.playExternal}/>
             </section>
           </>}
           <PrivateBridgePanel initialQuery={search} onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/>
@@ -399,7 +396,7 @@ export function NebulaApp() {
           <div className="disclosure">Los archivos importados se guardan en este navegador mediante IndexedDB cuando el almacenamiento está disponible. No se suben a servidores. El navegador puede eliminar datos locales al liberar espacio o borrar datos del sitio.</div>
         </>}
         {screen === 'playlists' && <>
-          <div className="heading-with-action"><div><Tag>TODO TIENE SU PROPIA VIBRA</Tag><h1 className="page-title">Mis playlists</h1><p className="page-description">Organiza tus listas locales{account.user?' y las playlists sincronizadas con tu cuenta':''}. Elige una colección para ver sus canciones.</p></div></div>
+          <div className="heading-with-action"><div><Tag>TODO TIENE SU PROPIA VIBRA</Tag><h1 className="page-title">Mis playlists</h1><p className="page-description">Organiza tus listas locales{account.user?' y las listas guardadas de tu visita':''}. Elige una colección para ver sus canciones.</p></div></div>
           <form className="playlist-create glass" onSubmit={(event)=>{event.preventDefault();createPlaylist();}}>
             <label className="sr-only" htmlFor="playlist-title">Nombre de la playlist</label>
             <input id="playlist-title" placeholder="Nombre de nueva playlist" value={playlistTitle} maxLength={80} onChange={(event)=>setPlaylistTitle(event.target.value)}/>
@@ -419,8 +416,8 @@ export function NebulaApp() {
           </div></section>}
           <section className="music-empty glass"><ListMusic size={23}/><span>Para agregar música a tus listas, abre Biblioteca y usa «Añadir a playlist» junto a una canción.</span><button type="button" className="button secondary small" onClick={()=>navigate('biblioteca')}>Ver biblioteca</button></section>
           {account.user && <section className="content-section">
-            <SectionHeader title="Playlists de tu cuenta"/>
-            <p className="page-description">Las listas de cuenta guardan sus nombres y referencias de canciones cloud o externas entre dispositivos. Los archivos guardados solo en este navegador siguen siendo locales.</p>
+            <SectionHeader title="Playlists guardadas"/>
+            <p className="page-description">Las listas guardadas conservan las referencias a canciones cloud o externas mientras se mantenga la sesión automática de este dispositivo. Los archivos guardados solo en este navegador siguen siendo locales.</p>
             <form className="playlist-create glass" onSubmit={(event)=>{event.preventDefault();const value=cloudPlaylistTitle.trim();if(value){void account.createServerPlaylist(value).then((created)=>{if(created)setCloudPlaylistTitle('');});}}}>
               <label className="sr-only" htmlFor="cloud-playlist-title">Nombre de playlist de cuenta</label>
               <input id="cloud-playlist-title" placeholder="Nombre de playlist de cuenta" value={cloudPlaylistTitle} maxLength={80} onChange={(event)=>setCloudPlaylistTitle(event.target.value)}/>
@@ -434,9 +431,9 @@ export function NebulaApp() {
             {!account.playlistsBusy && account.serverPlaylists.length===0 && <p className="empty-note">Todavía no tienes playlists guardadas en tu cuenta.</p>}
             {selectedAccountPlaylistId && account.serverPlaylists.some(list=>list.id===selectedAccountPlaylistId) && <AccountPlaylistTracks account={account} playlistId={selectedAccountPlaylistId} onPlay={player.playExternal}/>}
           </section>}
-          <div className="disclosure">Las playlists locales se guardan en este navegador. Las playlists de cuenta sincronizan nombres y referencias a canciones de tu nube y fuentes guardadas. Las pistas locales permanecen en este navegador.</div>
+          <div className="disclosure">Las playlists locales se guardan en este navegador. Las playlists guardadas sincronizan nombres y referencias mientras se conserve la identidad anónima del dispositivo. Las pistas locales permanecen en este navegador.</div>
         </>}
-        {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')} onLibrary={()=>navigate('biblioteca')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
+        {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('biblioteca')} onLibrary={()=>navigate('biblioteca')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
         {screen === 'ajustes' && <>
           <Tag>PERSONALIZA TU EXPERIENCIA</Tag><h1 className="page-title">Configuración</h1><p className="page-description">Haz que NÉBULA suene y se vea como a ti te gusta.</p>
           <section className="settings-panel glass"><h2>Reproducción</h2><div className="setting-row"><div><strong>Ecualizador y nivelación</strong><p>Para archivos de tu biblioteca local: perfiles de tonos y compresión moderada, sin modificar el original. Los videos y fuentes externas no se procesan.</p></div><select aria-label="Perfil del ecualizador" className="audio-setting-select" value={player.audioPreset} onChange={event=>player.setAudioPreset(event.target.value as typeof player.audioPreset)}><option value="off">Original</option><option value="balanced">Equilibrado</option><option value="clarity">Claridad</option><option value="bass">Graves suaves</option></select></div>
@@ -448,8 +445,7 @@ export function NebulaApp() {
           </section>
           <div className="disclosure">La biblioteca privada en la nube sigue requiriendo iniciar sesión y almacenamiento de cuenta configurado.</div>
         </>}
-        {screen === 'cuenta' && <AccountPanel account={account} onOpenPlaylists={()=>navigate('playlists')}/>}
-        {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onDownloadYoutube={(url)=>setYoutubeDownloadUrl(url)} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
+        {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('biblioteca')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onDownloadYoutube={(url)=>setYoutubeDownloadUrl(url)} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
