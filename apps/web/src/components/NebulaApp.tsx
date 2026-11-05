@@ -291,11 +291,16 @@ export function NebulaApp() {
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>
           <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length+account.accountFavorites.length} <span>guardadas</span></strong><small>Favoritos locales y de cuenta</small></div></div>
-          <LibraryArchivePanel onImport={player.importFiles} localCount={localCount}/>
-          <Mp3UrlImport onImport={player.importFiles}/>
-          <Mp3ConvertPanel onImport={player.importFiles}/>
-          <CloudLibrary account={account} onPlay={player.playExternal}/>
           <section className="content-section"><SectionHeader title="Colección musical" action="Playlists" onAction={()=>navigate('playlists')}/><div className="chip-row">{(['canciones','favoritos','albumes'] as const).map((item)=><button type="button" key={item} className={'chip ' + (libraryFilter === item ? 'active' : '')} onClick={()=>setLibraryFilter(item)}>{item === 'albumes' ? 'Álbumes' : item === 'favoritos' ? 'Favoritos' : 'Canciones'}</button>)}</div>{libraryFilter === 'albumes' ? (personalAlbums.length ? <div className="album-grid">{personalAlbums.map(album=><AlbumCard key={album.id} title={album.title} subtitle={album.artist+' · '+album.tracks.length+' canciones'} cover={album.cover} onClick={()=>player.playQueue(album.tracks)}/>)}</div> : <div className="music-empty glass"><Music2 size={25}/><span>Importa canciones con etiquetas de álbum para verlas agrupadas aquí.</span></div>) : <div className="track-list glass">{player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).length ? player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i} onAdd={addToPlaylist} onRemove={deleteFromLibrary} onDownload={(id)=>{void player.downloadLocalTrack(id);}}/>) : <p className="empty-note">{libraryFilter==='favoritos'?'Todavía no tienes favoritos locales.':'Todavía no hay canciones en este dispositivo. Puedes importar música arriba.'}</p>}</div>}</section>
+          <CloudLibrary account={account} onPlay={player.playExternal}/>
+          <details className="library-management glass">
+            <summary><SlidersHorizontal size={18} aria-hidden="true"/><span><strong>Administrar archivos y respaldos</strong><small>Importar desde URL, convertir MP3 o respaldar tus canciones</small></span><ChevronRight size={18} className="management-chevron" aria-hidden="true"/></summary>
+            <div className="library-management-body">
+              <Mp3UrlImport onImport={player.importFiles}/>
+              <Mp3ConvertPanel onImport={player.importFiles}/>
+              <LibraryArchivePanel onImport={player.importFiles} localCount={localCount}/>
+            </div>
+          </details>
           <div className="disclosure">Los archivos importados se guardan en este navegador mediante IndexedDB cuando el almacenamiento está disponible. No se suben a servidores. El navegador puede eliminar datos locales al liberar espacio o borrar datos del sitio.</div>
         </>}
         {screen === 'playlists' && <>
@@ -348,7 +353,7 @@ export function NebulaApp() {
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
-      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>item.id !== 'ajustes' && item.id !== 'cuenta').map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
+      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>['inicio','buscar','biblioteca','salas'].includes(item.id)).map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
     </div>
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;
