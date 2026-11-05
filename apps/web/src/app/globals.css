@@ -726,3 +726,33 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 @media(max-width:899px){
  .yt-collection-browser>.bridge-iframe{width:100%;height:auto;aspect-ratio:16/9;min-height:230px}
 }
+
+/* UX consolidation: music-first hierarchy, quiet surfaces and accessible actions. */
+.library-management{margin:24px 0;border-radius:18px;overflow:hidden}
+.library-management>summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer;padding:18px 20px;min-height:68px}
+.library-management>summary::-webkit-details-marker,.yt-track-more>summary::-webkit-details-marker{display:none}
+.library-management>summary>span{flex:1;min-width:0;display:grid;gap:3px}
+.library-management>summary strong{font-size:.96rem}
+.library-management>summary small{font-size:.78rem;color:var(--muted)}
+.library-management .management-chevron{transition:transform .18s ease}
+.library-management[open] .management-chevron{transform:rotate(90deg)}
+.library-management-body{padding:4px 18px 20px;display:grid;gap:20px}
+.library-management-body>.content-section,.library-management-body>section{margin-block:0}
+.library-management>summary:focus-visible,.yt-track-more>summary:focus-visible{outline:2px solid var(--cyan);outline-offset:-3px;border-radius:10px}
+.yt-track-more{position:relative;min-width:0}
+.yt-track-more>summary{display:flex;align-items:center;justify-content:center;min-height:40px;border:1px solid var(--edge);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:.77rem;font-weight:650;white-space:nowrap}
+.yt-track-more-actions{display:flex;flex-direction:column;gap:7px;padding:8px 0 0}
+.yt-track-more-actions .button{min-height:40px}
+.yt-collection-buttons{align-items:flex-start}
+.yt-collection-buttons>.button.primary{min-height:40px}
+.track-descriptor strong,.yt-collection-caption strong{overflow-wrap:anywhere}
+@media(max-width:760px){
+ .bottom-nav{overflow-x:visible;justify-content:space-around}
+ .bottom-nav button{flex:1 1 25%;min-width:0;min-height:52px}
+ .library-management>summary{padding:15px}
+ .library-management-body{padding-inline:12px}
+ .yt-track-more{flex:1 1 100%}
+ .yt-track-more-actions{flex-direction:row;flex-wrap:wrap}
+ .yt-track-more-actions>*{flex:1 1 140px}
+}
+@media(prefers-reduced-motion:reduce){.library-management .management-chevron{transition:none}}
