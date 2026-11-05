@@ -655,3 +655,25 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .mp3-url-import>button{margin-top:10px;min-height:42px}
 .mp3-url-import [role=status]{margin-top:8px;color:#d7cfed}
 @media(max-width:600px){.mp3-url-import .authorized-web-import>.button{width:100%;justify-self:stretch}}
+
+
+/* NÉBULA on-device audio-to-MP3 conversion. */
+.mp3-converter-panel{min-width:0}
+.mp3-converter-panel .section-heading h2{display:flex;align-items:center;gap:9px}
+.mp3-converter-card{display:grid;gap:9px;padding:18px;border-radius:18px}
+.mp3-converter-field{font-size:.83rem;font-weight:650;color:#e3d9f2}
+.mp3-converter-card input[type=file],.mp3-converter-card select{
+ min-width:0;max-width:100%;color:var(--ink);border:1px solid var(--edge);
+ background:#24223e;border-radius:11px;padding:11px;font-size:.85rem
+}
+.mp3-selection-note{font-size:.8rem;color:#d8cfeb;overflow-wrap:anywhere}
+.mp3-converter-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.mp3-converter-actions .button{min-height:44px}
+.mp3-converter-progress{display:grid;gap:8px;font-size:.84rem}
+.mp3-converter-progress progress{width:100%;height:12px;accent-color:#bc96ff}
+.mp3-converter-results{display:grid;gap:9px;margin-top:12px}
+.mp3-converted-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;
+ border:1px solid var(--edge);background:#ffffff0b;border-radius:12px;padding:10px 14px}
+.mp3-converted-row span{min-width:0;overflow-wrap:anywhere}
+.mp3-converted-row small{color:#d3c8e4}
+@media(max-width:600px){.mp3-converter-card{padding:13px}.mp3-converter-actions .button{width:100%}.mp3-converted-row .button{flex:1;justify-content:center}}

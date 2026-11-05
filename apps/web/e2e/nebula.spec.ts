@@ -48,7 +48,7 @@ test('personal albums reflect imported music, not illustrative mixes', async ({p
   pcm.write('fmt ',12);pcm.writeUInt32LE(16,16);pcm.writeUInt16LE(1,20);
   pcm.writeUInt16LE(1,22);pcm.writeUInt32LE(44100,24);pcm.writeUInt32LE(88200,28);
   pcm.writeUInt16LE(2,32);pcm.writeUInt16LE(16,34);pcm.write('data',36);pcm.writeUInt32LE(pcm.length-44,40);
-  await page.locator('input[type=file]').setInputFiles({name:'album-real.wav',mimeType:'audio/wav',buffer:pcm});
+  await page.getByLabel('Importar archivos de audio propios').setInputFiles({name:'album-real.wav',mimeType:'audio/wav',buffer:pcm});
   await expect(page.locator('.album-grid .album-card').filter({hasText:'Archivos importados'})).toBeVisible();
   await expect(page.getByText('Selecciones de ejemplo')).toHaveCount(0);
 });
@@ -73,7 +73,7 @@ test('local audio import survives reload in IndexedDB', async ({page}) => {
   pcm.write('fmt ',12); pcm.writeUInt32LE(16,16); pcm.writeUInt16LE(1,20);
   pcm.writeUInt16LE(1,22); pcm.writeUInt32LE(44100,24); pcm.writeUInt32LE(88200,28);
   pcm.writeUInt16LE(2,32); pcm.writeUInt16LE(16,34); pcm.write('data',36); pcm.writeUInt32LE(pcm.length-44,40);
-  await page.locator('input[type=file]').setInputFiles({name:'mi-cancion.wav',mimeType:'audio/wav',buffer:pcm});
+  await page.getByLabel('Importar archivos de audio propios').setInputFiles({name:'mi-cancion.wav',mimeType:'audio/wav',buffer:pcm});
   await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'mi-cancion'}).first()).toBeVisible();
   await expect(page.getByRole('status')).toContainText('guardadas');
   await page.reload();
