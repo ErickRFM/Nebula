@@ -1,5 +1,6 @@
 import {createServer} from 'node:http';
 import {createHmac, randomBytes, timingSafeEqual} from 'node:crypto';
+import {createPlaylistBatchManager,PLAYLIST_ID} from './playlist-batch.mjs';
 
 export const VIDEO_ID=/^[A-Za-z0-9_-]{11}$/;
 const DEFAULT_ORIGINS=['http://localhost:3000','http://127.0.0.1:3000'];
@@ -57,19 +58,20 @@ function validToken(value,secret){
  const expected=Buffer.from(secret);
  return given.length===expected.length&&timingSafeEqual(given,expected);
 }
-async function readJson(req){
+async function readJson(req,limit=LIMIT){
  let size=0;const chunks=[];
  for await (const chunk of req){
-  size+=chunk.length;if(size>LIMIT)throw Error('payload_too_large');
+  size+=chunk.length;if(size>limit)throw Error('payload_too_large');
   chunks.push(chunk);
  }
  try {return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
  catch {throw Error('invalid_json');}
 }
-export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',origins=DEFAULT_ORIGINS,clock=Date.now,logger=()=>{}}){
+export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',origins=DEFAULT_ORIGINS,clock=Date.now,logger=()=>{},downloadDir=process.env.NEBULA_DOWNLOAD_DIR}){
  if(typeof secret!=='string'||secret.length<32)throw Error('Bridge token must have at least 32 characters');
  if(!runner||typeof runner.search!=='function'||typeof runner.stream!=='function')throw Error('runner required');
- let active=0;const searchHits=[];
+ let active=0;const searchHits=[];const playlistHits=[];
+ const batches=createPlaylistBatchManager({runner,downloadDir,clock});
  const server=createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
@@ -110,6 +112,41 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
     reply(res,200,{items:Array.isArray(found)?found.slice(0,10):[]});
    }catch(e){logger('search_failed',e?.message);reply(res,502,{error:'search_unavailable'});}
    return;
+  }
+  if(req.method==='GET'&&url.pathname==='/playlist'){
+   if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
+   if(runner.enabled===false){reply(res,503,{error:'bridge_disabled'});return;}
+   const listId=url.searchParams.get('list');
+   if(url.searchParams.size!==1||!PLAYLIST_ID.test(listId||'')){reply(res,400,{error:'invalid_playlist_id'});return;}
+   const now=clock();
+   while(playlistHits.length&&playlistHits[0]<now-60_000)playlistHits.shift();
+   if(playlistHits.length>=6){reply(res,429,{error:'playlist_rate_limited'});return;}
+   playlistHits.push(now);
+   try{reply(res,200,await batches.load(listId));}
+   catch(e){logger('playlist_failed',e?.message);reply(res,502,{error:'playlist_unavailable'});}
+   return;
+  }
+  if(req.method==='POST'&&url.pathname==='/batch'){
+   if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
+   if(runner.enabled===false){reply(res,503,{error:'bridge_disabled'});return;}
+   let body;
+   try{body=await readJson(req,24_000);}catch{reply(res,400,{error:'invalid_batch_payload'});return;}
+   try{
+    const job=batches.start(body?.listId,body?.ids);
+    reply(res,202,{job});
+   }catch(e){
+    const code=e?.message==='batch_busy'?409:e?.message==='preview_expired'?410:400;
+    reply(res,code,{error:code===409?'batch_busy':code===410?'playlist_preview_expired':'invalid_batch_selection'});
+   }
+   return;
+  }
+  const match=new RegExp('^/batch/([0-9a-f-]{36})(/cancel)?$').exec(url.pathname);
+  if(match&&(req.method==='GET'&&!match[2]||req.method==='POST'&&match[2])){
+   if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
+   if(url.searchParams.size){reply(res,400,{error:'invalid_batch_params'});return;}
+   const job=match[2]?batches.cancel(match[1]):batches.status(match[1]);
+   if(!job){reply(res,404,{error:'batch_not_found'});return;}
+   reply(res,200,{job});return;
   }
   if(req.method==='POST'&&url.pathname==='/ticket'){
    if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
@@ -163,5 +200,5 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
  return {server,listen:()=>new Promise((resolve,reject)=>{
   server.once('error',reject);
   server.listen(port,host,()=>{server.off('error',reject);resolve(server.address());});
- }),close:()=>new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()))};
+ }),close:()=>{batches.shutdown();return new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}};
 }

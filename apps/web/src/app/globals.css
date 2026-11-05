@@ -878,3 +878,38 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .audio-profile-row select:focus-visible,.audio-setting-select:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 .audio-setting-select{flex:0 0 auto;max-width:175px}
 @media(max-width:560px){.audio-profile-row{align-items:stretch}.audio-profile-row select{flex:1 1 auto}.settings-panel .setting-row{flex-wrap:wrap}.audio-setting-select{width:100%;max-width:none}}
+
+
+/* Local playlist batch — bounded large-list display, solid accessible controls. */
+.playlist-batch{padding:20px;min-width:0;display:grid;gap:15px;margin-top:22px;border-radius:18px}
+.playlist-batch>.section-heading{margin:0}
+.playlist-batch .playlist-create{min-width:0;margin:0}
+.playlist-batch .playlist-create input{min-width:0}
+.batch-results,.batch-progress{display:grid;gap:13px;min-width:0;border-top:1px solid var(--edge);padding-top:18px}
+.batch-controls,.batch-progress-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;min-width:0}
+.batch-controls>div:first-child{min-width:0;flex:1}
+.batch-controls strong{display:block;font-size:1rem;overflow-wrap:anywhere}
+.batch-controls p,.batch-progress p{font-size:.78rem;line-height:1.5;color:var(--muted);margin:5px 0}
+.batch-actions{display:flex;gap:8px;flex-wrap:wrap}
+.batch-results>label{font-size:.83rem;font-weight:650}
+.batch-results>input[type=search]{width:100%;min-height:44px;min-width:0}
+.batch-tracks{display:grid;gap:1px;max-height:430px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--edge);border-radius:14px;background:rgba(13,17,31,.35)}
+.batch-track{display:flex;align-items:center;gap:13px;padding:12px 14px;border-bottom:1px solid var(--edge);cursor:pointer;min-width:0}
+.batch-track:last-child{border-bottom:0}
+.batch-track:hover,.batch-track:focus-within{background:rgba(170,151,225,.09)}
+.batch-track>input{flex:none;min-width:20px;min-height:20px;accent-color:#c4a1ff}
+.batch-track>span{min-width:0;flex:1}
+.batch-track strong{display:block;font-size:.83rem;overflow-wrap:anywhere}
+.batch-track small{display:block;font-size:.75rem;color:var(--muted);line-height:1.6}
+.batch-progress progress{width:100%;height:13px;accent-color:#c4a1ff}
+.batch-progress-heading strong{font-size:.9rem}
+.batch-progress-heading span{font-size:.85rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:760px){
+ .playlist-batch{padding:14px}
+ .batch-controls{flex-direction:column;align-items:stretch}
+ .batch-actions>*{flex:1 1 auto}
+ .playlist-batch .playlist-create{display:flex;flex-wrap:wrap}
+ .playlist-batch .playlist-create input{flex:1 1 100%;width:100%}
+ .playlist-batch .playlist-create button{flex:1}
+ .batch-results>.button.primary{width:100%;justify-content:center}
+}

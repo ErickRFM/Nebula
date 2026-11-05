@@ -38,3 +38,36 @@ Sustituye **tu-preview-de-nebula.vercel.app** por el origen exacto que muestra l
 
 - `node --test tools/private-bridge/*.test.mjs`
 - `npm run test:e2e` (incluye `apps/web/e2e/bridge-mp3-download.spec.ts`, usando una respuesta MP3 simulada sin descargar archivos de terceros).
+
+## Playlists completas de hasta 1,000 pistas
+
+En **Buscar → Reproducción privada local → Descargar una playlist completa**, pega una URL pública fija como `https://www.youtube.com/playlist?list=PL...`. Pulsa **Cargar canciones**. El puente local consulta los metadatos de hasta 1,000 entradas, sin descargar audio durante el análisis.
+
+Puedes revisar los títulos, filtrar la lista y seleccionar o deseleccionar pistas. Al pulsar **Descargar N MP3 seleccionados**, confirmarás el lote. Se procesará **una canción a la vez**; el estado incluye procesadas, fallos y la opción **Detener lote**. Los archivos se guardan directamente en:
+
+```text
+%USERPROFILE%\Downloads\Nebula
+```
+
+Para elegir una carpeta distinta antes de iniciar el puente:
+
+```powershell
+$env:NEBULA_DOWNLOAD_DIR = "$HOME\Music\Nebula"
+```
+
+El puente permanece en `127.0.0.1:4177`, y debe seguir abierto mientras dura el lote. La descarga puede continuar aunque se cierre la pestaña; al cerrar el puente se cancela el proceso en curso. Los archivos ya procesados permanecen en el disco. El archivo oculto `.nebula-download-archive.txt` sirve para evitar descargas duplicadas al repetir un lote.
+
+**Importante:** El proceso por lotes guarda archivos en la computadora que ejecuta el puente; no descarga 1,000 archivos mediante diálogos del navegador y **no sube automáticamente esas canciones a la nube**. Si quieres escucharlas en Salas, entra a Biblioteca → Mi música en la nube y sube tu carpeta en lotes de hasta 20 archivos. El rendimiento y la disponibilidad de cada pista dependen de la fuente, la red y las restricciones del proveedor; no se garantizan 1,000 descargas exitosas.
+
+### Protección de la cola masiva
+
+- Solo se aceptan playlists de dominios YouTube conocidos; el servidor reconstruye URLs canónicas a partir de IDs validados.
+- Radios dinámicas (RD) no se tratan como playlists fijas.
+- Se permite una sola cola activa, seleccionando hasta 1,000 IDs obtenidos de una vista previa temporal del propio puente.
+- Las rutas de lote requieren autenticación con el token local y validación de origen; no ejecutan comandos recibidos del navegador.
+- El sistema limita las consultas de análisis y ejecuta un proceso por canción. Las que fallen se cuentan como errores y no bloquean las siguientes.
+- Utiliza la herramienta solo con material propio o contenido que estés autorizado a guardar. No elimina DRM, restricciones ni autenticación de terceros.
+
+### Pruebas de lotes
+
+`node --test tools/private-bridge/playlist-batch.test.mjs` comprueba el límite de 1,000, la restricción de origen, la selección, el proceso y la cancelación con un motor simulado. `apps/web/e2e/playlist-batch.spec.ts` prueba la interfaz con una playlist ficticia de 1,000 temas, sin contactar con YouTube ni descargar audio real.
