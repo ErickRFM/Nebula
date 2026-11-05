@@ -34,13 +34,13 @@ import { groupPlayableAlbums } from '../lib/music-view';
 type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'explorar' | 'reproductor';
 const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'inicio', label: 'Inicio', icon: Home },
-  { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'buscar', label: 'Buscar', icon: Search },
+  { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'biblioteca', label: 'Biblioteca', icon: Library },
-  { id: 'playlists', label: 'Playlists', icon: ListMusic },
   { id: 'salas', label: 'Salas', icon: Waves },
-  { id: 'ajustes', label: 'Ajustes', icon: Settings2 },
+  { id: 'playlists', label: 'Playlists', icon: ListMusic },
   { id: 'cuenta', label: 'Cuenta', icon: CircleUserRound },
+  { id: 'ajustes', label: 'Ajustes', icon: Settings2 },
 ];
 const primaryDestinations:Screen[]=['inicio','buscar','biblioteca','salas'];
 const collectionDestinations:Screen[]=['playlists','explorar'];
@@ -299,9 +299,9 @@ export function NebulaApp() {
       <Brand/>
       <nav aria-label="Navegación principal" className="side-links">
         <div className="sidebar-label">ESCUCHAR</div>
-        {navigation.filter(item=>primaryDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+        {navigation.filter(item=>primaryDestinations.includes(item.id)||item.id==='explorar').map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
         <div className="sidebar-label extra-label">COLECCIONES</div>
-        {navigation.filter(item=>collectionDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+        {navigation.filter(item=>item.id==='playlists').map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
         {playlistStore.playlists.length>0&&<div className="side-collection" aria-label="Tus playlists">{playlistStore.playlists.slice(0,3).map(list=><button key={list.id} type="button" className="nav-item playlist-shortcut" onClick={()=>{setActivePlaylist(list.id);navigate('playlists');}}><ListMusic size={15}/><span>{list.title}</span></button>)}</div>}
         <div className="sidebar-label extra-label">PREFERENCIAS</div>
         {navigation.filter(item=>settingsDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
