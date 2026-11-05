@@ -142,6 +142,7 @@ function FullPlayer({player,onBack}: {player: PlayerApi; onBack: () => void}) {
 export function NebulaApp() {
   const [screen, setScreen] = useState<Screen>('inicio');
   const [audioToolsOpen,setAudioToolsOpen]=useState(false);
+  const [youtubeDownloadUrl,setYoutubeDownloadUrl]=useState('');
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [previousScreen, setPreviousScreen] = useState<Screen>('inicio');
   const [search, setSearch] = useState('');
@@ -371,8 +372,8 @@ export function NebulaApp() {
               <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
             </section>
           </>}
-          <PrivateBridgePanel initialQuery={search} onPlay={player.playExternal} onImport={player.importFiles}/>
-          <ExternalMediaBridges account={account} initialQuery={search} embedded onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
+          <PrivateBridgePanel initialQuery={search} onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/>
+          <ExternalMediaBridges account={account} initialQuery={search} embedded onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onDownloadYoutube={(url)=>setYoutubeDownloadUrl(url)} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
         </section>}
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar. Los archivos importados se guardan en este dispositivo.</p></div><UploadButton onFiles={player.importFiles} small/></div>
@@ -435,7 +436,7 @@ export function NebulaApp() {
           <div className="disclosure">La música local y las playlists de este dispositivo se guardan en el navegador. La biblioteca privada en la nube requiere iniciar sesión y almacenamiento configurado.</div>
         </>}
         {screen === 'cuenta' && <AccountPanel account={account} onOpenPlaylists={()=>navigate('playlists')}/>}
-        {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
+        {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onDownloadYoutube={(url)=>setYoutubeDownloadUrl(url)} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
