@@ -21,7 +21,7 @@ type QueueItem = { id: string; trackId: string; title: string; artist: string; p
 type RoomDetail = { room: Room; serverNowMs: number };
 type RoomMember = { userId: string; role: 'host' | 'listener'; email: string | null; joinedAt: string };
 
-export function RoomsPanel({ account, onAccount, onActivate }: { account: AccountApi; onAccount: () => void; onActivate: () => void }) {
+export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { account: AccountApi; onAccount: () => void; onLibrary: () => void; onActivate: () => void }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Room | null>(null);
@@ -38,6 +38,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(true);
+  const [loadingCloudItems, setLoadingCloudItems] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -220,14 +221,20 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
     });
   }
 
-  useEffect(() => {
+  const refreshCloudItems = useCallback(async () => {
     if (!selectedId || !account.user) { setCloudItems([]); return; }
-    let cancelled = false;
-    void account.cloudRequest<{items:{id:string;title:string;artist:string}[]}>('/v1/library/cloud')
-      .then(result => { if (!cancelled) setCloudItems(result.items); })
-      .catch(() => { if (!cancelled) setCloudItems([]); });
-    return () => { cancelled = true; };
+    setLoadingCloudItems(true);
+    try {
+      const result = await account.cloudRequest<{items:{id:string;title:string;artist:string}[]}>('/v1/library/cloud');
+      setCloudItems(result.items);
+      setSelectedCloudId(current => current && result.items.some(item => item.id === current) ? current : '');
+    } catch (cause) {
+      setCloudItems([]);
+      setError(cause instanceof Error ? cause.message : 'No se pudo actualizar la música cloud.');
+    } finally { setLoadingCloudItems(false); }
   }, [selectedId, account.user?.id, account.cloudRequest]);
+
+  useEffect(() => { void refreshCloudItems(); }, [refreshCloudItems]);
 
   function startSharedAudio() {
     if (!selected || !selectedCloudId || !rightsConfirmed) {
@@ -235,14 +242,17 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
       return;
     }
     void action(async () => {
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/sharing', {
-        method: 'POST', body: JSON.stringify({ enabled: true, rightsConfirmed: true }),
-      });
+      // Select a valid ready track before enabling access to the private audio.
+      // If timeline assignment fails, sharing remains disabled rather than looking
+      // enabled with no playable track.
       await account.cloudRequest('/v1/rooms/' + selected.id + '/timeline', {
         method: 'POST', body: JSON.stringify({
           expectedRevision: selected.revision, trackId: selectedCloudId, status: 'playing', positionMs: 0,
           rightsConfirmed: true,
         }),
+      });
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/sharing', {
+        method: 'POST', body: JSON.stringify({ enabled: true, rightsConfirmed: true }),
       });
       await refreshSelected();
       setNotice('Reproducción compartida programada. Cada participante debe activar su audio.');
@@ -422,10 +432,15 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
           </div>}
           {selected.ownerUserId===account.user.id && <div>
             <label htmlFor="room-cloud-track">Música propia en Cloudflare R2</label>
-            <select id="room-cloud-track" value={selectedCloudId} onChange={e=>{setSelectedCloudId(e.target.value);setRightsConfirmed(false);}}>
+            <select id="room-cloud-track" value={selectedCloudId} disabled={loadingCloudItems} onChange={e=>{setSelectedCloudId(e.target.value);setRightsConfirmed(false);}}>
               <option value="">Selecciona una canción</option>
               {cloudItems.map(item=><option key={item.id} value={item.id}>{item.title} — {item.artist}</option>)}
             </select>
+            <div className="room-track-assistance">
+              {!loadingCloudItems && cloudItems.length===0 && <p role="status">No tienes canciones cloud listas para compartir. Primero sube un archivo MP3 u otro audio permitido a tu nube privada.</p>}
+              <button type="button" className="button secondary small" onClick={onLibrary}>Ir a Biblioteca y subir música</button>
+              <button type="button" className="button secondary small" disabled={loadingCloudItems} onClick={()=>{void refreshCloudItems();}}>Actualizar canciones de mi nube</button>
+            </div>
             <label style={{display:'flex',alignItems:'center',gap:8}}>
               <input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>
               Confirmo que tengo derechos para compartir este audio con los participantes.
@@ -438,7 +453,7 @@ export function RoomsPanel({ account, onAccount, onActivate }: { account: Accoun
               {selected.shareEnabled && <button type="button" className="button small" disabled={busy} onClick={disableSharing}>Dejar de compartir</button>}
             </>}
           </div>}
-          <p className="disclosure">Cada teléfono reproduce una URL privada temporal de R2. La sincronización usa sondeo periódico y corrección de desfase; no garantiza precisión acústica ni reproducción con pantalla bloqueada.</p>
+          <p className="disclosure">Para escuchar en grupo, el anfitrión primero sube una canción a Cloudflare R2, la selecciona aquí y confirma que puede compartirla. Cada participante debe iniciar sesión, unirse a la sala, activar su salida y pulsar Play. La sincronización lógica no garantiza precisión acústica ni sonido con pantalla bloqueada.</p>
         </div>
       </section>}
       {selected && selectedId===selected.id && <section className="content-section">
