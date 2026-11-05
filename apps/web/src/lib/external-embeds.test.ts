@@ -22,6 +22,16 @@ describe('official external embeds',()=>{
    expect(parseExternalEmbed('https://open.spotify.com/track/INVALID')).toBeNull();
    expect(parseExternalEmbed('https://deezer.com/track/1/extra')).toBeNull();
  });
+ it('recognizes playlists and Mix without an API key',()=>{
+   const playlist=parseExternalEmbed('https://www.youtube.com/playlist?list=PL1234567890ABCDEFGHIJKL');
+   expect(playlist?.collection).toEqual({kind:'playlist',id:'PL1234567890ABCDEFGHIJKL'});
+   expect(playlist?.src).toContain('listType=playlist');
+   const mix=parseExternalEmbed('https://www.youtube.com/watch?v=M-E8rmhUxyw&list=RDM-E8rmhUxyw');
+   expect(mix?.collection).toEqual({kind:'mix',id:'RDM-E8rmhUxyw'});
+   expect(mix?.sourceUrl).toContain('list=RDM-E8rmhUxyw');
+   expect(mix?.src).toBe('https://www.youtube-nocookie.com/embed/M-E8rmhUxyw');
+   expect(parseExternalEmbed('https://youtube.com/watch?v=dQw4w9WgXcQ&list=../../bad')).toBeNull();
+ });
  it('rejects untrusted hosts, non-HTTPS and ambiguous paths',()=>{
    for(const url of ['http://youtube.com/watch?v=dQw4w9WgXcQ','https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ','https://youtu.be/invalid','javascript:alert(1)','https://soundcloud.com.evil.test/a/b','https://youtu.be/dQw4w9WgXcQ/another-video','https://youtube.com:8443/watch?v=dQw4w9WgXcQ','https://youtube.com/embed/dQw4w9WgXcQ/extra']){
      expect(parseExternalEmbed(url)).toBeNull();

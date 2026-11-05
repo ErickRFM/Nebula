@@ -57,3 +57,21 @@ test('official Spotify and Deezer links mount safe in-page players',async({page}
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await expect(bridges.getByTitle('Reproductor oficial de Deezer')).toHaveAttribute('src','https://widget.deezer.com/widget/dark/track/3135556');
 });
+
+test('YouTube playlist and RD Mix retain the list identity',async({page})=>{
+ await page.route('https://www.youtube-nocookie.com/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Playlist fixture</title>'}));
+ await page.goto('/');await navigateToSearch(page);
+ const bridges=page.locator('.search-page > .external-bridges');
+ const field=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'});
+ await field.fill('https://www.youtube.com/playlist?list=PL1234567890ABCDEFGHIJKL');
+ await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
+ await expect(bridges.getByTitle('Reproductor oficial de YouTube')).toHaveAttribute('src',
+  'https://www.youtube-nocookie.com/embed?listType=playlist&list=PL1234567890ABCDEFGHIJKL');
+ await expect(bridges.getByText('Playlist de YouTube',{exact:true})).toBeVisible();
+ await bridges.getByRole('button',{name:'Cerrar reproductor'}).click();
+ await field.fill('https://www.youtube.com/watch?v=M-E8rmhUxyw&list=RDM-E8rmhUxyw');
+ await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
+ await expect(bridges.getByText('Mix / radio dinámica de YouTube')).toBeVisible();
+ await expect(bridges.getByText('No es una lista fija',{exact:false})).toBeVisible();
+ await expect(bridges.getByRole('link',{name:'Abrir contenido en su plataforma'})).toHaveAttribute('href',/list=RDM-E8rmhUxyw/);
+});
