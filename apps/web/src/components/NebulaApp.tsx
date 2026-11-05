@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   AudioLines, Bell, ChevronLeft, ChevronRight, CircleUserRound, CloudUpload,
   Compass, Disc3, Download, Headphones, Heart, Home, Library, ListMusic,
@@ -34,14 +34,21 @@ import { groupPlayableAlbums } from '../lib/music-view';
 type Screen = 'inicio' | 'buscar' | 'biblioteca' | 'playlists' | 'salas' | 'ajustes' | 'cuenta' | 'explorar' | 'reproductor';
 const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'inicio', label: 'Inicio', icon: Home },
-  { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'buscar', label: 'Buscar', icon: Search },
+  { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'biblioteca', label: 'Biblioteca', icon: Library },
-  { id: 'playlists', label: 'Playlists', icon: ListMusic },
   { id: 'salas', label: 'Salas', icon: Waves },
-  { id: 'ajustes', label: 'Ajustes', icon: Settings2 },
+  { id: 'playlists', label: 'Playlists', icon: ListMusic },
   { id: 'cuenta', label: 'Cuenta', icon: CircleUserRound },
+  { id: 'ajustes', label: 'Ajustes', icon: Settings2 },
 ];
+const primaryDestinations:Screen[]=['inicio','buscar','biblioteca','salas'];
+const collectionDestinations:Screen[]=['playlists','explorar'];
+const settingsDestinations:Screen[]=['cuenta','ajustes'];
+function screenFromUrl():Screen {
+  const value=new URL(window.location.href).searchParams.get('vista');
+  return navigation.some(item=>item.id===value)?value as Screen:'inicio';
+}
 const genres = ['Todos', 'Electrónica', 'Chill', 'Pop', 'Ambient', 'Indie'];
 type PlayerApi = ReturnType<typeof useLocalAudio>;
 
@@ -53,10 +60,17 @@ function SectionHeader({title, action, onAction}: {title: string; action?: strin
   return <div className="section-heading"><h2>{title}</h2>{action && <button className="text-action" type="button" onClick={onAction}>{action}<ChevronRight size={15}/></button>}</div>;
 }
 function UploadButton({ onFiles, small=false }: {onFiles: (files: FileList | null) => void; small?: boolean}) {
-  return <label className={small ? 'button primary small' : 'button primary'}>
-    <Plus size={16}/> Importar música
-    <input className="file-input" type="file" multiple accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.opus,.aac" onChange={(e: ChangeEvent<HTMLInputElement>) => { onFiles(e.target.files); e.target.value = ''; }} aria-label="Importar archivos de audio propios"/>
-  </label>;
+  const inputRef=useRef<HTMLInputElement>(null);
+  const helpId=useId();
+  return <span className="upload-control">
+    <button type="button" className={small ? 'button primary small' : 'button primary'}
+      aria-describedby={helpId} onClick={()=>inputRef.current?.click()}><Plus size={16}/> Importar música</button>
+    <input ref={inputRef} tabIndex={-1} className="file-input" type="file" multiple
+      accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.opus,.aac"
+      onChange={(e: ChangeEvent<HTMLInputElement>) => { onFiles(e.target.files); e.target.value = ''; }}
+      aria-label="Importar archivos de audio propios"/>
+    <span className="sr-only" id={helpId}>Abre el selector de archivos para añadir audio propio a esta biblioteca local. No se sube automáticamente a la nube.</span>
+  </span>;
 }
 function TrackRow({ track, player, index, onRemove, onAdd, onDownload }: { track: Track; player: PlayerApi; index?: number; onRemove?: (id: string) => void; onAdd?: (id: string) => void; onDownload?: (id: string) => void }) {
   const favorite = player.favorites.includes(track.id);
@@ -143,6 +157,7 @@ export function NebulaApp() {
   const [selectedAccountPlaylistId,setSelectedAccountPlaylistId]=useState<string|null>(null);
   const [activePlaylist, setActivePlaylist] = useState<string | null>(null);
   const [pendingPlaylistTrack, setPendingPlaylistTrack] = useState<string | null>(null);
+  const [pickerPlaylistTitle, setPickerPlaylistTitle] = useState('');
   const playlistDialogRef = useRef<HTMLDialogElement>(null);
   const mobileMenuRef = useRef<HTMLElement>(null);
   const mobileMoreButtonRef = useRef<HTMLButtonElement>(null);
@@ -150,14 +165,22 @@ export function NebulaApp() {
   const localCount = player.ownTracks.length;
   const personalAlbums = groupPlayableAlbums(player.ownTracks);
   const currentPlaylist = playlistStore.playlists.find((item)=>item.id === activePlaylist);
-  // Choosing a destination is deliberate: never silently add songs to the first list.
+  // Always choose a destination: a first playlist can be created without losing the song.
   function addToPlaylist(trackId: string) {
-    if (!playlistStore.playlists.length) {
-      player.setNotice('Crea primero una playlist para añadir canciones.');
-      navigate('playlists');
-      return;
-    }
+    setPickerPlaylistTitle('');
     setPendingPlaylistTrack(trackId);
+  }
+  function createPlaylistForTrack(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    const clean=pickerPlaylistTitle.trim();
+    if(!clean||!pendingPlaylistTrack)return;
+    const id=playlistStore.create(clean);
+    if(!id)return;
+    playlistStore.addSong(id,pendingPlaylistTrack);
+    setActivePlaylist(id);
+    setPendingPlaylistTrack(null);
+    setPickerPlaylistTitle('');
+    player.setNotice('Playlist creada y canción guardada.');
   }
   function saveToPlaylist(id: string) {
     const target = playlistStore.playlists.find(item=>item.id===id);
@@ -190,13 +213,18 @@ export function NebulaApp() {
   });
 
   useEffect(() => {
-    // Invite tokens live in the URL fragment, never in HTTP query parameters.
-    const openRoomInvite = () => {
-      if (roomInviteFromHash(window.location.hash)) setScreen('salas');
+    // Keep room invitation tokens in the hash; the selected view has a shareable URL.
+    const restoreView = () => {
+      setScreen(roomInviteFromHash(window.location.hash)?'salas':screenFromUrl());
+      setMobileMoreOpen(false);
     };
-    openRoomInvite();
-    window.addEventListener('hashchange', openRoomInvite);
-    return () => window.removeEventListener('hashchange', openRoomInvite);
+    restoreView();
+    window.addEventListener('popstate',restoreView);
+    window.addEventListener('hashchange',restoreView);
+    return () => {
+      window.removeEventListener('popstate',restoreView);
+      window.removeEventListener('hashchange',restoreView);
+    };
   }, []);
   useEffect(() => {
     // A guest who followed a room link may need to sign in first. Return to
@@ -222,9 +250,9 @@ export function NebulaApp() {
       const editing=target instanceof HTMLElement &&
         (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName));
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k') {
-        event.preventDefault(); setScreen('buscar');
+        event.preventDefault(); navigate('buscar');
       } else if (event.key==='/' && !editing && !event.ctrlKey && !event.altKey && !event.metaKey) {
-        event.preventDefault(); setScreen('buscar');
+        event.preventDefault(); navigate('buscar');
       }
     };
     window.addEventListener('keydown',shortcut);
@@ -254,6 +282,13 @@ export function NebulaApp() {
   },[mobileMoreOpen]);
   function navigate(target: Screen) {
     if (target === 'reproductor' && screen !== 'reproductor') setPreviousScreen(screen);
+    if(typeof window!=='undefined'){
+      const next=new URL(window.location.href);
+      if(target==='inicio')next.searchParams.delete('vista');
+      else next.searchParams.set('vista',target);
+      if(next.href!==window.location.href)window.history.pushState({nebulaScreen:target},'',next);
+      window.scrollTo({top:0,behavior:'auto'});
+    }
     setScreen(target);
     setMobileMoreOpen(false);
   }
@@ -262,28 +297,33 @@ export function NebulaApp() {
     <div className="background-orb orb-one"/><div className="background-orb orb-two"/><div className="background-orb orb-three"/>
     <aside className="sidebar glass">
       <Brand/>
-      <div className="sidebar-label">TU UNIVERSO</div>
-      <nav aria-label="Navegación principal" className="side-links">{navigation.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen === item.id ? 'page' : undefined} className={'nav-item ' + (screen === item.id ? 'selected' : '')}><Icon size={19}/>{item.label}</button>; })}</nav>
-      <div className="sidebar-label extra-label">TU MÚSICA</div>
-      <div className="side-collection"><button type="button" className="nav-item" onClick={()=>navigate('biblioteca')}><Disc3 size={16}/> Mi biblioteca ({localCount})</button>{playlistStore.playlists.slice(0,3).map((list)=><button key={list.id} type="button" className="nav-item" onClick={()=>{setActivePlaylist(list.id);navigate('playlists');}}><ListMusic size={16}/>{list.title}</button>)}{playlistStore.playlists.length===0 && <button type="button" className="nav-item" onClick={()=>navigate('playlists')}><Plus size={16}/> Ir a mis playlists</button>}</div>
+      <nav aria-label="Navegación principal" className="side-links">
+        <div className="sidebar-label">ESCUCHAR</div>
+        {navigation.filter(item=>primaryDestinations.includes(item.id)||item.id==='explorar').map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+        <div className="sidebar-label extra-label">COLECCIONES</div>
+        {navigation.filter(item=>item.id==='playlists').map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+        {playlistStore.playlists.length>0&&<div className="side-collection" aria-label="Tus playlists">{playlistStore.playlists.slice(0,3).map(list=><button key={list.id} type="button" className="nav-item playlist-shortcut" onClick={()=>{setActivePlaylist(list.id);navigate('playlists');}}><ListMusic size={15}/><span>{list.title}</span></button>)}</div>}
+        <div className="sidebar-label extra-label">PREFERENCIAS</div>
+        {navigation.filter(item=>settingsDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+      </nav>
       <div className="sidebar-footer"><span className="status-dot"/> {account.configured ? (account.user ? 'Biblioteca conectada' : 'Inicia sesión para sincronizar') : 'Biblioteca local disponible'}</div>
     </aside>
     <div className="workspace">
       <header className="topbar glass">
         <div className="mobile-brand"><Brand/></div><div className="desktop-location"><span>{screen==='reproductor'?'Reproduciendo ahora':navigation.find(item=>item.id===screen)?.label??'NÉBULA Music'}</span></div>
         <div className="topbar-actions">
-          <button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>
+          {screen!=='buscar'&&<button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>}
           <button ref={mobileMoreButtonRef} className="icon-button glass-chip mobile-only" title="Más secciones" aria-label="Más secciones" aria-expanded={mobileMoreOpen} aria-controls="nebula-mobile-more-menu" type="button" onClick={()=>setMobileMoreOpen(open=>!open)}><MoreHorizontal size={19}/></button>
-          <button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>
+          {screen!=='cuenta'&&<button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>}
         </div>
         {mobileMoreOpen && <nav ref={mobileMenuRef} id="nebula-mobile-more-menu" className="mobile-more-menu" aria-label="Más secciones de NÉBULA">
-          {navigation.filter(item=>['explorar','playlists','ajustes','cuenta'].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
+          {navigation.filter(item=>[...collectionDestinations,...settingsDestinations].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" aria-current={screen===item.id?'page':undefined} onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
         </nav>}
       </header>
       <main className={'main-area ' + (screen === 'reproductor' ? 'main-player' : '')}>
         {screen === 'inicio' && <>
           <section className="hero glass">
-            <div className="hero-copy"><Tag>✦ TU MÚSICA, TU UNIVERSO</Tag>
+            <div className="hero-copy"><Tag>TU MÚSICA, TU UNIVERSO</Tag>
               <h1>{player.current ? 'Tu música sigue ' : localCount ? 'Vuelve a lo que ' : 'Encuentra tu '}<em>{player.current?'contigo.':localCount?'te mueve.':'próxima canción.'}</em></h1>
               <p>{player.current ? 'Continúa escuchando '+player.current.title+' o descubre algo nuevo.' : localCount ? 'Escucha tu colección y descubre canciones sin perder tu lugar.' : 'Busca artistas y canciones, o añade tus propios archivos para escucharlos aquí.'}</p>
               <div className="hero-actions">
@@ -302,7 +342,7 @@ export function NebulaApp() {
             <SectionHeader title="De tu colección" action="Abrir biblioteca" onAction={()=>navigate('biblioteca')}/>
             <div className="album-grid">{personalAlbums.slice(0,4).map(album=><AlbumCard key={album.id} title={album.title} subtitle={album.artist+' · '+album.tracks.length+' canciones'} cover={album.cover} onClick={()=>player.playQueue(album.tracks)}/>)}</div>
           </section>}
-          <section className="content-section"><SectionHeader title="Escucha de nuevo" action="Ver toda mi música" onAction={()=>navigate('biblioteca')}/>
+          <section className="content-section"><SectionHeader title="Escucha de nuevo" action={player.ownTracks.length?'Ver toda mi música':undefined} onAction={()=>navigate('biblioteca')}/>
             {player.ownTracks.length ? <div className="track-list glass">{player.ownTracks.slice(0,6).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>)}</div>
               : <div className="music-empty glass"><span className="music-empty-icon"><Headphones size={25}/></span><div><strong>Tu biblioteca empieza aquí</strong><p>Importa un álbum o abre Buscar para descubrir música disponible.</p></div><button className="button secondary small" type="button" onClick={()=>navigate('biblioteca')}>Ir a biblioteca</button></div>}
           </section>
@@ -336,7 +376,7 @@ export function NebulaApp() {
           <ExternalMediaBridges account={account} initialQuery={search} embedded onImportMp3={player.importFiles} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
         </section>}
         {screen === 'biblioteca' && <>
-          <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>
+          <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar. Los archivos importados se guardan en este dispositivo.</p></div><UploadButton onFiles={player.importFiles} small/></div>
           <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length+account.accountFavorites.length} <span>guardadas</span></strong><small>Favoritos locales y de cuenta</small></div></div>
           <section className="content-section"><SectionHeader title="Colección musical" action="Playlists" onAction={()=>navigate('playlists')}/><div className="chip-row">{(['canciones','favoritos','albumes'] as const).map((item)=><button type="button" key={item} className={'chip ' + (libraryFilter === item ? 'active' : '')} onClick={()=>setLibraryFilter(item)}>{item === 'albumes' ? 'Álbumes' : item === 'favoritos' ? 'Favoritos' : 'Canciones'}</button>)}</div>{libraryFilter === 'albumes' ? (personalAlbums.length ? <div className="album-grid">{personalAlbums.map(album=><AlbumCard key={album.id} title={album.title} subtitle={album.artist+' · '+album.tracks.length+' canciones'} cover={album.cover} onClick={()=>player.playQueue(album.tracks)}/>)}</div> : <div className="music-empty glass"><Music2 size={25}/><span>Importa canciones con etiquetas de álbum para verlas agrupadas aquí.</span></div>) : <div className="track-list glass">{player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).length ? player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i} onAdd={addToPlaylist} onRemove={deleteFromLibrary} onDownload={(id)=>{void player.downloadLocalTrack(id);}}/>) : <p className="empty-note">{libraryFilter==='favoritos'?'Todavía no tienes favoritos locales.':'Todavía no hay canciones en este dispositivo. Puedes importar música arriba.'}</p>}</div>}</section>
           <CloudLibrary account={account} onPlay={player.playExternal}/>
@@ -400,7 +440,7 @@ export function NebulaApp() {
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
-      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>['inicio','buscar','biblioteca','salas'].includes(item.id)).map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
+      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter(item=>primaryDestinations.includes(item.id)).map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
     </div>
     <dialog ref={playlistDialogRef} className="playlist-picker-dialog" aria-label="Elegir playlist"
       onClose={()=>setPendingPlaylistTrack(null)}>
@@ -411,6 +451,7 @@ export function NebulaApp() {
         <button type="button" className="icon-button" aria-label="Cerrar selector de playlists" onClick={()=>setPendingPlaylistTrack(null)}><X size={20}/></button>
       </div>
       <div className="playlist-picker-options">
+        {playlistStore.playlists.length===0&&<p className="empty-note">Aún no tienes playlists. Crea una aquí para guardar esta canción.</p>}
         {playlistStore.playlists.map(list=>{
           const alreadySaved=Boolean(pendingPlaylistTrack&&list.trackIds.includes(pendingPlaylistTrack));
           return <button type="button" key={list.id} className="playlist-picker-option"
@@ -422,6 +463,13 @@ export function NebulaApp() {
           </button>;
         })}
       </div>
+      <form className="playlist-picker-create" onSubmit={createPlaylistForTrack}>
+        <label htmlFor="playlist-picker-new">Nueva playlist</label>
+        <div className="playlist-picker-create-row">
+          <input id="playlist-picker-new" value={pickerPlaylistTitle} onChange={event=>setPickerPlaylistTitle(event.target.value)} placeholder="Nombre de la playlist" maxLength={80}/>
+          <button type="submit" className="button primary small" disabled={!pickerPlaylistTitle.trim()}><Plus size={16}/> Crear y guardar</button>
+        </div>
+      </form>
     </dialog>
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;
