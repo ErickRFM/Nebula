@@ -18,7 +18,6 @@ import { useAccount } from '../hooks/useAccount';
 import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { PublicAudiusPanel } from './PublicAudiusPanel';
-import { MainstreamCatalogPanel } from './MainstreamCatalogPanel';
 import { PrivateBridgePanel } from './PrivateBridgePanel';
 import { ExternalMediaBridges } from './ExternalMediaBridges';
 import { CloudLibrary } from './CloudLibrary';
@@ -142,6 +141,7 @@ function FullPlayer({player,onBack}: {player: PlayerApi; onBack: () => void}) {
 }
 export function NebulaApp() {
   const [screen, setScreen] = useState<Screen>('inicio');
+  const [audioToolsOpen,setAudioToolsOpen]=useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [previousScreen, setPreviousScreen] = useState<Screen>('inicio');
   const [search, setSearch] = useState('');
@@ -361,7 +361,6 @@ export function NebulaApp() {
             </section>
             <div className="search-start glass"><Search size={21}/><span>Busca por nombre, artista o álbum. Verás las grabaciones disponibles y las fuentes adicionales.</span></div>
           </> : <>
-            <MainstreamCatalogPanel query={search} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
             <section className="content-section search-local"><div className="section-heading"><div><h2>En tu biblioteca</h2><p className="search-section-note">Canciones guardadas en este dispositivo</p></div><span className="server-pill">{filteredTracks.length} resultados</span></div>
               <div className="chip-row search-genre-filter" aria-label="Filtrar la biblioteca">{genres.map(name=><button type="button" key={name} className={'chip '+(genre===name?'active':'')} aria-pressed={genre===name} onClick={()=>setGenre(name)}>{name}</button>)}</div>
               <div className="track-list glass">{filteredTracks.length?filteredTracks.map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>):<p className="empty-note">No hay coincidencias entre tus archivos locales. Consulta las fuentes en línea o importa música desde Biblioteca.</p>}</div>
@@ -373,14 +372,14 @@ export function NebulaApp() {
             </section>
           </>}
           <PrivateBridgePanel initialQuery={search} onPlay={player.playExternal}/>
-          <ExternalMediaBridges account={account} initialQuery={search} embedded onImportMp3={player.importFiles} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
+          <ExternalMediaBridges account={account} initialQuery={search} embedded onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
         </section>}
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar. Los archivos importados se guardan en este dispositivo.</p></div><UploadButton onFiles={player.importFiles} small/></div>
           <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length+account.accountFavorites.length} <span>guardadas</span></strong><small>Favoritos locales y de cuenta</small></div></div>
           <section className="content-section"><SectionHeader title="Colección musical" action="Playlists" onAction={()=>navigate('playlists')}/><div className="chip-row">{(['canciones','favoritos','albumes'] as const).map((item)=><button type="button" key={item} className={'chip ' + (libraryFilter === item ? 'active' : '')} onClick={()=>setLibraryFilter(item)}>{item === 'albumes' ? 'Álbumes' : item === 'favoritos' ? 'Favoritos' : 'Canciones'}</button>)}</div>{libraryFilter === 'albumes' ? (personalAlbums.length ? <div className="album-grid">{personalAlbums.map(album=><AlbumCard key={album.id} title={album.title} subtitle={album.artist+' · '+album.tracks.length+' canciones'} cover={album.cover} onClick={()=>player.playQueue(album.tracks)}/>)}</div> : <div className="music-empty glass"><Music2 size={25}/><span>Importa canciones con etiquetas de álbum para verlas agrupadas aquí.</span></div>) : <div className="track-list glass">{player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).length ? player.ownTracks.filter((track)=>libraryFilter !== 'favoritos' || player.favorites.includes(track.id)).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i} onAdd={addToPlaylist} onRemove={deleteFromLibrary} onDownload={(id)=>{void player.downloadLocalTrack(id);}}/>) : <p className="empty-note">{libraryFilter==='favoritos'?'Todavía no tienes favoritos locales.':'Todavía no hay canciones en este dispositivo. Puedes importar música arriba.'}</p>}</div>}</section>
           <CloudLibrary account={account} onPlay={player.playExternal}/>
-          <details className="library-management glass">
+          <details className="library-management glass" open={audioToolsOpen} onToggle={event=>setAudioToolsOpen(event.currentTarget.open)}>
             <summary><SlidersHorizontal size={18} aria-hidden="true"/><span><strong>Administrar archivos y respaldos</strong><small>Importar desde URL, convertir MP3 o respaldar tus canciones</small></span><ChevronRight size={18} className="management-chevron" aria-hidden="true"/></summary>
             <div className="library-management-body">
               <Mp3UrlImport onImport={player.importFiles}/>
@@ -436,7 +435,7 @@ export function NebulaApp() {
           <div className="disclosure">La música local y las playlists de este dispositivo se guardan en el navegador. La biblioteca privada en la nube requiere iniciar sesión y almacenamiento configurado.</div>
         </>}
         {screen === 'cuenta' && <AccountPanel account={account} onOpenPlaylists={()=>navigate('playlists')}/>}
-        {screen === 'explorar' && <><MainstreamCatalogPanel standalone onActivate={()=>{if(player.state==='playing')player.toggle();}}/><PrivateBridgePanel standalone onPlay={player.playExternal}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
+        {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
