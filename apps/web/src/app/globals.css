@@ -713,7 +713,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 
 
 /* Desktop: video beside songs; avoids the full-height embedded-video wall. */
-@media(min-width:1050px){
+@media(min-width:900px){
  .yt-collection-browser{grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);column-gap:15px;align-items:start}
  .yt-collection-browser>.bridge-iframe{grid-column:1;grid-row:1/span 6;width:100%;height:auto;min-height:0;aspect-ratio:16/9;max-height:calc(100vh - 200px);position:sticky;top:90px}
  .yt-collection-browser>:not(.bridge-iframe){grid-column:2;min-width:0}
@@ -723,6 +723,6 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .yt-collection-browser .yt-collection-buttons{grid-column:1/-1}
  .yt-collection-browser .yt-collection-buttons>*{flex:1}
 }
-@media(max-width:1049px){
+@media(max-width:899px){
  .yt-collection-browser>.bridge-iframe{width:100%;height:auto;aspect-ratio:16/9;min-height:230px}
 }
