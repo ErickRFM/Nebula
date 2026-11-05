@@ -10,8 +10,16 @@ test('mobile navigation exposes four primary destinations without horizontal scr
  }
  await nav.getByRole('button',{name:'Biblioteca'}).click();
  await expect(page.getByRole('heading',{name:'Tu biblioteca'})).toBeVisible();
- await page.getByRole('button',{name:'Más secciones'}).click();
- await expect(page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name:'Ajustes'})).toBeVisible();
+ const more=page.getByRole('button',{name:'Más secciones'});
+ await more.click();
+ const menu=page.getByRole('navigation',{name:'Más secciones de NÉBULA'});
+ await expect(menu.getByRole('button',{name:'Ajustes'})).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(menu).toHaveCount(0);
+ await expect(more).toBeFocused();
+ await more.click();
+ await page.locator('main').click({position:{x:10,y:10}});
+ await expect(menu).toHaveCount(0);
 });
 
 test('library leads with music and keeps file utilities discoverable on demand',async({page})=>{
