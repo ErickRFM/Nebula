@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useMemo,useState,type FormEvent} from 'react';
-import {Download,FolderDown,ListMusic,RefreshCw,X} from 'lucide-react';
+import {FolderDown,ListMusic,RefreshCw,X} from 'lucide-react';
 import {BRIDGE_URL} from '../lib/private-bridge';
 
 type Item={id:string;title:string;artist:string;durationSeconds:number|null};
@@ -142,7 +142,7 @@ export function PlaylistBatchPanel({token,authorized,incomingUrl=''}:{
     <button className="button primary" type="button" disabled={!authorized||!selected.size||working||job?.status==='running'} onClick={()=>{void start();}}>
      <FolderDown size={17}/> Descargar {selected.size} MP3 seleccionados
     </button>
-    {!authorized&&<p className="disclosure">Confirma arriba que tienes autorización para descargar estas pistas antes de iniciar el lote.</p>}
+    {!authorized&&<p className="disclosure">Confirma que tienes autorización para descargar estas pistas antes de iniciar el lote.</p>}
    </div>}
    {job&&<div className="batch-progress" aria-live="polite">
     <div className="batch-progress-heading"><strong>{job.status==='running'?'Descargando canciones…':job.status==='completed'?'Lote completado':job.status==='cancelled'?'Lote cancelado':'Lote interrumpido'}</strong>
