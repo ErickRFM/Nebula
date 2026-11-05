@@ -158,7 +158,7 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
  return <section ref={panelRef} className="content-section private-bridge" aria-label="Reproductor local privado">
   <div className="section-heading"><h2><Radio size={19}/> Reproducción privada local</h2></div>
   <p className="page-description">Puente opcional de tu propio ordenador, sin clave de Google. Solo funciona mientras lo tengas abierto y autorizado. Las fuentes externas pueden fallar por restricciones del proveedor.</p>
-  {!online?<p className="search-source-hint" role="status">No se detecta el puente en este dispositivo. Ejecuta <code>npm run bridge:dev</code> en tu ordenador y abre NÉBULA allí.</p>:
+  {!online?<p className="search-source-hint">No se detecta el puente en este dispositivo. Ejecuta <code>npm run bridge:dev</code> en tu ordenador y abre NÉBULA allí.</p>:
    !engine?<p className="search-source-hint" role="status">Puente detectado, pero el adaptador yt-dlp está deshabilitado. Actívalo solamente para contenidos a los que tengas derecho de acceso.</p>:
    !token?<form className="playlist-create glass" onSubmit={pair}>
     <ShieldCheck size={18}/>
