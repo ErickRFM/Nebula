@@ -14,7 +14,19 @@ test('bulk-export local audio to ZIP and restore songs on same device',async({pa
   buffer:Buffer.from([73,68,51,...Array(250).fill(0)]),
  });
  await expect(page.getByRole('button',{name:'Descargar archivo original de my-demo-track'})).toBeVisible();
- await expect(page.getByText('canción(es) guardadas',{exact:false})).toBeVisible();
+ await expect.poll(async()=>page.evaluate(async()=>{
+  const request=indexedDB.open('nebula-personal-library');
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{
+   request.onsuccess=()=>resolve(request.result);
+   request.onerror=()=>reject(request.error);
+  });
+  return new Promise<number>((resolve,reject)=>{
+   const tx=db.transaction('songs','readonly');
+   const count=tx.objectStore('songs').count();
+   count.onsuccess=()=>{const value=count.result;db.close();resolve(value);};
+   count.onerror=()=>{db.close();reject(count.error);};
+  });
+ }),{timeout:15000}).toBe(1);
  const downloadEvent=page.waitForEvent('download');
  await archive.getByRole('button',{name:'Descargar mi música (.zip)'}).click();
  const download=await downloadEvent;
