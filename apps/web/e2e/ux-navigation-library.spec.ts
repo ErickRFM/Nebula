@@ -15,8 +15,9 @@ test('mobile navigation exposes four primary destinations without horizontal scr
 
 test('library leads with music and keeps file utilities discoverable on demand',async({page})=>{
  await page.goto('/');
- const desktop=page.getByRole('navigation',{name:'Navegación principal'});
- await desktop.getByRole('button',{name:'Biblioteca',exact:true}).click();
+ const desktop=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Biblioteca',exact:true});
+ const mobile=page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Biblioteca',exact:true});
+ if(await desktop.isVisible()) await desktop.click(); else await mobile.click();
  const management=page.locator('details.library-management');
  await expect(management).not.toHaveAttribute('open');
  await expect(page.getByRole('heading',{name:'Colección musical'})).toBeVisible();
@@ -30,8 +31,9 @@ test('home shows a real library continuation, never a fake demo queue',async({pa
  await page.goto('/');
  await expect(page.getByRole('heading',{name:'Encuentra tu próxima canción.'})).toBeVisible();
  await expect(page.getByRole('button',{name:'Buscar música'})).toBeVisible();
- await page.getByRole('navigation',{name:'Navegación principal'})
-  .getByRole('button',{name:'Buscar',exact:true}).click();
+ const desktopSearch=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Buscar',exact:true});
+ if(await desktopSearch.isVisible()) await desktopSearch.click();
+ else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Buscar',exact:true}).click();
  await expect(page.getByRole('heading',{name:'¿Qué quieres escuchar?'})).toBeVisible();
  await expect(page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'})).toBeFocused();
 });
@@ -59,7 +61,9 @@ for(const width of [360,390,768,1280,1440]){
 
 test('external YouTube player keeps platform identity and action outside the local mini-player',async({page})=>{
  await page.goto('/');
- await page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Buscar',exact:true}).click();
+ const desktopSearch=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Buscar',exact:true});
+ if(await desktopSearch.isVisible()) await desktopSearch.click();
+ else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Buscar',exact:true}).click();
  const bridges=page.locator('.search-page > .external-bridges');
  const input=bridges.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud, Spotify o Deezer'});
  await input.fill('https://www.youtube.com/watch?v=M-E8rmhUxyw');
