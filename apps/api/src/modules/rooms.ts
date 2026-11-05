@@ -150,12 +150,27 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     if (body.data.enabled && body.data.rightsConfirmed !== true) {
       return reply.code(400).send(error('sharing_rights_confirmation_required'));
     }
+    if (body.data.enabled && !readR2Settings()) {
+      return reply.code(503).send(error('storage_not_configured'));
+    }
+    // A room cannot claim to share audio unless the current track is ready in
+    // its host's cloud library. This guard is atomic with enabling sharing.
     const updated = await pool.query<{ shareEnabled: boolean }>(`
-      UPDATE rooms SET share_enabled=$3
-      WHERE id=$1 AND owner_user_id=$2 AND status='active'
-      RETURNING share_enabled AS "shareEnabled"
+      UPDATE rooms r SET share_enabled=$3
+      WHERE r.id=$1 AND r.owner_user_id=$2 AND r.status='active'
+        AND (NOT $3::boolean OR EXISTS (
+          SELECT 1 FROM cloud_tracks c
+          WHERE c.id=r.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+        ))
+      RETURNING r.share_enabled AS "shareEnabled"
     `, [params.data.id, request.principal!.userId, body.data.enabled]);
-    if (!updated.rowCount) return reply.code(404).send(error('room_not_found'));
+    if (!updated.rowCount) {
+      const owned = await pool.query(`
+        SELECT 1 FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active'
+      `, [params.data.id, request.principal!.userId]);
+      if (owned.rowCount && body.data.enabled) return reply.code(409).send(error('room_track_not_ready'));
+      return reply.code(404).send(error('room_not_found'));
+    }
     return { shareEnabled: updated.rows[0].shareEnabled };
   });
 
