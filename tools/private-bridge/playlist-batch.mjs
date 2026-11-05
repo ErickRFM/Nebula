@@ -56,11 +56,11 @@ export function createPlaylistBatchManager({runner,downloadDir,clock=Date.now}={
  async function run(job){
   try{
    await mkdir(folder,{recursive:true,mode:0o700});
-   for(const item of job.items){
+   for(const id of job.items){
     if(job.abort.signal.aborted)break;
-    job.current=item.id;
+    job.current=id;
     try{
-     await runner.downloadOne(item.id,{directory:folder,signal:job.abort.signal});
+     await runner.downloadOne(id,{directory:folder,signal:job.abort.signal});
      if(job.abort.signal.aborted)break;
      job.saved++;
     }catch(err){
