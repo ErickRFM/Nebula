@@ -89,7 +89,7 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,onOpenAudio
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
        placeholder="Buscar videos musicales en YouTube"/>
      <button className="button secondary small" type="submit" disabled={searching||query.trim().length<2}>{searching?'Buscando…':'Buscar videos'}</button>
-   </form> : !youtubeReady ? <p className="search-source-hint">{!account.accessToken?"Inicia sesión para consultar YouTube desde NÉBULA.":"YouTube no está habilitado en NÉBULA en este momento. Puedes consultar otros catálogos."}</p> : null}
+   </form> : !youtubeReady ? <p className="search-source-hint">{!account.accessToken?"Conectando con el catálogo YouTube de NÉBULA…":"YouTube no está habilitado en NÉBULA en este momento. Puedes consultar otros catálogos."}</p> : null}
    {embedded&&!youtubeReady&&(initialQuery??'').trim().length>=2&&<p className="disclosure">La búsqueda automática de YouTube no está disponible. Pega un enlace de video o playlist para reproducirlo aquí mismo.</p>}
    {error&&<p className="account-error" role="alert">{error}</p>}
    {embedded&&youtubeReady&&searching&&<p className="disclosure" role="status">Buscando videos musicales relacionados…</p>}

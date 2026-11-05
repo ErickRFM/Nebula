@@ -29,7 +29,7 @@ export function MetadataLookup({account}:{account:AccountApi}) {
         headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',
       });
       if(!response.ok) throw new Error(response.status===429?'Límite de consultas. Inténtalo después.':
-        response.status===401?'La sesión caducó. Inicia sesión de nuevo.':
+        response.status===401?'No se pudo validar la conexión. Actualiza NÉBULA.':
         'No se pudo consultar MusicBrainz.');
       const data=await response.json() as {items?:unknown};
       if(!Array.isArray(data.items))throw new Error('Respuesta inesperada del catálogo.');

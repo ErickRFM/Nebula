@@ -421,12 +421,12 @@ export function NebulaApp() {
             <form className="playlist-create glass" onSubmit={(event)=>{event.preventDefault();const value=cloudPlaylistTitle.trim();if(value){void account.createServerPlaylist(value).then((created)=>{if(created)setCloudPlaylistTitle('');});}}}>
               <label className="sr-only" htmlFor="cloud-playlist-title">Nombre de playlist de cuenta</label>
               <input id="cloud-playlist-title" placeholder="Nombre de playlist de cuenta" value={cloudPlaylistTitle} maxLength={80} onChange={(event)=>setCloudPlaylistTitle(event.target.value)}/>
-              <button type="submit" className="button primary small" disabled={account.playlistsBusy || !cloudPlaylistTitle.trim()}><Plus size={16}/> Crear en mi cuenta</button>
+              <button type="submit" className="button primary small" disabled={account.playlistsBusy || !cloudPlaylistTitle.trim()}><Plus size={16}/> Crear playlist guardada</button>
             </form>
             {account.playlistsBusy && <p role="status" className="disclosure">Actualizando playlists de cuenta…</p>}
             <div className="personal-playlists">{account.serverPlaylists.map((list)=><div className="playlist-entry glass" key={list.id}>
               <button type="button" className="playlist-entry-main" aria-expanded={selectedAccountPlaylistId===list.id} onClick={()=>setSelectedAccountPlaylistId(current=>current===list.id?null:list.id)}><ListMusic size={19}/><strong>{list.name}</strong><small>En tu cuenta · {selectedAccountPlaylistId===list.id?'Ocultar':'Ver canciones'}</small></button>
-              <button type="button" className="icon-button" disabled={account.playlistsBusy} title="Eliminar playlist de cuenta" aria-label={'Eliminar de mi cuenta '+list.name} onClick={()=>{if(window.confirm('¿Eliminar playlist de cuenta '+list.name+'?'))void account.removeServerPlaylist(list.id);}}><Trash2 size={17}/></button>
+              <button type="button" className="icon-button" disabled={account.playlistsBusy} title="Eliminar playlist de cuenta" aria-label={'Eliminar playlist guardada '+list.name} onClick={()=>{if(window.confirm('¿Eliminar playlist de cuenta '+list.name+'?'))void account.removeServerPlaylist(list.id);}}><Trash2 size={17}/></button>
             </div>)}</div>
             {!account.playlistsBusy && account.serverPlaylists.length===0 && <p className="empty-note">Todavía no tienes playlists guardadas en tu cuenta.</p>}
             {selectedAccountPlaylistId && account.serverPlaylists.some(list=>list.id===selectedAccountPlaylistId) && <AccountPlaylistTracks account={account} playlistId={selectedAccountPlaylistId} onPlay={player.playExternal}/>}
@@ -443,7 +443,7 @@ export function NebulaApp() {
             <div className="setting-row"><div><strong>Almacenamiento en este dispositivo</strong><p>{player.storageDurability==='granted'?'Persistencia concedida por este navegador.':player.storageDurability==='best-effort'?'Los archivos se conservan, pero el navegador puede borrarlos al liberar espacio.':player.storageDurability==='unavailable'?'El navegador no ofrece garantía de almacenamiento persistente.':'Comprobando protección del almacenamiento local…'}</p></div><button className="button secondary small" type="button" onClick={()=>{void player.requestStoragePersistence();}}>Proteger biblioteca</button></div>
             <p className="disclosure">No se necesita cuenta para guardar música en IndexedDB. Se conserva al cerrar sesión y al reiniciar la app, pero no se sincroniza a otro dispositivo. Exporta un ZIP desde Biblioteca para tener un respaldo independiente del navegador.</p>
           </section>
-          <div className="disclosure">La biblioteca privada en la nube sigue requiriendo iniciar sesión y almacenamiento de cuenta configurado.</div>
+          <div className="disclosure">La biblioteca compartida carga automáticamente sin iniciar sesión, siempre que el servidor R2 esté configurado.</div>
         </>}
         {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('biblioteca')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onDownloadYoutube={(url)=>setYoutubeDownloadUrl(url)} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}

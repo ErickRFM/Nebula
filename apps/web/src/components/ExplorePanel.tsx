@@ -86,7 +86,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
   async function searchRemote(q:string,nextPage=1) {
     searchAbort.current?.abort();
     if(q.length<2){setTracks([]);setSearched(false);setBusy(false);setSearchPage(0);setHasMore(false);setActiveQuery('');return;}
-    if(!account.accessToken || !apiConfigured){setTracks([]);setBusy(false);setHasMore(false);setSearchPage(0);setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
+    if(!account.accessToken || !apiConfigured){setTracks([]);setBusy(false);setHasMore(false);setSearchPage(0);setNotice('Conectando con los catálogos de NÉBULA…');return;}
     const controller=new AbortController();
     searchAbort.current=controller;
     setBusy(true);setNotice('');setFailed([]);setSearched(true);
@@ -173,7 +173,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
       });
       if(!response.ok) throw new Error('No se pudo actualizar tu biblioteca (HTTP '+response.status+').');
       await loadSaved();
-      setNotice(exists?'Referencia eliminada de tu biblioteca.':'Referencia guardada en tu cuenta, sin copiar audio.');
+      setNotice(exists?'Referencia eliminada de tu biblioteca.':'Referencia guardada en tu colección, sin copiar audio.');
     } catch(e) {setNotice(e instanceof Error?e.message:'Error al guardar.');}
     finally {setSaving(null);}
   }
@@ -184,8 +184,8 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
     {!embedded && <h1 className="page-title">Explora nuevas frecuencias</h1>}
     {!embedded && <p className="page-description">Busca canciones reales, escucha desde sus proveedores y guarda referencias privadas, sin descargar ni replicar archivos.</p>}
     {!apiConfigured || !account.user ? <div className="explore-gate glass">
-      <WifiOff size={25}/><div><strong>Exploración privada</strong><p>Necesitas la API configurada y una sesión iniciada para acceder a los catálogos.</p></div>
-      <button className="button primary small" type="button" onClick={onAccount}>Ir a Cuenta</button>
+      <WifiOff size={25}/><div><strong>Catálogos musicales</strong><p>{account.restoring ? 'Conectando sin iniciar sesión…' : 'No se pudo conectar con el servicio de música. La biblioteca local sigue disponible.'}</p></div>
+      <button className="button primary small" type="button" onClick={onAccount}>Ver biblioteca</button>
     </div> : <>
       {!embedded && <form onSubmit={(event)=>{event.preventDefault();void searchRemote(query.trim());}} className="explore-form glass">
         <Search size={19}/><label className="sr-only" htmlFor="catalog-query">Buscar canciones externas</label>
