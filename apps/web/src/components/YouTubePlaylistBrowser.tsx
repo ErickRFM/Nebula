@@ -47,8 +47,8 @@ function videoIdFromSource(source:string):string|null{
  try{const u=new URL(source),v=u.searchParams.get('v');return safeVideo(v)?v:null;}catch{return null;}
 }
 /** Official API returns the currently accessible video IDs, not an entire infinite RD radio. */
-export function YouTubePlaylistBrowser({media,onImport}:{
- media:ExternalEmbed;onImport:(files:File[])=>void;
+export function YouTubePlaylistBrowser({media,onImport,onDownloadYoutube}:{
+ media:ExternalEmbed;onImport:(files:File[])=>void;onDownloadYoutube:(url:string)=>void;
 }){
  const frameRef=useRef<HTMLIFrameElement|null>(null);
  const ytRef=useRef<PlayerHandle|null>(null);
@@ -171,6 +171,7 @@ export function YouTubePlaylistBrowser({media,onImport}:{
      <details className="yt-track-more">
        <summary aria-label={'Más opciones para '+(metadata[id]?.title||'video '+(i+1))}>Más opciones</summary>
        <div className="yt-track-more-actions">
+         <button type="button" className="button primary small" onClick={()=>onDownloadYoutube('https://www.youtube.com/watch?v='+id)}><Download size={14}/> Descargar MP3 (puente local)</button>
          <button type="button" className="button secondary small" onClick={()=>selectMp3(id)} aria-expanded={activeMp3===id}><Download size={14}/> Importar MP3 propio</button>
        </div>
      </details>
