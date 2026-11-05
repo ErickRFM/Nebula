@@ -7,8 +7,8 @@ import type {Track} from '../lib/catalog';
 import {BRIDGE_ENABLED,BRIDGE_URL,bridgeVideos,isPlayableExternalUrl,type BridgeVideo} from '../lib/private-bridge';
 
 const STORAGE='nebula:private-bridge-session-token';
-export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onImport}:{
- initialQuery?:string;standalone?:boolean;onPlay:(track:Track)=>void;onImport:(files:File[])=>void;
+export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onImport,incomingUrl=''}:{
+ initialQuery?:string;standalone?:boolean;onPlay:(track:Track)=>void;onImport:(files:File[])=>void;incomingUrl?:string;
 }){
  const [token,setToken]=useState('');
  const [inputToken,setInputToken]=useState('');
@@ -25,6 +25,19 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
  const [notice,setNotice]=useState('');
  const [refresh,setRefresh]=useState(0);
  const requestRef=useRef<AbortController|null>(null);
+ const panelRef=useRef<HTMLElement|null>(null);
+ useEffect(()=>{
+  if(!incomingUrl)return;
+  try{
+   const u=new URL(incomingUrl);
+   const host=u.hostname.toLowerCase();
+   const id=host==='youtu.be'?u.pathname.slice(1):['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com'].includes(host)?u.searchParams.get('v'):null;
+   if(u.protocol==='https:'&&id&&/^[A-Za-z0-9_-]{11}$/.test(id)){
+    setDirectUrl(incomingUrl);setDirectId(id);
+    window.requestAnimationFrame(()=>panelRef.current?.scrollIntoView({behavior:'smooth',block:'start'}));
+   }
+  }catch{/* User can paste a different valid URL manually. */}
+ },[incomingUrl]);
  const query=(standalone?typed:initialQuery).trim();
  useEffect(()=>{
   if(!BRIDGE_ENABLED)return;
@@ -142,7 +155,7 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
   }catch(e){setDirectId(null);setNotice(e instanceof Error?e.message:'Enlace inválido.');}
  }
  function searchNow(e:FormEvent<HTMLFormElement>){e.preventDefault();if(query.length>=2)setRefresh(i=>i+1);}
- return <section className="content-section private-bridge" aria-label="Reproductor local privado">
+ return <section ref={panelRef} className="content-section private-bridge" aria-label="Reproductor local privado">
   <div className="section-heading"><h2><Radio size={19}/> Reproducción privada local</h2></div>
   <p className="page-description">Puente opcional de tu propio ordenador, sin clave de Google. Solo funciona mientras lo tengas abierto y autorizado. Las fuentes externas pueden fallar por restricciones del proveedor.</p>
   {!online?<p className="search-source-hint" role="status">No se detecta el puente en este dispositivo. Ejecuta <code>npm run bridge:dev</code> en tu ordenador y abre NÉBULA allí.</p>:
