@@ -15,6 +15,7 @@ test('authorized MP3: receive direct HTTPS file, save in local library, download
  }));
  await page.goto('/');
  await library(page);
+ await page.locator('details.library-management > summary').click();
  const form=page.getByRole('region',{name:'Descargar MP3 autorizado e importarlo'});
  await form.getByRole('textbox',{name:'URL directa del MP3'}).fill('https://media.example.test/song-from-my-site.mp3');
  await form.getByRole('checkbox',{name:'Confirmo que tengo permiso para descargar y guardar este MP3.'}).check();
@@ -27,6 +28,7 @@ test('authorized MP3: receive direct HTTPS file, save in local library, download
  expect(download.suggestedFilename()).toBe('song-from-my-site.mp3');
  await page.reload();
  await library(page);
+ await page.locator('details.library-management > summary').click();
  const restored=page.getByRole('button',{name:'Descargar archivo original de song-from-my-site'});
  await expect(restored).toBeVisible();
  const downloadAgain=page.waitForEvent('download');
@@ -40,6 +42,7 @@ test('the MP3 importer rejects a YouTube page and a fake MP3 response',async({pa
  }));
  await page.goto('/');
  await library(page);
+ await page.locator('details.library-management > summary').click();
  const form=page.getByRole('region',{name:'Descargar MP3 autorizado e importarlo'});
  await form.getByRole('textbox',{name:'URL directa del MP3'}).fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
  await form.getByRole('checkbox',{name:'Confirmo que tengo permiso para descargar y guardar este MP3.'}).check();
