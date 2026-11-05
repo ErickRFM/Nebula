@@ -80,7 +80,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
        placeholder="https://open.spotify.com/track/… o https://youtu.be/…" required/>
      <button className="button primary small" type="submit" disabled={!link.trim()}>Abrir reproductor</button>
    </form>
-   {embedded&&incomingLink&&<div className="search-source-hint"><span>Enlace de {incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Deezer'} reconocido. </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>Reproducir este enlace</button></div>}
+   {embedded&&incomingLink&&<div className="search-source-hint"><span>{incomingLink.collection?(incomingLink.collection.kind==='mix'?'Mezcla automática de YouTube reconocida.':'Playlist de YouTube reconocida.'):'Enlace de '+(incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Deezer')+' reconocido.'} </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>{incomingLink.collection?'Reproducir esta lista':'Reproducir este enlace'}</button></div>}
    {!embedded&&account.accessToken&&youtubeReady ? <form className="playlist-create glass" onSubmit={event=>{void searchYoutube(event);}}>
      <label htmlFor="youtube-search" className="sr-only">Buscar videos musicales en YouTube</label>
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
@@ -105,6 +105,7 @@ export function ExternalMediaBridges({account,onActivate,initialQuery,embedded=f
        title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer')}
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>
+     {active.collection&&<div className="search-source-hint" role="status"><strong>{active.collection.kind==='mix'?'Mix / radio dinámica de YouTube':'Playlist de YouTube'}</strong><p>{active.collection.kind==='mix'?'La radio RD es dinámica: aquí suena el video inicial. El enlace original conserva la mezcla para seguir en YouTube. No es una lista fija.':'Playlist incrustada con los controles oficiales. La disponibilidad de cada video depende de YouTube.'}</p></div>}
      <p className="disclosure">Pulsa reproducir dentro del reproductor oficial. Este contenido no usa el mini-reproductor de audio de NÉBULA.</p>
      <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir contenido en su plataforma</a>
    </div>}

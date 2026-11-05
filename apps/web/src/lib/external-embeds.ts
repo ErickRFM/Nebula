@@ -1,4 +1,5 @@
-export type ExternalEmbed = {provider:'youtube'|'soundcloud'|'spotify'|'deezer'; src:string; sourceUrl:string};
+import {parseYouTubeCollection,type YouTubeCollection} from './youtube-collections';
+export type ExternalEmbed = {provider:'youtube'|'soundcloud'|'spotify'|'deezer'; src:string; sourceUrl:string;collection?:Pick<YouTubeCollection,'kind'|'id'>};
 const VIDEO=/^[A-Za-z0-9_-]{11}$/;
 export function parseExternalEmbed(input:string):ExternalEmbed|null{
  let url:URL;
@@ -7,6 +8,9 @@ export function parseExternalEmbed(input:string):ExternalEmbed|null{
  const host=url.hostname.toLowerCase();
  const youtubeHosts=['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtu.be'];
  if(youtubeHosts.includes(host)){
+   const list=parseYouTubeCollection(input);
+   if(list)return {provider:'youtube',src:list.embedUrl,sourceUrl:list.sourceUrl,collection:{kind:list.kind,id:list.id}};
+   if(url.searchParams.has('list'))return null;
    let id:string|null=null;
    const segments=url.pathname.split('/').filter(Boolean);
    if(host==='youtu.be'){
