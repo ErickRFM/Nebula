@@ -8,7 +8,7 @@ import { readAudioMetadata } from '../lib/audio-metadata';
 import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
 import {clearTransientPlaybackNotice} from '../lib/notice-lifecycle';
 import {isPlayableExternalUrl} from '../lib/private-bridge';
-import { createAudioEnhancer, normalizeAudioPreset, type AudioEnhancer, type AudioPreset } from '../lib/audio-enhancer';
+import { createAudioEnhancer, normalizeAudioPreset, normalizeAudioBands, presetAudioBands, AUDIO_PRESETS, type AudioEnhancer, type AudioPreset } from '../lib/audio-enhancer';
 
 export type Player = {
   tracks: Track[];
@@ -25,9 +25,11 @@ export type Player = {
   favorites: string[];
   loadingLibrary: boolean;
   audioPreset: AudioPreset;
+  audioBands: number[];
   humFilter: boolean;
   storageDurability: 'unknown' | 'granted' | 'best-effort' | 'unavailable';
   setAudioPreset: (preset: AudioPreset) => void;
+  setAudioBands: (bands: number[]) => void;
   setHumFilter: (enabled: boolean) => void;
   requestStoragePersistence: () => Promise<void>;
   importFiles: (list: FileList | File[] | null) => void;
@@ -61,9 +63,11 @@ export function useLocalAudio(): Player {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
   const [audioPreset, setAudioPresetState] = useState<AudioPreset>('off');
+  const [audioBands, setAudioBandsState] = useState<number[]>([...AUDIO_PRESETS.off.bands]);
   const [humFilter, setHumFilterState] = useState(false);
   const [storageDurability, setStorageDurability] = useState<'unknown'|'granted'|'best-effort'|'unavailable'>('unknown');
   const audioPresetRef=useRef<AudioPreset>('off');
+  const customBandsRef=useRef<number[]>([...AUDIO_PRESETS.balanced.bands]);
   const humFilterRef=useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const localAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -94,7 +98,11 @@ export function useLocalAudio(): Player {
       }
       const persistedPreset=normalizeAudioPreset(localStorage.getItem('nebula:audio-preset:v1'));
       const persistedHum=localStorage.getItem('nebula:hum-filter:v1')==='true';
+      const rawBands=localStorage.getItem('nebula:audio-bands:v2');
+      const storedBands=normalizeAudioBands(rawBands ? JSON.parse(rawBands) as unknown : undefined);
+      customBandsRef.current=storedBands;
       setAudioPresetState(persistedPreset);audioPresetRef.current=persistedPreset;
+      setAudioBandsState(presetAudioBands(persistedPreset,storedBands));
       setHumFilterState(persistedHum);humFilterRef.current=persistedHum;
       const storedVolume = Number(localStorage.getItem('nebula:volume:v1'));
       if (Number.isFinite(storedVolume) && localStorage.getItem('nebula:volume:v1') !== null) {
@@ -189,6 +197,8 @@ export function useLocalAudio(): Player {
       // Short ramp at the moment samples actually start prevents hard-start clicks
       // on slow-loading MP3s, remote media and resumed playback.
       if(volumeRampRef.current!==null)cancelAnimationFrame(volumeRampRef.current);
+      // Background tabs throttle requestAnimationFrame; never leave audio muted.
+      if (document.hidden) { audio.volume = volumeRef.current; return; }
       audio.volume=0;
       const begun=performance.now();
       const ramp=(now:number)=>{
@@ -313,6 +323,7 @@ export function useLocalAudio(): Player {
       const enhancer=createAudioEnhancer(local);
       enhancerRef.current=enhancer;
       enhancer.setPreset(audioPresetRef.current);
+      if(audioPresetRef.current==='custom')enhancer.setBands(customBandsRef.current);
       enhancer.setHumFilter(humFilterRef.current);
       return enhancer;
     }catch{
@@ -325,10 +336,27 @@ export function useLocalAudio(): Player {
     const next=normalizeAudioPreset(preset);
     audioPresetRef.current=next;
     setAudioPresetState(next);
+    setAudioBandsState(presetAudioBands(next,customBandsRef.current));
     try{localStorage.setItem('nebula:audio-preset:v1',next);}catch{}
     if(next!=='off'&&currentRef.current?.startsWith('local-'))ensureEnhancer();
     enhancerRef.current?.setPreset(next);
+    if(next==='custom')enhancerRef.current?.setBands(customBandsRef.current);
     if(next!=='off')void enhancerRef.current?.resume().catch(()=>{});
+  },[ensureEnhancer]);
+
+  const setAudioBands=useCallback((bands:number[])=>{
+    const normalized=normalizeAudioBands(bands);
+    customBandsRef.current=normalized;
+    audioPresetRef.current='custom';
+    setAudioPresetState('custom');
+    setAudioBandsState(normalized);
+    try{
+      localStorage.setItem('nebula:audio-bands:v2',JSON.stringify(normalized));
+      localStorage.setItem('nebula:audio-preset:v1','custom');
+    }catch{}
+    if(currentRef.current?.startsWith('local-'))ensureEnhancer();
+    enhancerRef.current?.setBands(normalized);
+    void enhancerRef.current?.resume().catch(()=>{});
   },[ensureEnhancer]);
 
   const setHumFilter=useCallback((enabled:boolean)=>{
@@ -380,6 +408,7 @@ export function useLocalAudio(): Player {
     if(isLocal && (audioPresetRef.current!=='off'||humFilterRef.current)){
       const enhancer=ensureEnhancer();
       enhancer?.setPreset(audioPresetRef.current);
+      if(audioPresetRef.current==='custom')enhancer?.setBands(customBandsRef.current);
       enhancer?.setHumFilter(humFilterRef.current);
       enhancer?.fadeIn();
       void enhancer?.resume().catch(()=>{});
@@ -592,7 +621,7 @@ export function useLocalAudio(): Player {
 
   return {
     tracks, ownTracks, current, state, notice, setNotice, time, duration, volume, shuffle, repeat, favorites,
-    loadingLibrary, audioPreset, humFilter, storageDurability, setAudioPreset, setHumFilter, requestStoragePersistence,
+    loadingLibrary, audioPreset, audioBands, humFilter, storageDurability, setAudioPreset, setAudioBands, setHumFilter, requestStoragePersistence,
     importFiles, removeLocalTrack, downloadLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
     toggleShuffle: () => setShuffle((value)=>!value),
     cycleRepeat: () => setRepeat((value)=>value==='off' ? 'all' : value==='all' ? 'one' : 'off'),

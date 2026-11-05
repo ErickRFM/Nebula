@@ -13,6 +13,7 @@ import { formatTime } from '@nebula/player-core';
 import { artwork, demoTracks, mixes, type Track } from '../lib/catalog';
 import { Cover, TrackCover } from './Cover';
 import { useLocalAudio } from '../hooks/useLocalAudio';
+import { AudioStudio } from './AudioStudio';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useAccount } from '../hooks/useAccount';
 import { AccountPanel } from './AccountPanel';
@@ -134,14 +135,7 @@ function FullPlayer({player,onBack}: {player: PlayerApi; onBack: () => void}) {
           <button className={'icon-button ' + (player.repeat !== 'off' ? 'is-on' : '')} type="button" aria-label="Repetición" title={'Repetición: ' + player.repeat} onClick={player.cycleRepeat}>{player.repeat === 'one' ? <Repeat1 size={20}/> : <Repeat size={20}/>}</button>
         </div>
         <div className="volume-row"><Volume2 size={20}/><label className="sr-only" htmlFor="playback-volume">Volumen</label><input id="playback-volume" type="range" min="0" max="1" step=".01" value={player.volume} onChange={(e)=>player.setVolume(Number(e.target.value))}/><span>{Math.round(player.volume*100)}%</span></div>
-        <div className="audio-profile-row">
-          <label htmlFor="player-audio-preset">Ecualizador local</label>
-          <select id="player-audio-preset" value={player.audioPreset} onChange={e=>player.setAudioPreset(e.target.value as typeof player.audioPreset)}>
-            <option value="off">Original</option><option value="balanced">Equilibrado</option>
-            <option value="clarity">Claridad</option><option value="bass">Graves suaves</option>
-          </select>
-          <small>Solo música guardada en este dispositivo</small>
-        </div>
+        <AudioStudio player={player} compact/>
         <div className="player-source-hint" role="status">{player.state==='error'?'No se pudo reproducir esta pista. Elige otra canción o revisa el archivo.':player.state==='buffering'||player.state==='loading'?'Preparando el audio…':'Reproducción de tu biblioteca y fuentes compatibles.'}</div>
       </div>
     </div>
@@ -439,8 +433,8 @@ export function NebulaApp() {
         {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')} onLibrary={()=>navigate('biblioteca')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
         {screen === 'ajustes' && <>
           <Tag>PERSONALIZA TU EXPERIENCIA</Tag><h1 className="page-title">Configuración</h1><p className="page-description">Haz que NÉBULA suene y se vea como a ti te gusta.</p>
-          <section className="settings-panel glass"><h2>Reproducción</h2><div className="setting-row"><div><strong>Ecualizador y nivelación</strong><p>Para archivos de tu biblioteca local: perfiles de tonos y compresión moderada, sin modificar el original. Los videos y fuentes externas no se procesan.</p></div><select aria-label="Perfil del ecualizador" className="audio-setting-select" value={player.audioPreset} onChange={event=>player.setAudioPreset(event.target.value as typeof player.audioPreset)}><option value="off">Original</option><option value="balanced">Equilibrado</option><option value="clarity">Claridad</option><option value="bass">Graves suaves</option></select></div>
-          <div className="setting-row"><div><strong>Reducir zumbido de grabación</strong><p>Filtro opcional de 60 Hz y subsónicos. Úsalo si escuchas un zumbido constante; no puede corregir interferencias del hardware ni archivos dañados.</p></div><button type="button" className={'toggle '+(player.humFilter?'on':'')} role="switch" aria-checked={player.humFilter} aria-label="Reducir zumbido" onClick={()=>player.setHumFilter(!player.humFilter)}><span/></button></div><div className="setting-row"><div><strong>Reproducción continua</strong><p>Pasar a la siguiente pista de tus archivos locales.</p></div><span className="status-dot"/></div><div className="setting-row"><div><strong>Salida de audio</strong><p>Controlada por el navegador o el sistema operativo.</p></div><MonitorSpeaker size={22}/></div></section>
+          <AudioStudio player={player}/>
+          <section className="settings-panel glass"><h2>Dispositivo y reproducción</h2><div className="setting-row"><div><strong>Reproducción continua</strong><p>Pasar a la siguiente pista de tus archivos locales.</p></div><span className="status-dot"/></div><div className="setting-row"><div><strong>Salida de audio</strong><p>Controlada por el navegador o el sistema operativo.</p></div><MonitorSpeaker size={22}/></div></section>
           <section className="settings-panel glass"><h2>Apariencia y accesibilidad</h2><div className="setting-row"><div><strong>Contraste alto</strong><p>Textos y superficies más definidos, sin cambiar tus datos.</p></div><button className={'toggle '+(highContrast?'on':'')} type="button" role="switch" aria-checked={highContrast} aria-label="Contraste alto" onClick={()=>setHighContrast(v=>!v)}><span/></button></div><div className="setting-row"><div><strong>Reducir animaciones</strong><p>Disminuir movimiento decorativo en la interfaz.</p></div><button className={'toggle ' + (reducedMotion ? 'on' : '')} type="button" role="switch" aria-checked={reducedMotion} aria-label="Reducir animaciones" onClick={()=>setReducedMotion((v)=>!v)}><span/></button></div><div className="setting-row"><div><strong>Estilo visual</strong><p>Cosmic Glass · Oscuro nocturno.</p></div><span className="setting-value">Cósmico oscuro</span></div></section>
           <section className="settings-panel glass"><h2>Biblioteca sin iniciar sesión</h2>
             <div className="setting-row"><div><strong>Almacenamiento en este dispositivo</strong><p>{player.storageDurability==='granted'?'Persistencia concedida por este navegador.':player.storageDurability==='best-effort'?'Los archivos se conservan, pero el navegador puede borrarlos al liberar espacio.':player.storageDurability==='unavailable'?'El navegador no ofrece garantía de almacenamiento persistente.':'Comprobando protección del almacenamiento local…'}</p></div><button className="button secondary small" type="button" onClick={()=>{void player.requestStoragePersistence();}}>Proteger biblioteca</button></div>
