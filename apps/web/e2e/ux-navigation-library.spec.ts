@@ -203,3 +203,17 @@ test('external player URL has an actionable browser validation instead of a sile
  await expect(field).toBeFocused();
  expect(await field.evaluate((input:HTMLInputElement)=>input.validity.valueMissing)).toBe(true);
 });
+
+test('switching from a long library view restores the top of Cuenta and Ajustes',async({page})=>{
+ await page.goto('/');
+ const menu=page.getByRole('navigation',{name:'Navegación principal'});
+ await menu.getByRole('button',{name:'Biblioteca',exact:true}).click();
+ await page.locator('details.library-management > summary').click();
+ await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
+ await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBeGreaterThan(100);
+ await page.getByRole('button',{name:'Mi cuenta'}).click();
+ await expect(page.getByRole('heading',{name:'Cuenta NÉBULA'})).toBeInViewport();
+ await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBeLessThan(10);
+ await menu.getByRole('button',{name:'Ajustes',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Configuración'})).toBeInViewport();
+});
