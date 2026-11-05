@@ -6,8 +6,8 @@ import {YouTubePlaylistBrowser} from './YouTubePlaylistBrowser';
 type Video={videoId:string;title:string;artist:string;thumbnail:string|null;sourceUrl:string};
 const base=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'')??'';
 const configured=Boolean(base)||process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API==='true';
-export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuery,embedded=false}:{
- account:AccountApi;onActivate:()=>void;onImportMp3:(files:File[])=>void;initialQuery?:string;embedded?:boolean;
+export function ExternalMediaBridges({account,onActivate,onImportMp3,onOpenAudioTools,initialQuery,embedded=false}:{
+ account:AccountApi;onActivate:()=>void;onImportMp3:(files:File[])=>void;onOpenAudioTools:()=>void;initialQuery?:string;embedded?:boolean;
 }){
  const [link,setLink]=useState('');
  const [active,setActive]=useState<ExternalEmbed|null>(null);
@@ -17,7 +17,8 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
  const [searching,setSearching]=useState(false);
  const [error,setError]=useState('');
  const playerRef=useRef<HTMLDivElement>(null);
- const incomingLink=embedded?parseExternalEmbed(initialQuery??''):null;
+ const incomingParsed=embedded?parseExternalEmbed(initialQuery??''):null;
+ const incomingLink=incomingParsed?.provider==='deezer'?null:incomingParsed;
  useEffect(()=>{
    if(!active)return;
    // The official player must remain visible; never autoplay it while hidden.
@@ -54,7 +55,7 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
  },[embedded,initialQuery,youtubeReady,account.accessToken]);
  function activate(source:string){
    const media=parseExternalEmbed(source);
-   if(!media){setError('Pega un enlace HTTPS válido de YouTube, SoundCloud, Spotify o Deezer.');return;}
+   if(!media||media.provider==='deezer'){setError('Pega un enlace HTTPS válido de YouTube, SoundCloud o Spotify. NÉBULA no reproduce muestras de 30 segundos.');return;}
    onActivate();
    setError('');
    setActive(media);
@@ -74,26 +75,22 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
  }
  return <section className="content-section external-bridges" aria-label="Reproductores oficiales de música">
    <div className="section-heading"><h2>{embedded?'Escuchar desde otras plataformas':'Reproductores externos'}</h2></div>
-   <p className="page-description">{embedded?'Pega un enlace de YouTube, Spotify, Deezer o SoundCloud para abrir su reproductor oficial aquí; la duración depende de cada plataforma.':'Abre canciones compatibles con los reproductores oficiales, sin copiar audio a tu nube.'}</p>
+   <p className="page-description">{embedded?'Pega un enlace de YouTube, Spotify o SoundCloud para escucharlo aquí con su reproductor oficial. Sin muestras de 30 segundos.':'Abre canciones compatibles con los reproductores oficiales, sin copiar audio a tu nube.'}</p>
    <form className="playlist-create glass" onSubmit={event=>{event.preventDefault();activate(link);}}>
-     <label htmlFor="external-embed-link" className="sr-only">Enlace de YouTube, SoundCloud, Spotify o Deezer</label>
+     <label htmlFor="external-embed-link" className="sr-only">Enlace de YouTube, SoundCloud o Spotify</label>
      <input id="external-embed-link" type="url" value={link} onChange={event=>setLink(event.target.value)}
        placeholder="https://open.spotify.com/track/… o https://youtu.be/…" required/>
      <button className="button primary small" type="submit">Abrir reproductor</button>
    </form>
    <p className="input-hint">Introduce un enlace HTTPS compatible para abrir el reproductor oficial. Si falta o no es válido, te indicaremos cómo corregirlo.</p>
-    {embedded&&incomingLink&&<div className="search-source-hint"><span>{incomingLink.collection?(incomingLink.collection.kind==='mix'?'Mezcla automática de YouTube reconocida.':'Playlist de YouTube reconocida.'):'Enlace de '+(incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Deezer')+' reconocido.'} </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>{incomingLink.collection?'Reproducir esta lista':'Reproducir este enlace'}</button></div>}
+    {embedded&&incomingLink&&<div className="search-source-hint"><span>{incomingLink.collection?(incomingLink.collection.kind==='mix'?'Mezcla automática de YouTube reconocida.':'Playlist de YouTube reconocida.'):'Enlace de '+(incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Fuente')+' reconocido.'} </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>{incomingLink.collection?'Reproducir esta lista':'Reproducir este enlace'}</button></div>}
    {!embedded&&account.accessToken&&youtubeReady ? <form className="playlist-create glass" onSubmit={event=>{void searchYoutube(event);}}>
      <label htmlFor="youtube-search" className="sr-only">Buscar videos musicales en YouTube</label>
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
        placeholder="Buscar videos musicales en YouTube"/>
      <button className="button secondary small" type="submit" disabled={searching||query.trim().length<2}>{searching?'Buscando…':'Buscar videos'}</button>
    </form> : !youtubeReady ? <p className="search-source-hint">{!account.accessToken?"Inicia sesión para consultar YouTube desde NÉBULA.":"YouTube no está habilitado en NÉBULA en este momento. Puedes consultar otros catálogos."}</p> : null}
-   {embedded&&!youtubeReady&&(initialQuery??'').trim().length>=2&&<p className="disclosure">
-     <a href={'https://www.youtube.com/results?search_query='+encodeURIComponent((initialQuery??'').trim())}
-       target="_blank" rel="noopener noreferrer">Buscar «{(initialQuery??'').trim()}» en la web de YouTube</a>
-     {' '}— sin clave API; los resultados se abrirán en YouTube, no en el reproductor de NÉBULA.
-   </p>}
+   {embedded&&!youtubeReady&&(initialQuery??'').trim().length>=2&&<p className="disclosure">La búsqueda automática de YouTube no está disponible. Pega un enlace de video o playlist para reproducirlo aquí mismo.</p>}
    {error&&<p className="account-error" role="alert">{error}</p>}
    {embedded&&youtubeReady&&searching&&<p className="disclosure" role="status">Buscando videos musicales relacionados…</p>}
    {embedded&&youtubeReady&&!searching&&(initialQuery??'').trim().length>=4&&videos.length===0&&!error&&<p className="empty-note">No hay videos encontrados para esa búsqueda.</p>}
@@ -103,18 +100,19 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
    </div>)}</div>}
    {active&&<div ref={playerRef} className="bridge-player glass official-player-surface" role="region" aria-label="Reproductor externo activo">
      <div className="section-heading official-player-header">
-       <div className="official-player-identity"><span className="official-source-label">FUENTE OFICIAL</span><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer'}</h2><small>Los controles y la duración dependen del proveedor.</small></div>
+       <div className="official-player-identity"><span className="official-source-label">FUENTE OFICIAL</span><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'SoundCloud'}</h2><small>Los controles y la duración dependen del proveedor.</small></div>
        <button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button>
      </div>
      {active.provider==='youtube'&&active.collection
       ? <YouTubePlaylistBrowser key={active.src} media={active} onImport={onImportMp3}/>
       : <iframe key={active.src} className="bridge-iframe" src={active.src}
-       title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer')}
+       title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'SoundCloud')}
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>}
      {active.collection&&<div className="search-source-hint" role="status"><strong>{active.collection.kind==='mix'?'Mix / radio dinámica de YouTube':'Playlist de YouTube'}</strong><p>{active.collection.kind==='mix'?'La radio RD es dinámica: aquí suena el video inicial. El enlace original conserva la mezcla para seguir en YouTube. No es una lista fija.':'Playlist incrustada con los controles oficiales. La disponibilidad de cada video depende de YouTube.'}</p></div>}
-     <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':active.provider==='deezer'?'Deezer':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
-       <a className="button secondary small" href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir en la plataforma original</a></div>
+     <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
+       <button type="button" className="button secondary small" onClick={onOpenAudioTools}>Importar o convertir audio propio</button>
+       {active.provider!=='youtube'&&<a className="button secondary small" href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir en la plataforma original</a>}</div>
    </div>}
  </section>;
 }
