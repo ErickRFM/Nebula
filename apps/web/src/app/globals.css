@@ -690,3 +690,23 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .nebula-archive-restore:focus-within{outline:2px solid #be9bff;outline-offset:3px}
 .nebula-archive-restore input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 @media(max-width:600px){.nebula-archive-actions>*{width:100%;justify-content:center}}
+
+
+/* YouTube official playlist controls and optional authorized MP3 import. */
+.yt-collection-browser{display:grid;gap:12px;min-width:0}
+.yt-collection-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.yt-collection-heading>span{display:inline-flex;gap:8px;align-items:center;font-weight:750}
+.yt-collection-items{display:grid;gap:9px;max-height:480px;overflow-y:auto;overscroll-behavior:contain}
+.yt-collection-item{display:grid;grid-template-columns:90px minmax(130px,1fr) auto;gap:11px;align-items:center;padding:9px;border:1px solid var(--edge);border-radius:13px;background:#ffffff08}
+.yt-collection-item.current{border-color:#bd9df95e}
+.yt-collection-item>img{width:90px;height:54px;object-fit:cover;border-radius:8px}
+.yt-collection-caption{display:flex;min-width:0;flex-direction:column;gap:3px}
+.yt-collection-caption strong{font-size:.86rem;overflow-wrap:anywhere}
+.yt-collection-caption small{font-size:.77rem;color:#c3b9d6}
+.yt-collection-buttons{display:flex;flex-wrap:wrap;gap:6px}
+.yt-collection-buttons .button{display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:.75rem}
+.yt-collection-mp3{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:12px;border-radius:12px;background:#ffffff09}
+.yt-collection-mp3>p{flex-basis:100%;margin:0}
+.yt-collection-mp3>input[type=url]{flex:1 1 200px;min-width:0;padding:11px;border-radius:10px;border:1px solid var(--edge);color:var(--ink);background:#ffffff0d}
+.yt-collection-allow{font-size:.78rem;display:flex;gap:7px;align-items:center}
+@media(max-width:800px){.yt-collection-item{grid-template-columns:75px minmax(100px,1fr)}.yt-collection-item>img{width:75px;height:46px}.yt-collection-buttons{grid-column:1/-1}.yt-collection-buttons>*{flex:1}.yt-collection-mp3>input[type=url]{flex-basis:100%}}
