@@ -878,3 +878,45 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .audio-profile-row select:focus-visible,.audio-setting-select:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 .audio-setting-select{flex:0 0 auto;max-width:175px}
 @media(max-width:560px){.audio-profile-row{align-items:stretch}.audio-profile-row select{flex:1 1 auto}.settings-panel .setting-row{flex-wrap:wrap}.audio-setting-select{width:100%;max-width:none}}
+
+
+/* NÉBULA Audio Studio V2 — same controls in player and settings. */
+.audio-studio{margin:18px 0 22px;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(196,179,245,.20);border-radius:22px;background:linear-gradient(155deg,rgba(26,29,55,.98),rgba(18,23,45,.97));box-shadow:0 16px 36px rgba(0,0,0,.16);min-width:0}
+.audio-studio-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.audio-studio-eyebrow{display:block;color:#bba2f4;font-size:.7rem;font-weight:800;letter-spacing:.17em;margin-bottom:6px}
+.audio-studio-heading h3{font-size:clamp(1.15rem,2vw,1.55rem);line-height:1.25;margin:0 0 6px}
+.audio-studio-heading p{color:#b9b6d0;margin:0;font-size:.82rem;max-width:500px}
+.audio-studio-status{font-size:.73rem;font-weight:750;line-height:1.4;color:#bac2d9;border:1px solid #ffffff26;background:#ffffff09;border-radius:999px;padding:7px 11px;white-space:nowrap}
+.audio-studio-status.is-enhanced{color:#b8f5df;border-color:#50bd9970;background:#295a503a}
+.audio-studio-profile{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,240px);gap:12px;align-items:center;border-top:1px solid #ffffff15;margin-top:18px;padding-top:17px}
+.audio-studio-profile label{font-size:.83rem;font-weight:750;color:#e9e7f6}
+.audio-studio-profile select{width:100%;min-height:44px;border:1px solid #ffffff2b;border-radius:11px;background:#1d2342;color:#f4efff;padding:9px 12px;font:inherit}
+.audio-studio-eq{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:stretch;gap:8px;margin-top:16px;padding:19px 6px 12px;border-radius:16px;background:#10172b;border:1px solid #ffffff13;min-width:0}
+.audio-studio-band{display:flex;min-width:0;flex-direction:column;align-items:center;justify-content:space-between;gap:12px;font-size:.72rem;font-weight:700;color:#bfc1dd}
+.audio-band-value{font-variant-numeric:tabular-nums;color:#f3d4ff;white-space:nowrap;font-size:.73rem}
+.audio-band-value small{font-size:.6rem;color:#a6a6c6;font-weight:500}
+.audio-studio-band input[type=range]{display:block;width:20px;height:126px;margin:0;writing-mode:vertical-lr;direction:rtl;accent-color:#c4a6ff;cursor:pointer;touch-action:none}
+.audio-studio-band input[type=range]:focus-visible{outline:2px solid #8edce7;outline-offset:5px}
+.audio-band-label{color:#bbbad5;font-size:clamp(.58rem,.85vw,.72rem);white-space:nowrap}
+.audio-studio-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:15px 0;border-bottom:1px solid #ffffff12}
+.audio-studio-footer strong{font-size:.85rem}
+.audio-studio-footer p{font-size:.76rem;line-height:1.45;color:#afafcb;margin:4px 0 0;max-width:520px}
+.audio-studio-footer .toggle{flex:none}
+.audio-studio-value{font-size:.75rem;font-weight:750;color:#d9ccff;white-space:nowrap}
+.audio-studio-disclosure{margin:14px 0 0;color:#a9b1ca;font-size:.72rem;line-height:1.5}
+.audio-studio-compact{margin:15px 0;padding:16px}
+.audio-studio-compact .audio-studio-heading h3{font-size:1.12rem}
+.audio-studio-compact .audio-studio-band input[type=range]{height:95px}
+@media(max-width:760px){
+ .audio-studio{padding:15px;border-radius:18px}
+ .audio-studio-heading{gap:10px}
+ .audio-studio-profile{grid-template-columns:1fr;gap:7px}
+ .audio-studio-eq{gap:2px;padding:16px 3px 12px}
+ .audio-studio-band{gap:8px}
+ .audio-studio-band input[type=range]{height:105px;width:18px}
+ .audio-band-value{font-size:.65rem}
+ .audio-band-value small{display:none}
+ .audio-band-label{font-size:.58rem}
+ .audio-studio-footer{gap:12px}
+ .audio-studio-value{font-size:.68rem}
+}
