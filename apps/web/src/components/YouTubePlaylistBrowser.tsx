@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
-import {Download,ExternalLink,ListMusic,Music2,Play,RefreshCw} from 'lucide-react';
+import {Download,ListMusic,Music2,Play,RefreshCw} from 'lucide-react';
 import type {ExternalEmbed} from '../lib/external-embeds';
 import {directAudioFileInfo,retrieveAuthorizedAudio} from '../lib/authorized-web-audio';
 import {downloadLocalAudioBlob} from '../lib/local-audio-download';
@@ -53,6 +53,7 @@ export function YouTubePlaylistBrowser({media,onImport}:{
  const frameRef=useRef<HTMLIFrameElement|null>(null);
  const ytRef=useRef<PlayerHandle|null>(null);
  const [ids,setIds]=useState<string[]>([]);
+ const [selectedVideo,setSelectedVideo]=useState<string|null>(null);
  const [index,setIndex]=useState<number>(0);
  const [metadata,setMetadata]=useState<Record<string,Metadata>>({});
  const [visible,setVisible]=useState(20);
@@ -71,11 +72,11 @@ export function YouTubePlaylistBrowser({media,onImport}:{
  const list=ids.length?ids:fallback?[fallback]:[];
  const shown=list.slice(0,visible);
  const src=useMemo(()=>{
-  const u=new URL(media.src);
+  const u=new URL(selectedVideo?'https://www.youtube-nocookie.com/embed/'+selectedVideo:media.src);
   u.searchParams.set('enablejsapi','1');
   if(typeof window!=='undefined')u.searchParams.set('origin',window.location.origin);
   return u.toString();
- },[media.src]);
+ },[media.src,selectedVideo]);
  function sync(player:PlayerHandle){
   ytRef.current=player;
   try{
@@ -91,7 +92,7 @@ export function YouTubePlaylistBrowser({media,onImport}:{
     const id=current.video_id;
     setMetadata(prev=>({...prev,[id]:{videoId:id,title:current.title!.slice(0,160),artist:typeof current.author==='string'?current.author.slice(0,100):null}}));
    }
-  }catch{setStatus('El reproductor no entregó la lista completa. Puedes abrirla en YouTube.');}
+  }catch{setStatus('El reproductor no entregó el índice completo. Puedes seguir reproduciendo los videos disponibles aquí.');}
  }
  useEffect(()=>{
   mounted.current=true;let closed=false;
@@ -106,7 +107,7 @@ export function YouTubePlaylistBrowser({media,onImport}:{
    ytRef.current=player;
   }).catch(()=>{if(!closed)setStatus('El navegador bloqueó la API de YouTube. El video sigue disponible, pero no se puede enumerar la lista aquí.');});
   return()=>{closed=true;mounted.current=false;controller.current?.abort();try{ytRef.current?.destroy?.();}catch{}ytRef.current=null;};
- },[media.src]);
+ },[src]);
  useEffect(()=>{
   if(!mayFetchMetadata||!shown.length)return;
   const fresh=shown.filter(id=>!metadata[id]&&!requested.current.has(id)).slice(0,20);
@@ -149,7 +150,7 @@ export function YouTubePlaylistBrowser({media,onImport}:{
   finally{if(mounted.current){setBusy(false);controller.current=null;}}
  }
  return <div className="yt-collection-browser" role="region" aria-label="Canciones de la lista de YouTube">
-  <iframe key={media.src} ref={frameRef} className="bridge-iframe" src={src} title="Reproductor oficial de YouTube"
+  <iframe key={src} ref={frameRef} className="bridge-iframe" src={src} title="Reproductor oficial de YouTube"
    loading="eager" referrerPolicy="strict-origin-when-cross-origin"
    allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>
   <div className="yt-collection-heading">
@@ -157,7 +158,7 @@ export function YouTubePlaylistBrowser({media,onImport}:{
    <button type="button" className="button secondary small" onClick={()=>{if(ytRef.current)sync(ytRef.current);}}> <RefreshCw size={14}/> Actualizar lista</button>
   </div>
   <p className="disclosure">{collection.kind==='mix'
-   ?'YouTube genera esta mezcla continuamente. Aquí aparecen solo los videos que entrega a su reproductor; para ver el resto abre la mezcla original.'
+   ?'YouTube genera esta mezcla continuamente. Aquí aparecen solo los videos que entrega a su reproductor; el índice no siempre incluye todos los videos de la radio.'
    :'Se muestran hasta 100 videos disponibles en el reproductor oficial. Los títulos se consultan por metadatos públicos; algunos pueden no estar disponibles.'}</p>
   {status&&<p role="status" className="disclosure">{status}</p>}
   {shown.length>0&&<div className="yt-collection-items">
@@ -166,11 +167,10 @@ export function YouTubePlaylistBrowser({media,onImport}:{
     <span className="yt-collection-caption"><strong>{metadata[id]?.title||'Video '+(i+1)}</strong>
      <small>{metadata[id]?.artist||'YouTube'} · {i+1} / {list.length}</small></span>
     <div className="yt-collection-buttons">
-     <button type="button" className="button primary small" onClick={()=>{if(ytRef.current?.playVideoAt&&ids.length){ytRef.current.playVideoAt(i);}else window.open('https://www.youtube.com/watch?v='+id+'&list='+collection.id,'_blank','noopener,noreferrer');}}><Play size={14}/> Escuchar</button>
+     <button type="button" className="button primary small" onClick={()=>{if(ytRef.current?.playVideoAt&&ids.length){ytRef.current.playVideoAt(i);}else{setSelectedVideo(id);setIndex(i);setStatus('Reproduciendo el video seleccionado dentro de NÉBULA.');}}}><Play size={14}/> Escuchar</button>
      <details className="yt-track-more">
        <summary aria-label={'Más opciones para '+(metadata[id]?.title||'video '+(i+1))}>Más opciones</summary>
        <div className="yt-track-more-actions">
-         <a href={'https://www.youtube.com/watch?v='+id+'&list='+collection.id} target="_blank" rel="noopener noreferrer" className="button secondary small"><ExternalLink size={14}/> Abrir en YouTube</a>
          <button type="button" className="button secondary small" onClick={()=>selectMp3(id)} aria-expanded={activeMp3===id}><Download size={14}/> Importar MP3 propio</button>
        </div>
      </details>
@@ -188,6 +188,6 @@ export function YouTubePlaylistBrowser({media,onImport}:{
    </div>)}
   </div>}
   {shown.length<list.length&&<button type="button" className="button secondary small" onClick={()=>setVisible(n=>Math.min(n+20,100))}>Mostrar más canciones</button>}
-  {!list.length&&<p className="empty-note">Este reproductor todavía no ha proporcionado los IDs de la lista. Abre la playlist original para ver todas las canciones.</p>}
+  {!list.length&&<p className="empty-note">Este reproductor todavía no ha proporcionado los IDs de la lista. Pega otra playlist o reproduce el video inicial aquí.</p>}
  </div>;
 }
