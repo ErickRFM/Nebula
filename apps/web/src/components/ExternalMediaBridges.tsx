@@ -109,7 +109,7 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,onOpenAudio
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>}
      {active.collection&&<div className="search-source-hint" role="status"><strong>{active.collection.kind==='mix'?'Mix / radio dinámica de YouTube':'Playlist de YouTube'}</strong><p>{active.collection.kind==='mix'?'La radio RD es dinámica: aquí suena el video inicial. El enlace original conserva la mezcla para seguir en YouTube. No es una lista fija.':'Playlist incrustada con los controles oficiales. La disponibilidad de cada video depende de YouTube.'}</p></div>}
-     <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':'SoundCloud':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
+     <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
        <button type="button" className="button secondary small" onClick={onOpenAudioTools}>Importar o convertir audio propio</button>
        {active.provider!=='youtube'&&<a className="button secondary small" href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir en la plataforma original</a>}</div>
    </div>}
