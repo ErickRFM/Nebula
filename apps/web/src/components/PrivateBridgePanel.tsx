@@ -3,6 +3,7 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {Download,Headphones,ShieldCheck,ExternalLink,Radio,Search} from 'lucide-react';
 import {downloadLocalAudioBlob} from '../lib/local-audio-download';
+import {PlaylistBatchPanel,youtubePlaylistId} from './PlaylistBatchPanel';
 import type {Track} from '../lib/catalog';
 import {BRIDGE_ENABLED,BRIDGE_URL,bridgeVideos,isPlayableExternalUrl,type BridgeVideo} from '../lib/private-bridge';
 
@@ -34,6 +35,8 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
    const id=host==='youtu.be'?u.pathname.slice(1):['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com'].includes(host)?u.searchParams.get('v'):null;
    if(u.protocol==='https:'&&id&&/^[A-Za-z0-9_-]{11}$/.test(id)){
     setDirectUrl(incomingUrl);setDirectId(id);
+    window.requestAnimationFrame(()=>panelRef.current?.scrollIntoView({behavior:'smooth',block:'start'}));
+   }else if(youtubePlaylistId(incomingUrl)){
     window.requestAnimationFrame(()=>panelRef.current?.scrollIntoView({behavior:'smooth',block:'start'}));
    }
   }catch{/* User can paste a different valid URL manually. */}
@@ -175,6 +178,7 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
       <input id="nebula-direct-youtube-url" type="url" placeholder="https://www.youtube.com/watch?v=…" value={directUrl} onChange={e=>{setDirectUrl(e.target.value);setDirectId(null);}}/>
       <button className="button secondary small" type="submit" disabled={!directUrl.trim()}>Usar enlace</button>
     </form>
+    <PlaylistBatchPanel token={token} authorized={downloadAllowed} incomingUrl={incomingUrl}/>
     <label className="authorized-web-confirm"><input type="checkbox" checked={downloadAllowed} onChange={e=>setDownloadAllowed(e.target.checked)}/> Confirmo que tengo derecho a descargar y guardar este audio.</label>
     <p className="disclosure">La descarga se realiza en tu propio equipo con yt-dlp y FFmpeg, sin enviar el MP3 a NÉBULA. No admite videos protegidos, privados ni fuentes bloqueadas.</p>
     {loading&&<p className="disclosure" role="status">Buscando pistas en tu puente privado…</p>}
