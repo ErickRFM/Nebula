@@ -371,7 +371,7 @@ export function NebulaApp() {
               <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
             </section>
           </>}
-          <PrivateBridgePanel initialQuery={search} onPlay={player.playExternal}/>
+          <PrivateBridgePanel initialQuery={search} onPlay={player.playExternal} onImport={player.importFiles}/>
           <ExternalMediaBridges account={account} initialQuery={search} embedded onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
         </section>}
         {screen === 'biblioteca' && <>
@@ -435,7 +435,7 @@ export function NebulaApp() {
           <div className="disclosure">La música local y las playlists de este dispositivo se guardan en el navegador. La biblioteca privada en la nube requiere iniciar sesión y almacenamiento configurado.</div>
         </>}
         {screen === 'cuenta' && <AccountPanel account={account} onOpenPlaylists={()=>navigate('playlists')}/>}
-        {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
+        {screen === 'explorar' && <><PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
