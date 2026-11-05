@@ -33,7 +33,7 @@ test('keyboard search, real albums and accessible contrast settings', async ({pa
   await expect(page.locator('.search-page')).toBeVisible();
   const desktop=page.getByRole('navigation',{name:'Navegación principal'});
   if(await desktop.isVisible()) await navigate(page,'Ajustes');
-  else await page.getByRole('button',{name:'Ajustes',exact:true}).click();
+  else await navigate(page,'Ajustes');
   const contrast=page.getByRole('switch',{name:'Contraste alto'});
   await contrast.click();
   await expect(contrast).toHaveAttribute('aria-checked','true');
