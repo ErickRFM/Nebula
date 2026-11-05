@@ -150,17 +150,19 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     if (body.data.enabled && body.data.rightsConfirmed !== true) {
       return reply.code(400).send(error('sharing_rights_confirmation_required'));
     }
-    if (body.data.enabled && !readR2Settings()) {
-      return reply.code(503).send(error('storage_not_configured'));
-    }
-    // A room cannot claim to share audio unless the current track is ready in
-    // its host's cloud library. This guard is atomic with enabling sharing.
+    // A room can enable sharing only with an owned ready track selected or
+    // queued for playback. The queue-first DJ workflow is supported; guests
+    // still cannot access audio until /next selects a ready track.
     const updated = await pool.query<{ shareEnabled: boolean }>(`
       UPDATE rooms r SET share_enabled=$3
       WHERE r.id=$1 AND r.owner_user_id=$2 AND r.status='active'
         AND (NOT $3::boolean OR EXISTS (
           SELECT 1 FROM cloud_tracks c
           WHERE c.id=r.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+        ) OR EXISTS (
+          SELECT 1 FROM room_queue_items q JOIN cloud_tracks c
+            ON c.id=q.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+          WHERE q.room_id=r.id
         ))
       RETURNING r.share_enabled AS "shareEnabled"
     `, [params.data.id, request.principal!.userId, body.data.enabled]);
