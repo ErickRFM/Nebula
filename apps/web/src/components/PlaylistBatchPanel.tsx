@@ -9,6 +9,7 @@ type Job={id:string;total:number;completed:number;saved:number;failed:number;
  status:'running'|'completed'|'cancelled'|'error';current:string|null;
  errorItems:string[];destination:string;note:string};
 const LIST_ID=/^[A-Za-z0-9_-]{10,90}$/;
+const LAST_BATCH='nebula:playlist-batch-job';
 
 export function youtubePlaylistId(value:string):string|null {
  try{
@@ -33,6 +34,21 @@ export function PlaylistBatchPanel({token,authorized,incomingUrl=''}:{
  const [job,setJob]=useState<Job|null>(null);
  const [error,setError]=useState('');
  const [working,setWorking]=useState(false);
+ useEffect(()=>{
+  let cancelled=false;
+  let last='';
+  try{last=sessionStorage.getItem(LAST_BATCH)||'';}catch{}
+  if(!/^[0-9a-f-]{36}$/.test(last)||!token)return;
+  void fetch(BRIDGE_URL+'/batch/'+encodeURIComponent(last),{
+   headers:{Authorization:'Bearer '+token},cache:'no-store',redirect:'error'})
+   .then(async response=>{
+    if(!response.ok)throw Error('No se pudo restaurar el lote.');
+    return response.json() as Promise<{job:Job}>;
+   })
+   .then(data=>{if(!cancelled)setJob(data.job);})
+   .catch(()=>{if(!cancelled)setError('No se pudo recuperar el lote anterior. Revisa que el puente siga abierto.');});
+  return()=>{cancelled=true;};
+ },[token]);
  useEffect(()=>{
   if(youtubePlaylistId(incomingUrl))setLink(incomingUrl);
  },[incomingUrl]);
@@ -86,6 +102,7 @@ export function PlaylistBatchPanel({token,authorized,incomingUrl=''}:{
     'No se pudo iniciar la descarga. Verifica tu puente local.');
    const data=await response.json() as {job:Job};
    setJob(data.job);
+   try{sessionStorage.setItem(LAST_BATCH,data.job.id);}catch{}
   }catch(e){setError(e instanceof Error?e.message:'No se pudo iniciar el lote.');}
   finally{setWorking(false);}
  }
