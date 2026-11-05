@@ -113,8 +113,23 @@ export function useAccount() {
       try {
         const data=await requestJson<{accessToken:string}>('/v1/auth/refresh',{method:'POST',body:'{}'});
         if(!cancelled && data.accessToken) {accessTokenRef.current=data.accessToken;setAccessToken(data.accessToken);}
-      } catch { /* no active session */ }
-      finally { if(!cancelled) setRestoring(false); }
+      } catch (cause) {
+        // A missing/revoked refresh cookie is normal for a new visitor.
+        // Provision an isolated guest automatically, not a login form or a
+        // shared secret. Do not create new users during an API outage.
+        if (cause instanceof ApiRequestError && cause.status === 401) {
+          try {
+            const guest = await requestJson<AuthResponse>('/v1/auth/guest', { method: 'POST', body: '{}' });
+            if (!cancelled && guest.accessToken && guest.user?.id) {
+              accessTokenRef.current = guest.accessToken;
+              setAccessToken(guest.accessToken);
+              setUser(guest.user);
+            }
+          } catch (error) {
+            if (!cancelled) setError(error instanceof Error ? error.message : 'No se pudo conectar con NÉBULA Cloud.');
+          }
+        }
+      } finally { if(!cancelled) setRestoring(false); }
     })();
     return ()=>{cancelled=true;};
   },[]);
