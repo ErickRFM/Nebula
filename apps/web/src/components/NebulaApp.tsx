@@ -436,7 +436,7 @@ export function NebulaApp() {
           </section>}
           <div className="disclosure">Las playlists locales se guardan en este navegador. Las playlists de cuenta sincronizan nombres y referencias a canciones de tu nube y fuentes guardadas. Las pistas locales permanecen en este navegador.</div>
         </>}
-        {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
+        {screen === 'salas' && <RoomsPanel account={account} onAccount={()=>navigate('cuenta')} onLibrary={()=>navigate('biblioteca')} onActivate={()=>{ if(player.state==='playing') player.toggle(); }}/>}
         {screen === 'ajustes' && <>
           <Tag>PERSONALIZA TU EXPERIENCIA</Tag><h1 className="page-title">Configuración</h1><p className="page-description">Haz que NÉBULA suene y se vea como a ti te gusta.</p>
           <section className="settings-panel glass"><h2>Reproducción</h2><div className="setting-row"><div><strong>Ecualizador y nivelación</strong><p>Para archivos de tu biblioteca local: perfiles de tonos y compresión moderada, sin modificar el original. Los videos y fuentes externas no se procesan.</p></div><select aria-label="Perfil del ecualizador" className="audio-setting-select" value={player.audioPreset} onChange={event=>player.setAudioPreset(event.target.value as typeof player.audioPreset)}><option value="off">Original</option><option value="balanced">Equilibrado</option><option value="clarity">Claridad</option><option value="bass">Graves suaves</option></select></div>
