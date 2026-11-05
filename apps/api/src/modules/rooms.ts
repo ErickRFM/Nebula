@@ -41,7 +41,10 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
   const { requireAuth } = createGuards(drizzle(pool));
 
   // Four-timestamp probe: client records monotonic send/receive and bridges to wall time.
-  app.get('/v1/rooms/clock', { preHandler: requireAuth }, async () => {
+  app.get('/v1/rooms/clock', { preHandler: requireAuth }, async (_request, reply) => {
+    // Party Sound timing probes must never be served from browser/CDN caches.
+    reply.header('Cache-Control', 'private, no-store, max-age=0');
+    reply.header('Pragma', 'no-cache');
     const serverReceivedMs = Date.now();
     return { serverReceivedMs, serverSentMs: Date.now() };
   });
@@ -147,12 +150,29 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
     if (body.data.enabled && body.data.rightsConfirmed !== true) {
       return reply.code(400).send(error('sharing_rights_confirmation_required'));
     }
+    // A room can enable sharing only with an owned ready track selected or
+    // queued for playback. The queue-first DJ workflow is supported; guests
+    // still cannot access audio until /next selects a ready track.
     const updated = await pool.query<{ shareEnabled: boolean }>(`
-      UPDATE rooms SET share_enabled=$3
-      WHERE id=$1 AND owner_user_id=$2 AND status='active'
-      RETURNING share_enabled AS "shareEnabled"
+      UPDATE rooms r SET share_enabled=$3
+      WHERE r.id=$1 AND r.owner_user_id=$2 AND r.status='active'
+        AND (NOT $3::boolean OR EXISTS (
+          SELECT 1 FROM cloud_tracks c
+          WHERE c.id=r.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+        ) OR EXISTS (
+          SELECT 1 FROM room_queue_items q JOIN cloud_tracks c
+            ON c.id=q.track_id AND c.user_id=r.owner_user_id AND c.status='ready'
+          WHERE q.room_id=r.id
+        ))
+      RETURNING r.share_enabled AS "shareEnabled"
     `, [params.data.id, request.principal!.userId, body.data.enabled]);
-    if (!updated.rowCount) return reply.code(404).send(error('room_not_found'));
+    if (!updated.rowCount) {
+      const owned = await pool.query(`
+        SELECT 1 FROM rooms WHERE id=$1 AND owner_user_id=$2 AND status='active'
+      `, [params.data.id, request.principal!.userId]);
+      if (owned.rowCount && body.data.enabled) return reply.code(409).send(error('room_track_not_ready'));
+      return reply.code(404).send(error('room_not_found'));
+    }
     return { shareEnabled: updated.rows[0].shareEnabled };
   });
 

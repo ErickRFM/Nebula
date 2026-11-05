@@ -45,6 +45,19 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
     expect(JSON.stringify(mine.json())).not.toContain(code);
   });
 
+  it('does not enable sharing for an empty room without any ready owned audio', async () => {
+    const created = await app.inject({ method:'POST', url:'/v1/rooms', headers:auth(a),
+      payload:{name:'Sin audio',mode:'listening'} });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().room.id as string;
+    const blocked = await app.inject({ method:'POST', url:'/v1/rooms/'+id+'/sharing',
+      headers:auth(a), payload:{enabled:true,rightsConfirmed:true} });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().error).toBe('room_track_not_ready');
+    const details = await app.inject({ method:'GET', url:'/v1/rooms/'+id,headers:auth(a) });
+    expect(details.json().room.shareEnabled).toBe(false);
+  });
+
   it('allows invited members, rejects wrong codes and enforces capacity', async () => {
     const wrong = await app.inject({ method: 'POST', url: '/v1/rooms/join', headers: auth(b), payload: { code: 'A'.repeat(32) } });
     expect(wrong.statusCode).toBe(404);
