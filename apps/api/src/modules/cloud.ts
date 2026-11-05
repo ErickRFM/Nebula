@@ -23,6 +23,7 @@ const uploadInput = z.object({
 const idInput = z.object({ id: z.string().uuid() });
 
 const projection = {
+  userId: cloudTracks.userId,
   id: cloudTracks.id,
   title: cloudTracks.title,
   artist: cloudTracks.artist,
@@ -39,10 +40,10 @@ const coverInput=z.object({
   size:z.number().int().min(12).max(MAX_CLOUD_ARTWORK_BYTES),
 });
 const coverCompleteInput=z.object({ticket:z.string().min(32).max(1300)});
-const signedCover=<T extends {coverObjectKey:string|null}>(row:T)=>{
-  const {coverObjectKey,...publicItem}=row;
+const signedCover=<T extends {coverObjectKey:string|null;userId:string}>(row:T,viewerId?:string)=>{
+  const {coverObjectKey,userId,...publicItem}=row;
   const settings=readR2Settings();
-  return {...publicItem,coverUrl:coverObjectKey&&settings?presignR2(settings,'GET',coverObjectKey,3600):null};
+  return {...publicItem,isOwner:userId===viewerId,coverUrl:coverObjectKey&&settings?presignR2(settings,'GET',coverObjectKey,3600):null};
 };
 
 const searchInput=z.object({
@@ -75,12 +76,12 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
   app.get('/v1/library/cloud', { preHandler: requireAuth }, async (request,reply) => {
     reply.header('Cache-Control','no-store');
     const items = await db.select(projection).from(cloudTracks)
-      .where(and(eq(cloudTracks.userId, request.principal!.userId), eq(cloudTracks.status, 'ready')))
+      .where(eq(cloudTracks.status, 'ready'))
       .orderBy(desc(cloudTracks.createdAt)).limit(500);
     const pendingItems = await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'pending')))
       .orderBy(desc(cloudTracks.createdAt)).limit(50);
-    return { items:items.map(signedCover), pendingItems:pendingItems.map(signedCover), configured: Boolean(readR2Settings()) };
+    return { items:items.map(row=>signedCover(row,request.principal!.userId)), pendingItems:pendingItems.map(row=>signedCover(row,request.principal!.userId)), configured: Boolean(readR2Settings()) };
   });
 
   app.get('/v1/library/cloud/pending',{preHandler:requireAuth},async(request,reply)=>{
@@ -88,10 +89,10 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const pendingItems=await db.select(projection).from(cloudTracks)
       .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.status,'pending')))
       .orderBy(desc(cloudTracks.createdAt),desc(cloudTracks.id)).limit(50);
-    return {pendingItems:pendingItems.map(signedCover),configured:Boolean(readR2Settings())};
+    return {pendingItems:pendingItems.map(row=>signedCover(row,request.principal!.userId)),configured:Boolean(readR2Settings())};
   });
 
-  // Authenticated search across all owner rows, not just legacy 500.
+  // Any guest or signed-in visitor can search the shared ready catalog, with pagination.
   app.get('/v1/library/cloud/search',{preHandler:requireAuth},async(request,reply)=>{
     const input=searchInput.safeParse(request.query);
     if(!input.success)return reply.code(400).send({error:'invalid_cloud_search'});
@@ -100,7 +101,6 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const normalized=normalizeQuery(input.data.q);
     if(normalized.length===1)return reply.code(400).send({error:'cloud_search_too_short'});
     const conditions=[
-      eq(cloudTracks.userId,request.principal!.userId),
       eq(cloudTracks.status,'ready'),
     ];
     if(normalized.length>=2){
@@ -122,7 +122,7 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const items=rows.slice(0,input.data.limit);
     const last=items.at(-1);
     reply.header('Cache-Control','no-store');
-    return {items:items.map(signedCover),hasMore,nextCursor:hasMore&&last?encodeCloudCursor(last.createdAt,last.id):null};
+    return {items:items.map(row=>signedCover(row,request.principal!.userId)),hasMore,nextCursor:hasMore&&last?encodeCloudCursor(last.createdAt,last.id):null};
   });
 
   app.post('/v1/library/cloud/uploads', {
@@ -137,7 +137,7 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     if (!mimeType) return reply.code(400).send({ error: 'unsupported_audio_format' });
     if(data.sha256){
       const [existing]=await db.select({id:cloudTracks.id,status:cloudTracks.status}).from(cloudTracks)
-        .where(and(eq(cloudTracks.userId,request.principal!.userId),eq(cloudTracks.sha256,data.sha256))).limit(1);
+        .where(and(eq(cloudTracks.sha256,data.sha256),or(eq(cloudTracks.status,'ready'),eq(cloudTracks.userId,request.principal!.userId)))).limit(1);
       if(existing)return reply.code(409).send({error:'duplicate_cloud_audio',existingId:existing.id,status:existing.status});
     }
     const extension = data.filename.toLowerCase().split('.').pop()!;
@@ -260,8 +260,7 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const params=idInput.safeParse(request.params);
     if(!params.success)return reply.code(400).send({error:'invalid_track_id'});
     const [track]=await db.select({key:cloudTracks.coverObjectKey}).from(cloudTracks)
-      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.userId,request.principal!.userId),
-        eq(cloudTracks.status,'ready'))).limit(1);
+      .where(and(eq(cloudTracks.id,params.data.id),eq(cloudTracks.status,'ready'))).limit(1);
     if(!track||!track.key)return reply.code(404).send({error:'cover_not_found'});
     reply.header('Cache-Control','no-store');
     return {coverUrl:presignR2(settings,'GET',track.key,3600),expiresInSeconds:3600};
@@ -274,7 +273,7 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_track_id' });
     const [item] = await db.select({ objectKey: cloudTracks.objectKey }).from(cloudTracks)
       .where(and(
-        eq(cloudTracks.id, parsed.data.id), eq(cloudTracks.userId, request.principal!.userId),
+        eq(cloudTracks.id, parsed.data.id),
         eq(cloudTracks.status, 'ready'),
       )).limit(1);
     if (!item) return reply.code(404).send({ error: 'cloud_track_not_found' });
@@ -288,8 +287,7 @@ export function registerCloudRoutes(app: FastifyInstance, db: NodePgDatabase): v
     const parsed = idInput.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({error:'invalid_track_id'});
     const [track] = await db.select({objectKey:cloudTracks.objectKey,title:cloudTracks.title}).from(cloudTracks)
-      .where(and(eq(cloudTracks.id,parsed.data.id),eq(cloudTracks.userId,request.principal!.userId),
-        eq(cloudTracks.status,'ready'))).limit(1);
+      .where(and(eq(cloudTracks.id,parsed.data.id),eq(cloudTracks.status,'ready'))).limit(1);
     if (!track) return reply.code(404).send({error:'cloud_track_not_found'});
     const extension=track.objectKey.split('.').pop() ?? 'mp3';
     const base=track.title.normalize('NFKD').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,100) || 'mi-cancion';
