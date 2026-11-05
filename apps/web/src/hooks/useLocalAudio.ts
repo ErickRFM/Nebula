@@ -8,6 +8,7 @@ import { readAudioMetadata } from '../lib/audio-metadata';
 import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
 import {clearTransientPlaybackNotice} from '../lib/notice-lifecycle';
 import {isPlayableExternalUrl} from '../lib/private-bridge';
+import { createAudioEnhancer, normalizeAudioPreset, type AudioEnhancer, type AudioPreset } from '../lib/audio-enhancer';
 
 export type Player = {
   tracks: Track[];
@@ -23,6 +24,12 @@ export type Player = {
   repeat: RepeatMode;
   favorites: string[];
   loadingLibrary: boolean;
+  audioPreset: AudioPreset;
+  humFilter: boolean;
+  storageDurability: 'unknown' | 'granted' | 'best-effort' | 'unavailable';
+  setAudioPreset: (preset: AudioPreset) => void;
+  setHumFilter: (enabled: boolean) => void;
+  requestStoragePersistence: () => Promise<void>;
   importFiles: (list: FileList | File[] | null) => void;
   removeLocalTrack: (id: string) => Promise<boolean>;
   downloadLocalTrack: (id: string) => Promise<void>;
@@ -51,7 +58,15 @@ export function useLocalAudio(): Player {
   const [repeat, setRepeat] = useState<RepeatMode>('off');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
+  const [audioPreset, setAudioPresetState] = useState<AudioPreset>('off');
+  const [humFilter, setHumFilterState] = useState(false);
+  const [storageDurability, setStorageDurability] = useState<'unknown'|'granted'|'best-effort'|'unavailable'>('unknown');
+  const audioPresetRef=useRef<AudioPreset>('off');
+  const humFilterRef=useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const localAudioRef = useRef<HTMLAudioElement | null>(null);
+  const externalAudioRef = useRef<HTMLAudioElement | null>(null);
+  const enhancerRef=useRef<AudioEnhancer|null>(null);
   const urlsRef = useRef<Map<string, string>>(new Map());
   const nextRef = useRef<() => void>(() => {});
   const checkpointWriteRef=useRef(0);
@@ -75,13 +90,24 @@ export function useLocalAudio(): Player {
         const parsed: unknown = JSON.parse(stored);
         if (Array.isArray(parsed)) setFavorites(parsed.filter((x): x is string => typeof x === 'string'));
       }
+      const persistedPreset=normalizeAudioPreset(localStorage.getItem('nebula:audio-preset:v1'));
+      const persistedHum=localStorage.getItem('nebula:hum-filter:v1')==='true';
+      setAudioPresetState(persistedPreset);audioPresetRef.current=persistedPreset;
+      setHumFilterState(persistedHum);humFilterRef.current=persistedHum;
       const storedVolume = Number(localStorage.getItem('nebula:volume:v1'));
       if (Number.isFinite(storedVolume) && localStorage.getItem('nebula:volume:v1') !== null) {
         const nextVolume = Math.min(1, Math.max(0, storedVolume));
         setVolumeState(nextVolume);
-        if (audioRef.current) audioRef.current.volume = nextVolume;
+        if (localAudioRef.current) localAudioRef.current.volume = nextVolume;
+        if (externalAudioRef.current) externalAudioRef.current.volume = nextVolume;
       }
     } catch { /* Optional browser storage may be blocked. */ }
+    if(typeof navigator!=='undefined'){
+      if(typeof navigator.storage?.persisted === 'function'){
+        void navigator.storage.persisted().then(granted=>setStorageDurability(granted?'granted':'best-effort'))
+          .catch(()=>setStorageDurability('unavailable'));
+      } else setStorageDurability('unavailable');
+    }
     void loadSavedSongs().then((songs) => {
       if (!active) return;
       const playable = songs.sort((a,b)=>b.createdAt-a.createdAt).map((song) => {
@@ -120,20 +146,30 @@ export function useLocalAudio(): Player {
 
   useEffect(() => {
     const audio = new Audio();
-    audio.preload = 'metadata';
-    audio.volume = volume;
+    const externalAudio = new Audio();
+    for (const element of [audio,externalAudio]) {
+      element.preload = 'metadata';
+      element.volume = volume;
+    }
     audioRef.current = audio;
+    localAudioRef.current = audio;
+    externalAudioRef.current = externalAudio;
     const persist=()=>{
+      const activeAudio=audioRef.current;
+      if(!activeAudio)return;
       const id=currentRef.current;
       if(!id?.startsWith('local-'))return;
       saveCheckpoint(localStorage,{
-        trackId:id,time:audio.currentTime||0,
+        trackId:id,time:activeAudio.currentTime||0,
         queueIds:queueRef.current.filter(t=>t.id.startsWith('local-')).map(t=>t.id),
         savedAt:Date.now(),
       });
       checkpointWriteRef.current=Date.now();
     };
+    const attachListeners=(audio:HTMLAudioElement)=>{
+    const isActive=()=>audioRef.current===audio;
     const onTime = () => {
+      if(!isActive())return;
       setTime(audio.currentTime || 0);
       if(Date.now()-checkpointWriteRef.current>5000)persist();
       if ('mediaSession' in navigator && audio.duration && Number.isFinite(audio.duration)) {
@@ -141,19 +177,22 @@ export function useLocalAudio(): Player {
         catch { /* Some browsers do not support position state for the current asset. */ }
       }
     };
-    const onDuration = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    const onPlay = () => { setState('playing'); setNotice(clearTransientPlaybackNotice); };
-    const onPause = () => {persist();setState((old) => old === 'ended' || old === 'error' ? old : 'paused');};
-    const onPlaying = () => { setState('playing'); setNotice(clearTransientPlaybackNotice); };
+    const onDuration = () => { if(isActive())setDuration(Number.isFinite(audio.duration) ? audio.duration : 0); };
+    const onPlay = () => { if(!isActive())return; setState('playing'); setNotice(clearTransientPlaybackNotice); };
+    const onPause = () => {if(!isActive())return;persist();setState((old) => old === 'ended' || old === 'error' ? old : 'paused');};
+    const onPlaying = () => {if(!isActive())return; setState('playing'); setNotice(clearTransientPlaybackNotice); };
     const onWaiting = () => {
+      if(!isActive())return;
       setState('buffering');
       if(currentRef.current?.startsWith('remote-'))setNotice('El proveedor está cargando el audio. Si no avanza, prueba otra canción.');
     };
     const onStalled = () => {
+      if(!isActive())return;
       setState('buffering');
       if(currentRef.current?.startsWith('remote-'))setNotice('La transmisión se detuvo temporalmente. Revisa tu conexión o selecciona otra pista.');
     };
     const onError = () => {
+      if(!isActive())return;
       // Signed R2 URLs may expire while the listener is mounted. A private
       // resolver is only available for the owner's own cloud entries.
       if(signedRenewRef.current && signedFailuresRef.current<2){
@@ -168,7 +207,7 @@ export function useLocalAudio(): Player {
         ? 'El proveedor no pudo servir esta canción. Prueba otra pista o abre la fuente oficial.'
         : 'El navegador no pudo cargar el audio. Revisa tu red, el formato o renueva la pista.');
     };
-    const onEnded = () => { setState('ended'); nextRef.current(); };
+    const onEnded = () => {if(!isActive())return; setState('ended'); nextRef.current(); };
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('durationchange', onDuration);
     audio.addEventListener('play', onPlay);
@@ -178,12 +217,21 @@ export function useLocalAudio(): Player {
     audio.addEventListener('stalled', onStalled);
     audio.addEventListener('error', onError);
     audio.addEventListener('ended', onEnded);
+    };
+    attachListeners(audio);
+    attachListeners(externalAudio);
     return () => {
       if(signedTimerRef.current)clearTimeout(signedTimerRef.current);
       signedRenewRef.current=null;
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
+      for(const element of [audio,externalAudio]){
+        element.pause();
+        element.removeAttribute('src');
+        element.load();
+      }
+      enhancerRef.current?.dispose();
+      enhancerRef.current=null;
+      localAudioRef.current=null;
+      externalAudioRef.current=null;
       audioRef.current = null;
       for (const url of urlsRef.current.values()) URL.revokeObjectURL(url);
       urlsRef.current.clear();
@@ -237,13 +285,83 @@ export function useLocalAudio(): Player {
     }
   },[]);
 
+  const ensureEnhancer=useCallback(():AudioEnhancer|null=>{
+    if(enhancerRef.current)return enhancerRef.current;
+    const local=localAudioRef.current;
+    if(!local || typeof AudioContext==='undefined')return null;
+    try {
+      const enhancer=createAudioEnhancer(local);
+      enhancerRef.current=enhancer;
+      enhancer.setPreset(audioPresetRef.current);
+      enhancer.setHumFilter(humFilterRef.current);
+      return enhancer;
+    }catch{
+      setNotice('Tu navegador no admite estos efectos de audio. El archivo original sigue disponible.');
+      return null;
+    }
+  },[]);
+
+  const setAudioPreset=useCallback((preset:AudioPreset)=>{
+    const next=normalizeAudioPreset(preset);
+    audioPresetRef.current=next;
+    setAudioPresetState(next);
+    try{localStorage.setItem('nebula:audio-preset:v1',next);}catch{}
+    if(next!=='off'&&currentRef.current?.startsWith('local-'))ensureEnhancer();
+    enhancerRef.current?.setPreset(next);
+    if(next!=='off')void enhancerRef.current?.resume().catch(()=>{});
+  },[ensureEnhancer]);
+
+  const setHumFilter=useCallback((enabled:boolean)=>{
+    humFilterRef.current=enabled;
+    setHumFilterState(enabled);
+    try{localStorage.setItem('nebula:hum-filter:v1',String(enabled));}catch{}
+    if(enabled&&currentRef.current?.startsWith('local-'))ensureEnhancer();
+    enhancerRef.current?.setHumFilter(enabled);
+    if(enabled)void enhancerRef.current?.resume().catch(()=>{});
+  },[ensureEnhancer]);
+
+  const requestStoragePersistence=useCallback(async()=>{
+    if(typeof navigator==='undefined'||typeof navigator.storage?.persist!=='function'){
+      setStorageDurability('unavailable');
+      setNotice('Este navegador no admite protección de almacenamiento. Guarda una copia ZIP desde Biblioteca.');
+      return;
+    }
+    try{
+      const granted=await navigator.storage.persist();
+      setStorageDurability(granted?'granted':'best-effort');
+      setNotice(granted
+        ? 'Almacenamiento persistente concedido para esta instalación.'
+        : 'El navegador conserva tu música local, pero puede liberar espacio. Exporta una copia ZIP de respaldo.');
+    }catch{
+      setStorageDurability('unavailable');
+      setNotice('No pudimos solicitar almacenamiento persistente. Exporta una copia ZIP de tu música.');
+    }
+  },[]);
+
   const selectTrack = useCallback((track: Track) => {
     if (!track.audioUrl) {
       setNotice('Esta canción es parte del concepto visual. Importa tus archivos para escuchar música real.');
       return;
     }
-    const audio = audioRef.current;
-    if (!audio) return;
+    const isLocal=track.id.startsWith('local-');
+    const audio=isLocal?localAudioRef.current:externalAudioRef.current;
+    if(!audio)return;
+    if(audioRef.current!==audio){
+      const oldAudio=audioRef.current;
+      audioRef.current=audio;
+      if(oldAudio){
+        oldAudio.pause();
+        oldAudio.removeAttribute('src');
+        oldAudio.load();
+      }
+    }
+    if(isLocal && (audioPresetRef.current!=='off'||humFilterRef.current)){
+      const enhancer=ensureEnhancer();
+      enhancer?.setPreset(audioPresetRef.current);
+      enhancer?.setHumFilter(humFilterRef.current);
+      enhancer?.fadeIn();
+      void enhancer?.resume().catch(()=>{});
+    }
     if(signedTimerRef.current)clearTimeout(signedTimerRef.current);
     signedRenewRef.current=null;
     signedFailuresRef.current=0;
@@ -272,7 +390,7 @@ export function useLocalAudio(): Player {
       setState('error');
       setNotice('No fue posible iniciar esta pista. Comprueba la disponibilidad del audio o intenta con otra.');
     });
-  }, [renewSignedTrack]);
+  }, [renewSignedTrack,ensureEnhancer]);
 
   const next = useCallback(() => {
     const list = queueRef.current;
@@ -333,6 +451,11 @@ export function useLocalAudio(): Player {
     const candidates = files.filter(file=>file.size>0 && file.size<=MAX_AUDIO_BYTES);
     if (!candidates.length) { setNotice('Los archivos deben ser de audio, no estar vacíos y pesar como máximo 100 MB cada uno.'); return; }
     if (candidates.length>50) { setNotice('Puedes importar hasta 50 archivos locales por lote. Selecciona menos canciones; no omitiremos archivos sin avisarte.'); return; }
+    // Request durable origin storage while the file-picker action is active.
+    if(typeof navigator!=='undefined'&&typeof navigator.storage?.persist==='function'){
+      void navigator.storage.persist().then(granted=>setStorageDurability(granted?'granted':'best-effort'))
+        .catch(()=>{});
+    }
     setNotice('Leyendo etiquetas de tus canciones…');
     void (async()=>{
       const added=await Promise.all(candidates.map(async(file,index):Promise<{track:Track;record:SavedSong}>=>{
@@ -408,7 +531,8 @@ export function useLocalAudio(): Player {
   const setVolume = useCallback((value: number) => {
     const nextValue = Math.min(1,Math.max(0,value));
     setVolumeState(nextValue);
-    if (audioRef.current) audioRef.current.volume = nextValue;
+    if (localAudioRef.current) localAudioRef.current.volume = nextValue;
+    if (externalAudioRef.current) externalAudioRef.current.volume = nextValue;
     try { localStorage.setItem('nebula:volume:v1',String(nextValue)); } catch { /* optional */ }
   }, []);
 
@@ -444,7 +568,8 @@ export function useLocalAudio(): Player {
 
   return {
     tracks, ownTracks, current, state, notice, setNotice, time, duration, volume, shuffle, repeat, favorites,
-    loadingLibrary, importFiles, removeLocalTrack, downloadLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
+    loadingLibrary, audioPreset, humFilter, storageDurability, setAudioPreset, setHumFilter, requestStoragePersistence,
+    importFiles, removeLocalTrack, downloadLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
     toggleShuffle: () => setShuffle((value)=>!value),
     cycleRepeat: () => setRepeat((value)=>value==='off' ? 'all' : value==='all' ? 'one' : 'off'),
     toggleFavorite,
