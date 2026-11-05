@@ -117,7 +117,7 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
    });
    if(!ticketResponse.ok)throw Error(ticketResponse.status===401?'Token local inválido.':'No se pudo autorizar la conversión MP3.');
    const payload=await ticketResponse.json() as {ticket?:unknown};
-   if(typeof payload.ticket!=='string'||!/^[A-Za-z0-9_-]{20,300}\\.[A-Za-z0-9_-]{30,80}$/.test(payload.ticket))throw Error('Ticket de descarga inválido.');
+   if(typeof payload.ticket!=='string'||!/^[A-Za-z0-9_-]{20,300}\.[A-Za-z0-9_-]{30,80}$/.test(payload.ticket))throw Error('Ticket de descarga inválido.');
    const response=await fetch(BRIDGE_URL+'/download?ticket='+encodeURIComponent(payload.ticket),{
     cache:'no-store',redirect:'error',credentials:'omit',signal:abort.signal,
    });
