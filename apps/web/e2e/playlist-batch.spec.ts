@@ -49,7 +49,7 @@ test('a playlist URL loads up to 1000 selectable songs and tracks a local batch'
  const panel=bridge.getByRole('region',{name:'Descarga de playlists completas'});
  await panel.getByLabel('URL de playlist de YouTube').fill('https://www.youtube.com/playlist?list='+playlistId);
  await panel.getByRole('button',{name:'Cargar canciones'}).click();
- await expect(panel.getByText('1,000 pistas cargadas',{exact:false})).toBeVisible();
+ await expect(panel.getByText('1000 pistas cargadas',{exact:false})).toBeVisible();
  await expect(panel.locator('.batch-track')).toHaveCount(40);
  await panel.getByLabel('Filtrar canciones').fill('Canción 999');
  await expect(panel.locator('.batch-track')).toHaveCount(1);
