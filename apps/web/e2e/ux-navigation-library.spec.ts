@@ -76,3 +76,43 @@ test('external YouTube player keeps platform identity and action outside the loc
  await region.getByRole('button',{name:'Cerrar reproductor'}).click();
  await expect(region).toHaveCount(0);
 });
+
+test('playlist picker lets listeners choose the destination instead of silently choosing first',async({page})=>{
+ await page.goto('/');
+ async function openScreen(screen:'Biblioteca'|'Playlists'){
+  const desktop=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:screen,exact:true});
+  if(await desktop.isVisible()){await desktop.click();return;}
+  if(screen==='Biblioteca'){
+   await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:screen,exact:true}).click();
+  }else{
+   await page.getByRole('button',{name:'Más secciones'}).click();
+   await page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name:screen,exact:true}).click();
+  }
+ }
+ await openScreen('Playlists');
+ for(const name of ['Lista A','Lista B']){
+  await page.getByPlaceholder('Nombre de nueva playlist').fill(name);
+  await page.getByRole('button',{name:'Crear playlist'}).click();
+  await expect(page.locator('.playlist-entry-main').filter({hasText:name})).toBeVisible();
+ }
+ await openScreen('Biblioteca');
+ const frames=11025,pcm=Buffer.alloc(44+frames*2);
+ pcm.write('RIFF',0);pcm.writeUInt32LE(pcm.length-8,4);pcm.write('WAVE',8);
+ pcm.write('fmt ',12);pcm.writeUInt32LE(16,16);pcm.writeUInt16LE(1,20);
+ pcm.writeUInt16LE(1,22);pcm.writeUInt32LE(44100,24);pcm.writeUInt32LE(88200,28);
+ pcm.writeUInt16LE(2,32);pcm.writeUInt16LE(16,34);pcm.write('data',36);pcm.writeUInt32LE(frames*2,40);
+ await page.getByLabel('Importar archivos de audio propios').setInputFiles({name:'selector-ux.wav',mimeType:'audio/wav',buffer:pcm});
+ const track=page.locator('.track-row').filter({hasText:'selector-ux'}).first();
+ await expect(track).toBeVisible();
+ await track.getByRole('button',{name:/Añadir .* a playlist/}).click();
+ const picker=page.getByRole('dialog',{name:'Elegir playlist'});
+ await expect(picker).toBeVisible();
+ await expect(picker.getByRole('button',{name:/Lista A/})).toBeVisible();
+ await picker.getByRole('button',{name:/Lista B/}).click();
+ await expect(picker).toBeHidden();
+ await openScreen('Playlists');
+ await page.locator('.playlist-entry-main').filter({hasText:'Lista B'}).click();
+ await expect(page.locator('.playlist-track').filter({hasText:'selector-ux'})).toBeVisible();
+ await page.locator('.playlist-entry-main').filter({hasText:'Lista A'}).click();
+ await expect(page.locator('.playlist-track').filter({hasText:'selector-ux'})).toHaveCount(0);
+});
