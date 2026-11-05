@@ -25,11 +25,11 @@ type Profile = { low: number; mid: number; high: number; compression: boolean; b
 
 export const AUDIO_PRESETS: Record<AudioPreset, Profile> = {
   off:      { low: 0,   mid: 0,    high: 0,   compression: false, bands: [0, 0, 0, 0, 0, 0, 0] },
-  balanced: { low: 1,   mid: -0.5, high: 1,   compression: true,  bands: [0.8, 0.4, -0.5, 0, 0.5, 0.8, 0.6] },
-  clarity:  { low: -1,  mid: 1.5,  high: 2,   compression: true,  bands: [-0.5, -0.5, -1.2, 0.4, 1.8, 1.5, 1.2] },
-  bass:     { low: 2.5, mid: -0.8, high: 0.5, compression: true,  bands: [2.5, 1.4, -0.6, -0.5, 0.2, 0.5, 0.4] },
-  vocal:    { low: -1,  mid: 2,    high: 1,   compression: true,  bands: [-1, -0.7, 0, 1.8, 2.4, 1, 0.4] },
-  punch:    { low: 2,   mid: 0.5,  high: 1,   compression: true,  bands: [1.8, 0.5, -1, 0.7, 1.1, 1.3, 0.8] },
+  balanced: { low: 1,   mid: -0.5, high: 1,   compression: true,  bands: [1, 0.5, -0.5, 0, 0.5, 1, 0.5] },
+  clarity:  { low: -1,  mid: 1.5,  high: 2,   compression: true,  bands: [-0.5, -0.5, -1, 0.5, 2, 1.5, 1] },
+  bass:     { low: 2.5, mid: -0.8, high: 0.5, compression: true,  bands: [2.5, 1.5, -0.5, -0.5, 0, 0.5, 0.5] },
+  vocal:    { low: -1,  mid: 2,    high: 1,   compression: true,  bands: [-1, -0.5, 0, 2, 2.5, 1, 0.5] },
+  punch:    { low: 2,   mid: 0.5,  high: 1,   compression: true,  bands: [2, 0.5, -1, 0.5, 1, 1.5, 1] },
   custom:   { low: 0,   mid: 0,    high: 0,   compression: true,  bands: [0, 0, 0, 0, 0, 0, 0] },
 };
 
