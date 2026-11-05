@@ -27,7 +27,7 @@ test('catalog paginates without duplicates and resets results on provider change
  await page.goto('/');
  await navigate(page,'Explorar');
  await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('paginada');
- await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
+ await page.locator('.explore-form').getByRole('button',{name:'Buscar',exact:true}).click();
  await expect(page.locator('.explore-card')).toHaveCount(12);
  await page.getByRole('button',{name:'Cargar más canciones'}).click();
  await expect(page.locator('.explore-card')).toHaveCount(13);

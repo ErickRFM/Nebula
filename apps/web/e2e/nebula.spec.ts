@@ -59,7 +59,7 @@ test('playlist creation persists after reloading', async ({page}) => {
   await page.goto('/');
   await navigate(page,'Playlists');
   await page.getByPlaceholder('Nombre de nueva playlist').fill('Para estudiar');
-  await page.getByRole('button',{name:'Crear playlist'}).click();
+  await page.getByRole('button',{name:'Crear playlist',exact:true}).click();
   await expect(page.locator('.playlist-entry-main').filter({hasText:'Para estudiar'})).toBeVisible();
   await page.reload();
   await navigate(page,'Playlists');
@@ -117,7 +117,7 @@ test('guest explorer saves provider references without sign-in',async({page})=>{
   await navigate(page,'Explorar');
   await expect(page.getByRole('button',{name:'Internet Archive'})).toBeVisible();
   await page.getByRole('textbox',{name:'Buscar canciones externas'}).fill('noche');
-  await page.locator('.explore-form').getByRole('button',{name:'Buscar'}).click();
+  await page.locator('.explore-form').getByRole('button',{name:'Buscar',exact:true}).click();
   await expect(page.getByText('Noche de prueba')).toBeVisible();
   await expect(page.getByRole('button',{name:'Escuchar'})).toBeDisabled();
   await page.getByRole('button',{name:'Guardar',exact:true}).click();
