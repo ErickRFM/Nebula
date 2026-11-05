@@ -7,6 +7,7 @@ async function library(page:Page){
 }
 test('bulk-export local audio to ZIP and restore songs on same device',async({page})=>{
  await page.goto('/');await library(page);
+ await page.locator('details.library-management > summary').click();
  const archive=page.getByRole('region',{name:'Respaldo musical en ZIP'});
  await expect(archive.getByRole('button',{name:'Descargar mi música (.zip)'})).toBeDisabled();
  await page.getByLabel('Importar archivos de audio propios').setInputFiles({
