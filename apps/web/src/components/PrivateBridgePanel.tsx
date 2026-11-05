@@ -147,6 +147,11 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
  }
  function importVideoLink(event:FormEvent<HTMLFormElement>){
   event.preventDefault();
+  if(youtubePlaylistId(directUrl)){
+   setDirectId(null);
+   setNotice('Playlist detectada. En «Descargar una playlist completa» pulsa Cargar canciones para ver hasta 1,000 pistas.');
+   return;
+  }
   try{
    const url=new URL(directUrl.trim());
    if(url.protocol!=='https:'||url.username||url.password)throw Error('Usa un enlace HTTPS de un video YouTube.');
@@ -175,12 +180,12 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
      <button className="button primary small" disabled={query.length<2||loading}>Buscar</button></form>}
     <form className="playlist-create glass" onSubmit={importVideoLink}>
       <label className="sr-only" htmlFor="nebula-direct-youtube-url">Enlace de video de YouTube</label>
-      <input id="nebula-direct-youtube-url" type="url" placeholder="https://www.youtube.com/watch?v=…" value={directUrl} onChange={e=>{setDirectUrl(e.target.value);setDirectId(null);}}/>
+      <input id="nebula-direct-youtube-url" type="url" placeholder="Video de YouTube o enlace de playlist" value={directUrl} onChange={e=>{setDirectUrl(e.target.value);setDirectId(null);}}/>
       <button className="button secondary small" type="submit" disabled={!directUrl.trim()}>Usar enlace</button>
     </form>
-    <PlaylistBatchPanel token={token} authorized={downloadAllowed} incomingUrl={incomingUrl}/>
     <label className="authorized-web-confirm"><input type="checkbox" checked={downloadAllowed} onChange={e=>setDownloadAllowed(e.target.checked)}/> Confirmo que tengo derecho a descargar y guardar este audio.</label>
     <p className="disclosure">La descarga se realiza en tu propio equipo con yt-dlp y FFmpeg, sin enviar el MP3 a NÉBULA. No admite videos protegidos, privados ni fuentes bloqueadas.</p>
+    <PlaylistBatchPanel token={token} authorized={downloadAllowed} incomingUrl={youtubePlaylistId(directUrl)?directUrl:incomingUrl}/>
     {loading&&<p className="disclosure" role="status">Buscando pistas en tu puente privado…</p>}
     {(items.length>0||directId)&&<div className="track-list glass">{[...(directId?[{id:directId,title:'Video '+directId,artist:'YouTube',durationSeconds:null,sourceUrl:'https://www.youtube.com/watch?v='+directId}]:[]),...items].filter((item,index,list)=>list.findIndex(entry=>entry.id===item.id)===index).map(item=><div className="track-row" key={item.id}>
      <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist} · fuente local</small></span>
