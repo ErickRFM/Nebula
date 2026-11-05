@@ -115,6 +115,7 @@ test('official YouTube IFrame API shows songs, current playback and per-song MP3
  await second.getByRole('button',{name:'Escuchar'}).click();
  await expect.poll(()=>page.evaluate(()=>(window as Window & {__played_index?:number}).__played_index)).toBe(1);
  await second.locator('.yt-track-more > summary').click();
+ await expect(second.getByRole('button',{name:'Descargar MP3 (puente local)'})).toBeVisible();
  await second.getByRole('button',{name:'Importar MP3 propio'}).click();
  await expect(second.getByRole('textbox',{name:'Enlace directo a MP3 autorizado'})).toBeVisible();
  await expect(second.getByRole('button',{name:'Descargar y añadir a Biblioteca'})).toBeDisabled();
