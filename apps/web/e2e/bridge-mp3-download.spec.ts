@@ -7,6 +7,13 @@ test('private bridge converts an authorized YouTube URL into downloadable librar
   body:JSON.stringify({status:'ok',private:true,enabled:true}),
  }));
  await page.route('http://127.0.0.1:4177/ticket',async route=>{
+  if(route.request().method()==='OPTIONS'){
+   await route.fulfill({status:204,headers:{
+    'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST, OPTIONS',
+    'Access-Control-Allow-Headers':'Authorization, Content-Type',
+    'Access-Control-Allow-Private-Network':'true',
+   }});return;
+  }
   expect(route.request().method()).toBe('POST');
   expect(JSON.parse(route.request().postData()||'{}').id).toBe('dQw4w9WgXcQ');
   await route.fulfill({status:200,contentType:'application/json',
@@ -14,7 +21,7 @@ test('private bridge converts an authorized YouTube URL into downloadable librar
    body:JSON.stringify({ticket:'A'.repeat(40)+'.'+'B'.repeat(43),expiresInSeconds:120})});
  });
  await page.route('http://127.0.0.1:4177/download?*',route=>route.fulfill({
-  status:200,body:mp3,headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':'*'},
+  status:200,body:mp3,headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':'*','Access-Control-Allow-Private-Network':'true'},
  }));
  await page.addInitScript(()=>sessionStorage.setItem('nebula:private-bridge-session-token','test-token-'+('x'.repeat(40))));
  await page.goto('/');
