@@ -44,3 +44,27 @@ test('guest audio is saved after a reload without signing in, with persistent so
  await navigate(page,'Biblioteca');
  await expect(page.getByRole('button',{name:'Descargar archivo original de sin-cuenta'})).toBeVisible();
 });
+
+test('a new guest can switch EQ presets without audio or login on mobile',async({page})=>{
+ const errors:string[]=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.setViewportSize({width:375,height:812});
+ await page.goto('/');
+ await navigate(page,'Ajustes');
+ const studio=page.getByRole('region',{name:'NÉBULA Audio Studio'});
+ await expect(studio).toBeVisible();
+ const preset=studio.getByRole('combobox',{name:'Perfil del ecualizador'});
+ await preset.selectOption('clarity');
+ await expect(preset).toHaveValue('clarity');
+ const bassBand=studio.getByRole('slider',{name:'Banda 60 Hz'});
+ await expect(bassBand).toHaveValue('-0.5');
+ await bassBand.focus();
+ await bassBand.press('ArrowRight');
+ await expect(preset).toHaveValue('custom');
+ await expect(bassBand).toHaveValue('0');
+ const rect=await studio.boundingBox();
+ expect(rect).not.toBeNull();
+ expect(rect!.x).toBeGreaterThanOrEqual(-1);
+ expect(rect!.x+rect!.width).toBeLessThanOrEqual(380);
+ expect(errors).toEqual([]);
+});
