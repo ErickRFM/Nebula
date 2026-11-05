@@ -44,3 +44,23 @@ test('private bridge converts an authorized YouTube URL into downloadable librar
  else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Biblioteca',exact:true}).click();
  await expect(page.getByText('Video dQw4w9WgXcQ.mp3')).toBeVisible();
 });
+
+test('embedded YouTube link opens the paired MP3 bridge with URL prefilled',async({page})=>{
+ await page.route('http://127.0.0.1:4177/health',route=>route.fulfill({
+  status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},
+  body:JSON.stringify({status:'ok',private:true,enabled:true}),
+ }));
+ await page.addInitScript(()=>sessionStorage.setItem('nebula:private-bridge-session-token','test-token-'+('x'.repeat(40))));
+ await page.goto('/');
+ const nav=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Buscar',exact:true});
+ if(await nav.isVisible())await nav.click();
+ else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Buscar',exact:true}).click();
+ const external=page.getByRole('region',{name:'Reproductores oficiales de música'});
+ const video='https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+ await external.getByRole('textbox',{name:'Enlace de YouTube, SoundCloud o Spotify'}).fill(video);
+ await external.getByRole('button',{name:'Abrir reproductor'}).click();
+ await external.getByRole('button',{name:'Descargar MP3 (puente local)'}).click();
+ const bridge=page.getByRole('region',{name:'Reproductor local privado'});
+ await expect(bridge.getByLabel('Enlace de video de YouTube')).toHaveValue(video);
+ await expect(bridge.getByRole('button',{name:'Descargar MP3'})).toBeDisabled();
+});
