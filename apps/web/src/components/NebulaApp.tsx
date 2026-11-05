@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   AudioLines, Bell, ChevronLeft, ChevronRight, CircleUserRound, CloudUpload,
   Compass, Disc3, Download, Headphones, Heart, Home, Library, ListMusic,
@@ -150,6 +150,7 @@ export function NebulaApp() {
   const [selectedAccountPlaylistId,setSelectedAccountPlaylistId]=useState<string|null>(null);
   const [activePlaylist, setActivePlaylist] = useState<string | null>(null);
   const [pendingPlaylistTrack, setPendingPlaylistTrack] = useState<string | null>(null);
+  const [pickerPlaylistTitle, setPickerPlaylistTitle] = useState('');
   const playlistDialogRef = useRef<HTMLDialogElement>(null);
   const mobileMenuRef = useRef<HTMLElement>(null);
   const mobileMoreButtonRef = useRef<HTMLButtonElement>(null);
@@ -157,14 +158,22 @@ export function NebulaApp() {
   const localCount = player.ownTracks.length;
   const personalAlbums = groupPlayableAlbums(player.ownTracks);
   const currentPlaylist = playlistStore.playlists.find((item)=>item.id === activePlaylist);
-  // Choosing a destination is deliberate: never silently add songs to the first list.
+  // Always choose a destination: a first playlist can be created without losing the song.
   function addToPlaylist(trackId: string) {
-    if (!playlistStore.playlists.length) {
-      player.setNotice('Crea primero una playlist para añadir canciones.');
-      navigate('playlists');
-      return;
-    }
+    setPickerPlaylistTitle('');
     setPendingPlaylistTrack(trackId);
+  }
+  function createPlaylistForTrack(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    const clean=pickerPlaylistTitle.trim();
+    if(!clean||!pendingPlaylistTrack)return;
+    const id=playlistStore.create(clean);
+    if(!id)return;
+    playlistStore.addSong(id,pendingPlaylistTrack);
+    setActivePlaylist(id);
+    setPendingPlaylistTrack(null);
+    setPickerPlaylistTitle('');
+    player.setNotice('Playlist creada y canción guardada.');
   }
   function saveToPlaylist(id: string) {
     const target = playlistStore.playlists.find(item=>item.id===id);
@@ -435,6 +444,7 @@ export function NebulaApp() {
         <button type="button" className="icon-button" aria-label="Cerrar selector de playlists" onClick={()=>setPendingPlaylistTrack(null)}><X size={20}/></button>
       </div>
       <div className="playlist-picker-options">
+        {playlistStore.playlists.length===0&&<p className="empty-note">Aún no tienes playlists. Crea una aquí para guardar esta canción.</p>}
         {playlistStore.playlists.map(list=>{
           const alreadySaved=Boolean(pendingPlaylistTrack&&list.trackIds.includes(pendingPlaylistTrack));
           return <button type="button" key={list.id} className="playlist-picker-option"
@@ -446,6 +456,13 @@ export function NebulaApp() {
           </button>;
         })}
       </div>
+      <form className="playlist-picker-create" onSubmit={createPlaylistForTrack}>
+        <label htmlFor="playlist-picker-new">Nueva playlist</label>
+        <div className="playlist-picker-create-row">
+          <input id="playlist-picker-new" value={pickerPlaylistTitle} onChange={event=>setPickerPlaylistTitle(event.target.value)} placeholder="Nombre de la playlist" maxLength={80}/>
+          <button type="submit" className="button primary small" disabled={!pickerPlaylistTitle.trim()}><Plus size={16}/> Crear y guardar</button>
+        </div>
+      </form>
     </dialog>
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;
