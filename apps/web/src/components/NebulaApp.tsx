@@ -42,6 +42,13 @@ const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
   { id: 'ajustes', label: 'Ajustes', icon: Settings2 },
   { id: 'cuenta', label: 'Cuenta', icon: CircleUserRound },
 ];
+const primaryDestinations:Screen[]=['inicio','buscar','biblioteca','salas'];
+const collectionDestinations:Screen[]=['playlists','explorar'];
+const settingsDestinations:Screen[]=['cuenta','ajustes'];
+function screenFromUrl():Screen {
+  const value=new URL(window.location.href).searchParams.get('vista');
+  return navigation.some(item=>item.id===value)?value as Screen:'inicio';
+}
 const genres = ['Todos', 'Electrónica', 'Chill', 'Pop', 'Ambient', 'Indie'];
 type PlayerApi = ReturnType<typeof useLocalAudio>;
 
@@ -190,13 +197,18 @@ export function NebulaApp() {
   });
 
   useEffect(() => {
-    // Invite tokens live in the URL fragment, never in HTTP query parameters.
-    const openRoomInvite = () => {
-      if (roomInviteFromHash(window.location.hash)) setScreen('salas');
+    // Keep room invitation tokens in the hash; the selected view has a shareable URL.
+    const restoreView = () => {
+      setScreen(roomInviteFromHash(window.location.hash)?'salas':screenFromUrl());
+      setMobileMoreOpen(false);
     };
-    openRoomInvite();
-    window.addEventListener('hashchange', openRoomInvite);
-    return () => window.removeEventListener('hashchange', openRoomInvite);
+    restoreView();
+    window.addEventListener('popstate',restoreView);
+    window.addEventListener('hashchange',restoreView);
+    return () => {
+      window.removeEventListener('popstate',restoreView);
+      window.removeEventListener('hashchange',restoreView);
+    };
   }, []);
   useEffect(() => {
     // A guest who followed a room link may need to sign in first. Return to
@@ -222,9 +234,9 @@ export function NebulaApp() {
       const editing=target instanceof HTMLElement &&
         (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName));
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k') {
-        event.preventDefault(); setScreen('buscar');
+        event.preventDefault(); navigate('buscar');
       } else if (event.key==='/' && !editing && !event.ctrlKey && !event.altKey && !event.metaKey) {
-        event.preventDefault(); setScreen('buscar');
+        event.preventDefault(); navigate('buscar');
       }
     };
     window.addEventListener('keydown',shortcut);
@@ -254,6 +266,13 @@ export function NebulaApp() {
   },[mobileMoreOpen]);
   function navigate(target: Screen) {
     if (target === 'reproductor' && screen !== 'reproductor') setPreviousScreen(screen);
+    if(typeof window!=='undefined'){
+      const next=new URL(window.location.href);
+      if(target==='inicio')next.searchParams.delete('vista');
+      else next.searchParams.set('vista',target);
+      if(next.href!==window.location.href)window.history.pushState({nebulaScreen:target},'',next);
+      window.scrollTo({top:0,behavior:'auto'});
+    }
     setScreen(target);
     setMobileMoreOpen(false);
   }
@@ -262,22 +281,27 @@ export function NebulaApp() {
     <div className="background-orb orb-one"/><div className="background-orb orb-two"/><div className="background-orb orb-three"/>
     <aside className="sidebar glass">
       <Brand/>
-      <div className="sidebar-label">TU UNIVERSO</div>
-      <nav aria-label="Navegación principal" className="side-links">{navigation.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen === item.id ? 'page' : undefined} className={'nav-item ' + (screen === item.id ? 'selected' : '')}><Icon size={19}/>{item.label}</button>; })}</nav>
-      <div className="sidebar-label extra-label">TU MÚSICA</div>
-      <div className="side-collection"><button type="button" className="nav-item" onClick={()=>navigate('biblioteca')}><Disc3 size={16}/> Mi biblioteca ({localCount})</button>{playlistStore.playlists.slice(0,3).map((list)=><button key={list.id} type="button" className="nav-item" onClick={()=>{setActivePlaylist(list.id);navigate('playlists');}}><ListMusic size={16}/>{list.title}</button>)}{playlistStore.playlists.length===0 && <button type="button" className="nav-item" onClick={()=>navigate('playlists')}><Plus size={16}/> Ir a mis playlists</button>}</div>
+      <nav aria-label="Navegación principal" className="side-links">
+        <div className="sidebar-label">ESCUCHAR</div>
+        {navigation.filter(item=>primaryDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+        <div className="sidebar-label extra-label">COLECCIONES</div>
+        {navigation.filter(item=>collectionDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+        {playlistStore.playlists.length>0&&<div className="side-collection" aria-label="Tus playlists">{playlistStore.playlists.slice(0,3).map(list=><button key={list.id} type="button" className="nav-item playlist-shortcut" onClick={()=>{setActivePlaylist(list.id);navigate('playlists');}}><ListMusic size={15}/><span>{list.title}</span></button>)}</div>}
+        <div className="sidebar-label extra-label">PREFERENCIAS</div>
+        {navigation.filter(item=>settingsDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
+      </nav>
       <div className="sidebar-footer"><span className="status-dot"/> {account.configured ? (account.user ? 'Biblioteca conectada' : 'Inicia sesión para sincronizar') : 'Biblioteca local disponible'}</div>
     </aside>
     <div className="workspace">
       <header className="topbar glass">
         <div className="mobile-brand"><Brand/></div><div className="desktop-location"><span>{screen==='reproductor'?'Reproduciendo ahora':navigation.find(item=>item.id===screen)?.label??'NÉBULA Music'}</span></div>
         <div className="topbar-actions">
-          <button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>
+          {screen!=='buscar'&&<button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>}
           <button ref={mobileMoreButtonRef} className="icon-button glass-chip mobile-only" title="Más secciones" aria-label="Más secciones" aria-expanded={mobileMoreOpen} aria-controls="nebula-mobile-more-menu" type="button" onClick={()=>setMobileMoreOpen(open=>!open)}><MoreHorizontal size={19}/></button>
-          <button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>
+          {screen!=='cuenta'&&<button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>}
         </div>
         {mobileMoreOpen && <nav ref={mobileMenuRef} id="nebula-mobile-more-menu" className="mobile-more-menu" aria-label="Más secciones de NÉBULA">
-          {navigation.filter(item=>['explorar','playlists','ajustes','cuenta'].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
+          {navigation.filter(item=>[...collectionDestinations,...settingsDestinations].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" aria-current={screen===item.id?'page':undefined} onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
         </nav>}
       </header>
       <main className={'main-area ' + (screen === 'reproductor' ? 'main-player' : '')}>
@@ -400,7 +424,7 @@ export function NebulaApp() {
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
-      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter((item)=>['inicio','buscar','biblioteca','salas'].includes(item.id)).map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
+      <nav className="bottom-nav glass" aria-label="Navegación móvil">{navigation.filter(item=>primaryDestinations.includes(item.id)).map((item)=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>navigate(item.id)} className={screen===item.id ? 'active' : ''} aria-current={screen===item.id ? 'page' : undefined}><Icon size={21}/><span>{item.label}</span></button>;})}</nav>
     </div>
     <dialog ref={playlistDialogRef} className="playlist-picker-dialog" aria-label="Elegir playlist"
       onClose={()=>setPendingPlaylistTrack(null)}>
