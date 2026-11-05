@@ -16,7 +16,7 @@ test('official YouTube embed works from a pasted HTTPS link without an API key',
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  const iframe=bridges.getByTitle('Reproductor oficial de YouTube');
  await expect(iframe).toHaveAttribute('src','https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
- await expect(bridges.getByText('Pulsa reproducir dentro del reproductor oficial.',{exact:false})).toBeVisible();
+ await expect(bridges.getByText('Reproduce desde los controles de YouTube',{exact:false})).toBeVisible();
  await bridges.getByRole('button',{name:'Cerrar reproductor'}).click();
  await expect(iframe).toHaveCount(0);
 });
@@ -73,7 +73,7 @@ test('YouTube playlist and RD Mix retain the list identity',async({page})=>{
  await bridges.getByRole('button',{name:'Abrir reproductor'}).click();
  await expect(bridges.getByText('Mix / radio dinámica de YouTube')).toBeVisible();
  await expect(bridges.getByText('No es una lista fija',{exact:false})).toBeVisible();
- await expect(bridges.getByRole('link',{name:'Abrir contenido en su plataforma'})).toHaveAttribute('href',/list=RDM-E8rmhUxyw/);
+ await expect(bridges.getByRole('link',{name:'Abrir en la plataforma original'})).toHaveAttribute('href',/list=RDM-E8rmhUxyw/);
 });
 
 test('official YouTube IFrame API shows songs, current playback and per-song MP3 controls',async({page})=>{
@@ -106,7 +106,8 @@ test('official YouTube IFrame API shows songs, current playback and per-song MP3
  const second=tracks.locator('.yt-collection-item').nth(1);
  await second.getByRole('button',{name:'Escuchar'}).click();
  await expect.poll(()=>page.evaluate(()=>(window as Window & {__played_index?:number}).__played_index)).toBe(1);
- await second.getByRole('button',{name:'Añadir MP3'}).click();
+ await second.locator('.yt-track-more > summary').click();
+ await second.getByRole('button',{name:'Importar MP3 propio'}).click();
  await expect(second.getByRole('textbox',{name:'Enlace directo a MP3 autorizado'})).toBeVisible();
  await expect(second.getByRole('button',{name:'Descargar y añadir a Biblioteca'})).toBeDisabled();
 });

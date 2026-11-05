@@ -167,8 +167,13 @@ export function YouTubePlaylistBrowser({media,onImport}:{
      <small>{metadata[id]?.artist||'YouTube'} · {i+1} / {list.length}</small></span>
     <div className="yt-collection-buttons">
      <button type="button" className="button primary small" onClick={()=>{if(ytRef.current?.playVideoAt&&ids.length){ytRef.current.playVideoAt(i);}else window.open('https://www.youtube.com/watch?v='+id+'&list='+collection.id,'_blank','noopener,noreferrer');}}><Play size={14}/> Escuchar</button>
-     <a href={'https://www.youtube.com/watch?v='+id+'&list='+collection.id} target="_blank" rel="noopener noreferrer" className="button secondary small"><ExternalLink size={14}/> YouTube</a>
-     <button type="button" className="button secondary small" onClick={()=>selectMp3(id)} aria-expanded={activeMp3===id}><Download size={14}/> Añadir MP3</button>
+     <details className="yt-track-more">
+       <summary aria-label={'Más opciones para '+(metadata[id]?.title||'video '+(i+1))}>Más opciones</summary>
+       <div className="yt-track-more-actions">
+         <a href={'https://www.youtube.com/watch?v='+id+'&list='+collection.id} target="_blank" rel="noopener noreferrer" className="button secondary small"><ExternalLink size={14}/> Abrir en YouTube</a>
+         <button type="button" className="button secondary small" onClick={()=>selectMp3(id)} aria-expanded={activeMp3===id}><Download size={14}/> Importar MP3 propio</button>
+       </div>
+     </details>
     </div>
     {activeMp3===id&&<form className="yt-collection-mp3" onSubmit={event=>{void importMp3(event);}}>
      <p className="disclosure">Para guardar esta canción, introduce un enlace directo al MP3 que tengas permiso para descargar. El enlace del video no sirve como archivo MP3.</p>

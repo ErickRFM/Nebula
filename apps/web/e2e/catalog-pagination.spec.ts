@@ -5,7 +5,10 @@ import {randomBytes,randomUUID,scryptSync} from 'node:crypto';
 async function navigate(page:Page,name:string){
  const desktop=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
  const mobile=page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name,exact:true});
- if(await desktop.isVisible())await desktop.click();else await mobile.click();
+ if(await desktop.isVisible())await desktop.click();
+ else if(await mobile.isVisible())await mobile.click();
+ else {await page.getByRole('button',{name:'Más secciones'}).click();
+ await page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name,exact:true}).click();}
 }
 test('catalog paginates without duplicates and resets results on provider change',async({page})=>{
  test.skip(!process.env.NEXT_PUBLIC_API_URL||!process.env.NEBULA_TEST_DATABASE_URL,'Requires disposable PostgreSQL API');

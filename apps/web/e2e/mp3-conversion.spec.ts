@@ -18,6 +18,7 @@ function wavTone(){
 test('local codec turns a WAV into a real MP3 and persists it in Biblioteca',async({page})=>{
  await page.goto('/');
  await openLibrary(page);
+ await page.locator('details.library-management > summary').click();
  const panel=page.getByRole('region',{name:'Conversor MP3 interno'});
  await expect(panel.getByRole('heading',{name:'Convertir audio a MP3'})).toBeVisible();
  await panel.getByLabel('Archivos de audio para convertir a MP3').setInputFiles({
@@ -39,6 +40,7 @@ test('local codec turns a WAV into a real MP3 and persists it in Biblioteca',asy
 test('browser converter rejects oversized and suspicious HTML file',async({page})=>{
  await page.goto('/');
  await openLibrary(page);
+ await page.locator('details.library-management > summary').click();
  const panel=page.getByRole('region',{name:'Conversor MP3 interno'});
  await panel.getByLabel('Archivos de audio para convertir a MP3').setInputFiles({
   name:'fake.mp3',mimeType:'text/html',buffer:Buffer.from('<!doctype html>Not music'),

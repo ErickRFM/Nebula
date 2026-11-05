@@ -100,8 +100,11 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
      <span className="track-descriptor"><strong>{video.title}</strong><small>{video.artist} · YouTube</small></span>
      <button type="button" className="button secondary small" onClick={()=>activate(video.sourceUrl)}>Reproducir video</button>
    </div>)}</div>}
-   {active&&<div ref={playerRef} className="bridge-player glass" role="region" aria-label="Reproductor externo activo">
-     <div className="section-heading"><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer'}</h2><button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button></div>
+   {active&&<div ref={playerRef} className="bridge-player glass official-player-surface" role="region" aria-label="Reproductor externo activo">
+     <div className="section-heading official-player-header">
+       <div className="official-player-identity"><span className="official-source-label">FUENTE OFICIAL</span><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'Deezer'}</h2><small>Los controles y la duración dependen del proveedor.</small></div>
+       <button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button>
+     </div>
      {active.provider==='youtube'&&active.collection
       ? <YouTubePlaylistBrowser key={active.src} media={active} onImport={onImportMp3}/>
       : <iframe key={active.src} className="bridge-iframe" src={active.src}
@@ -109,8 +112,8 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>}
      {active.collection&&<div className="search-source-hint" role="status"><strong>{active.collection.kind==='mix'?'Mix / radio dinámica de YouTube':'Playlist de YouTube'}</strong><p>{active.collection.kind==='mix'?'La radio RD es dinámica: aquí suena el video inicial. El enlace original conserva la mezcla para seguir en YouTube. No es una lista fija.':'Playlist incrustada con los controles oficiales. La disponibilidad de cada video depende de YouTube.'}</p></div>}
-     <p className="disclosure">Pulsa reproducir dentro del reproductor oficial. Este contenido no usa el mini-reproductor de audio de NÉBULA.</p>
-     <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir contenido en su plataforma</a>
+     <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':active.provider==='deezer'?'Deezer':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
+       <a className="button secondary small" href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir en la plataforma original</a></div>
    </div>}
  </section>;
 }

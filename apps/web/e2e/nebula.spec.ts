@@ -6,13 +6,17 @@ async function navigate(page: Page, name: string) {
   const desktop = page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true});
   const mobile = page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name,exact:true});
   if (await desktop.isVisible()) await desktop.click();
-  else await mobile.click();
+  else if(await mobile.isVisible()) await mobile.click();
+  else {
+    await page.getByRole('button',{name:'Más secciones'}).click();
+    await page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name,exact:true}).click();
+  }
 }
 
 
 test('navigation and search work', async ({page}) => {
   await page.goto('/');
-  await expect(page.getByRole('heading',{name:/Todo comienza con una canción/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/Encuentra tu próxima canción/})).toBeVisible();
   await navigate(page,'Buscar');
   await expect(page.getByRole('heading',{name:'¿Qué quieres escuchar?'})).toBeVisible();
   await page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'}).fill('Frecuencia');
@@ -29,7 +33,7 @@ test('keyboard search, real albums and accessible contrast settings', async ({pa
   await expect(page.locator('.search-page')).toBeVisible();
   const desktop=page.getByRole('navigation',{name:'Navegación principal'});
   if(await desktop.isVisible()) await navigate(page,'Ajustes');
-  else await page.getByRole('button',{name:'Ajustes',exact:true}).click();
+  else await navigate(page,'Ajustes');
   const contrast=page.getByRole('switch',{name:'Contraste alto'});
   await contrast.click();
   await expect(contrast).toHaveAttribute('aria-checked','true');
@@ -104,9 +108,10 @@ test('account login keeps a persistent private session', async ({page, request})
   await page.getByRole('button',{name:'Entrar'}).click();
   await expect(page.getByText('Sesión activa')).toBeVisible();
 
-  await page.getByRole('textbox',{name:'Nombre de playlist en nube'}).fill('Colección E2E');
-  await page.getByRole('button',{name:'Crear en cuenta'}).click();
-  await expect(page.locator('.account-remote-list').getByText('Colección E2E')).toBeVisible();
+  await page.getByRole('button',{name:'Administrar playlists'}).click();
+  await page.getByRole('textbox',{name:'Nombre de playlist de cuenta'}).fill('Colección E2E');
+  await page.getByRole('button',{name:'Crear en mi cuenta'}).click();
+  await expect(page.getByText('Colección E2E')).toBeVisible();
 
   // The HttpOnly refresh cookie must keep the session alive across a full reload.
   await page.reload();
