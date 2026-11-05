@@ -71,7 +71,7 @@ function TrackRow({ track, player, index, onRemove, onAdd, onDownload }: { track
     {track.id.startsWith('local-') && onDownload && <button type="button" className="icon-button" aria-label={'Descargar archivo original de ' + track.title} title="Descargar MP3 si es MP3, o el formato original" onClick={()=>onDownload(track.id)}><Download size={17}/></button>}
     {track.audioUrl && onRemove && <button type="button" className="icon-button" aria-label={'Eliminar ' + track.title + ' de este dispositivo'} title="Eliminar archivo guardado" onClick={()=>onRemove(track.id)}><Trash2 size={17}/></button>}
     <span className="track-length">{track.duration}</span>
-    <button className={'icon-button heart-button ' + (favorite ? 'active' : '')} type="button" aria-label={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'} onClick={() => player.toggleFavorite(track.id)}><Heart size={18} fill={favorite ? 'currentColor' : 'none'}/></button>
+    <button className={'icon-button heart-button ' + (favorite ? 'active' : '')} type="button" aria-label={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'} aria-pressed={favorite} onClick={() => player.toggleFavorite(track.id)}><Heart size={18} fill={favorite ? 'currentColor' : 'none'}/></button>
   </div>;
 }
 function AlbumCard({ title, subtitle, cover, onClick }: {title: string; subtitle: string; cover: string; onClick: () => void}) {
@@ -295,7 +295,7 @@ export function NebulaApp() {
           </section>
           <section className="quick-grid" aria-label="Accesos rápidos">
             <button type="button" className="quick-action glass" onClick={()=>navigate('biblioteca')}><span className="quick-icon"><Library size={23}/></span><span><strong>Mi biblioteca</strong><small>{localCount ? localCount+' canciones locales' : 'Importa y organiza tu música'}</small></span><ChevronRight size={18}/></button>
-            <button type="button" className="quick-action glass" onClick={()=>navigate('playlists')}><span className="quick-icon"><ListMusic size={23}/></span><span><strong>Playlists</strong><small>{account.user ? account.serverPlaylists.length+' listas de cuenta' : playlistStore.playlists.length+' listas locales'}</small></span><ChevronRight size={18}/></button>
+            <button type="button" className="quick-action glass" onClick={()=>navigate('playlists')}><span className="quick-icon"><ListMusic size={23}/></span><span><strong>Playlists</strong><small>{playlistStore.playlists.length+' locales'+(account.user?' · '+account.serverPlaylists.length+' de cuenta':'')}</small></span><ChevronRight size={18}/></button>
             <button type="button" className="quick-action glass" onClick={()=>navigate('salas')}><span className="quick-icon"><Waves size={23}/></span><span><strong>Party Sound</strong><small>Crea una sala o únete</small></span><ChevronRight size={18}/></button>
           </section>
           {personalAlbums.length>0 && <section className="content-section">
@@ -351,7 +351,7 @@ export function NebulaApp() {
           <div className="disclosure">Los archivos importados se guardan en este navegador mediante IndexedDB cuando el almacenamiento está disponible. No se suben a servidores. El navegador puede eliminar datos locales al liberar espacio o borrar datos del sitio.</div>
         </>}
         {screen === 'playlists' && <>
-          <div className="heading-with-action"><div><Tag>TODO TIENE SU PROPIA VIBRA</Tag><h1 className="page-title">Mis playlists</h1><p className="page-description">Crea listas con tus canciones guardadas en este dispositivo.</p></div></div>
+          <div className="heading-with-action"><div><Tag>TODO TIENE SU PROPIA VIBRA</Tag><h1 className="page-title">Mis playlists</h1><p className="page-description">Organiza tus listas locales{account.user?' y las playlists sincronizadas con tu cuenta':''}. Elige una colección para ver sus canciones.</p></div></div>
           <form className="playlist-create glass" onSubmit={(event)=>{event.preventDefault();createPlaylist();}}>
             <label className="sr-only" htmlFor="playlist-title">Nombre de la playlist</label>
             <input id="playlist-title" placeholder="Nombre de nueva playlist" value={playlistTitle} maxLength={80} onChange={(event)=>setPlaylistTitle(event.target.value)}/>
@@ -361,8 +361,8 @@ export function NebulaApp() {
             <SectionHeader title="Mis colecciones locales"/>
             {playlistStore.playlists.length === 0 ? <div className="disclosure">Todavía no hay playlists personales. Crea una arriba y añade canciones desde la biblioteca.</div> :
             <div className="personal-playlists">{playlistStore.playlists.map((list)=><div className={'playlist-entry glass ' + (activePlaylist===list.id?'chosen':'')} key={list.id}>
-              <button type="button" className="playlist-entry-main" onClick={()=>setActivePlaylist(list.id)}><ListMusic size={19}/><strong>{list.title}</strong><small>{list.trackIds.length} canciones</small></button>
-              <button type="button" className="icon-button" title="Reproducir lista" aria-label={'Reproducir '+list.title} onClick={()=>player.playQueue(list.trackIds.map((id)=>player.tracks.find((track)=>track.id===id)).filter((track):track is Track=>Boolean(track)))}><Play size={17}/></button>
+              <button type="button" className="playlist-entry-main" aria-pressed={activePlaylist===list.id} onClick={()=>setActivePlaylist(list.id)}><ListMusic size={19}/><strong>{list.title}</strong><small>{list.trackIds.length} canciones</small></button>
+              <button type="button" className="icon-button" title="Reproducir lista" aria-label={'Reproducir '+list.title} disabled={!list.trackIds.some(id=>player.tracks.find(track=>track.id===id)?.audioUrl)} onClick={()=>player.playQueue(list.trackIds.map((id)=>player.tracks.find((track)=>track.id===id)).filter((track):track is Track=>Boolean(track)))}><Play size={17}/></button>
               <button type="button" className="icon-button" title="Eliminar lista" aria-label={'Eliminar '+list.title} onClick={()=>{if(window.confirm('¿Eliminar playlist '+list.title+'?')){playlistStore.remove(list.id);if(activePlaylist===list.id)setActivePlaylist(null);}}}><Trash2 size={17}/></button>
             </div>)}</div>}
           </section>
@@ -380,7 +380,7 @@ export function NebulaApp() {
             </form>
             {account.playlistsBusy && <p role="status" className="disclosure">Actualizando playlists de cuenta…</p>}
             <div className="personal-playlists">{account.serverPlaylists.map((list)=><div className="playlist-entry glass" key={list.id}>
-              <button type="button" className="playlist-entry-main" onClick={()=>setSelectedAccountPlaylistId(current=>current===list.id?null:list.id)}><ListMusic size={19}/><strong>{list.name}</strong><small>En tu cuenta · {selectedAccountPlaylistId===list.id?'Ocultar':'Ver canciones'}</small></button>
+              <button type="button" className="playlist-entry-main" aria-expanded={selectedAccountPlaylistId===list.id} onClick={()=>setSelectedAccountPlaylistId(current=>current===list.id?null:list.id)}><ListMusic size={19}/><strong>{list.name}</strong><small>En tu cuenta · {selectedAccountPlaylistId===list.id?'Ocultar':'Ver canciones'}</small></button>
               <button type="button" className="icon-button" disabled={account.playlistsBusy} title="Eliminar playlist de cuenta" aria-label={'Eliminar de mi cuenta '+list.name} onClick={()=>{if(window.confirm('¿Eliminar playlist de cuenta '+list.name+'?'))void account.removeServerPlaylist(list.id);}}><Trash2 size={17}/></button>
             </div>)}</div>
             {!account.playlistsBusy && account.serverPlaylists.length===0 && <p className="empty-note">Todavía no tienes playlists guardadas en tu cuenta.</p>}
