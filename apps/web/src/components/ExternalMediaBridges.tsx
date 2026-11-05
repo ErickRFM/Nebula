@@ -82,7 +82,7 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
        placeholder="https://open.spotify.com/track/… o https://youtu.be/…" required/>
      <button className="button primary small" type="submit" disabled={!link.trim()}>Abrir reproductor</button>
    </form>
-   {embedded&&incomingLink&&<div className="search-source-hint"><span>{incomingLink.collection?(incomingLink.collection.kind==='mix'?'Mezcla automática de YouTube reconocida.':'Playlist de YouTube reconocida.'):'Enlace de '+(incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify')+' reconocido.'} </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>{incomingLink.collection?'Reproducir esta lista':'Reproducir este enlace'}</button></div>}
+   {embedded&&incomingLink&&<div className="search-source-hint"><span>{incomingLink.collection?(incomingLink.collection.kind==='mix'?'Mezcla automática de YouTube reconocida.':'Playlist de YouTube reconocida.'):'Enlace de '+(incomingLink.provider==='youtube'?'YouTube':incomingLink.provider==='soundcloud'?'SoundCloud':incomingLink.provider==='spotify'?'Spotify':'Fuente')+' reconocido.'} </span><button type="button" className="button secondary small" onClick={()=>activate(initialQuery??'')}>{incomingLink.collection?'Reproducir esta lista':'Reproducir este enlace'}</button></div>}
    {!embedded&&account.accessToken&&youtubeReady ? <form className="playlist-create glass" onSubmit={event=>{void searchYoutube(event);}}>
      <label htmlFor="youtube-search" className="sr-only">Buscar videos musicales en YouTube</label>
      <input id="youtube-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={100}
@@ -99,17 +99,17 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,initialQuer
    </div>)}</div>}
    {active&&<div ref={playerRef} className="bridge-player glass official-player-surface" role="region" aria-label="Reproductor externo activo">
      <div className="section-heading official-player-header">
-       <div className="official-player-identity"><span className="official-source-label">FUENTE OFICIAL</span><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify'}</h2><small>Los controles y la duración dependen del proveedor.</small></div>
+       <div className="official-player-identity"><span className="official-source-label">FUENTE OFICIAL</span><h2>{active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'SoundCloud'}</h2><small>Los controles y la duración dependen del proveedor.</small></div>
        <button type="button" className="button secondary small" onClick={()=>setActive(null)}>Cerrar reproductor</button>
      </div>
      {active.provider==='youtube'&&active.collection
       ? <YouTubePlaylistBrowser key={active.src} media={active} onImport={onImportMp3}/>
       : <iframe key={active.src} className="bridge-iframe" src={active.src}
-       title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify')}
+       title={'Reproductor oficial de '+(active.provider==='youtube'?'YouTube':active.provider==='soundcloud'?'SoundCloud':active.provider==='spotify'?'Spotify':'SoundCloud')}
        loading="eager" referrerPolicy="strict-origin-when-cross-origin"
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>}
      {active.collection&&<div className="search-source-hint" role="status"><strong>{active.collection.kind==='mix'?'Mix / radio dinámica de YouTube':'Playlist de YouTube'}</strong><p>{active.collection.kind==='mix'?'La radio RD es dinámica: aquí suena el video inicial. El enlace original conserva la mezcla para seguir en YouTube. No es una lista fija.':'Playlist incrustada con los controles oficiales. La disponibilidad de cada video depende de YouTube.'}</p></div>}
-     <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
+     <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':'SoundCloud':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
        {active.provider!=='youtube'&&<a className="button secondary small" href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir en la plataforma original</a>}</div>
    </div>}
  </section>;
