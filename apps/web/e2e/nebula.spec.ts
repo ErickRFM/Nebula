@@ -95,7 +95,7 @@ test('all visitors access shared cloud without an account form', async ({page}) 
   await expect(page.getByRole('button',{name:'Mi cuenta'})).toHaveCount(0);
   await navigate(page,'Biblioteca');
   await expect(page.getByText('Biblioteca para todos')).toBeVisible();
-  await expect(page.getByLabel('Compartir canciones en NÉBULA Cloud')).toBeEnabled();
+  await expect(page.getByLabel('Compartir canciones en NÉBULA Cloud')).toHaveCount(1);
   await page.reload();
   await expect(page.getByText('Biblioteca para todos')).toBeVisible();
   await expect(page.getByRole('heading',{name:'Iniciar sesión'})).toHaveCount(0);

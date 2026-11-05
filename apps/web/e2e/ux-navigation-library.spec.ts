@@ -159,8 +159,12 @@ for(const width of [390,1280]){
    if(width>760){
     await page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name,exact:true}).click();
    }else{
-    await page.getByRole('button',{name:'Más secciones'}).click();
-    await page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name,exact:true}).click();
+    const bottom=page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name,exact:true});
+    if(await bottom.isVisible())await bottom.click();
+    else{
+      await page.getByRole('button',{name:'Más secciones'}).click();
+      await page.getByRole('navigation',{name:'Más secciones de NÉBULA'}).getByRole('button',{name,exact:true}).click();
+    }
    }
   }
   await open('Biblioteca');

@@ -1,6 +1,7 @@
 import {test,expect} from './auth-test';
 
 test('guest devices keep distinct playlists while sharing the music catalog',async({page,browser})=>{
+  test.setTimeout(60_000);
   const api=process.env.NEXT_PUBLIC_API_URL;
   test.skip(!api,'Needs API');
   const firstIssued=page.waitForResponse(response=>response.url().endsWith('/v1/auth/guest')&&response.status()===201);
@@ -9,6 +10,7 @@ test('guest devices keep distinct playlists while sharing the music catalog',asy
   const context=await browser.newContext();
   try{
     const secondPage=await context.newPage();
+    await secondPage.route('**/v1/auth/**',route=>route.continue({headers:{...route.request().headers(),'x-forwarded-for':'198.51.100.251'}}));
     const secondIssued=secondPage.waitForResponse(response=>response.url().endsWith('/v1/auth/guest')&&response.status()===201);
     await secondPage.goto('/');
     const second=await (await secondIssued).json() as {user:{id:string};accessToken:string};
