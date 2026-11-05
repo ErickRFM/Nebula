@@ -1,6 +1,6 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import { CircleUserRound, Cloud, CloudOff, Copy, ListMusic, LockKeyhole, LogOut, Monitor, Plus, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { CircleUserRound, Cloud, CloudOff, Copy, LockKeyhole, LogOut, Monitor, Plus, ShieldCheck, Trash2, UserPlus, ArrowRight } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
 
 function describeDevice(userAgent:string|null):string {
@@ -15,11 +15,10 @@ function formatDate(value:string):string {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es-ES',{dateStyle:'medium',timeStyle:'short'});
 }
 
-export function AccountPanel({account}: {account:AccountApi}) {
+export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOpenPlaylists:()=>void}) {
   const [mode,setMode]=useState<'login'|'register'|'invite'>('login');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
-  const [playlistName,setPlaylistName]=useState('');
   const [inviteToken,setInviteToken]=useState('');
   const [inviteEmail,setInviteEmail]=useState('');
   const [issuedInvite,setIssuedInvite]=useState('');
@@ -33,10 +32,6 @@ export function AccountPanel({account}: {account:AccountApi}) {
       ? await account.acceptInvite(inviteToken,email,password)
       : await account.login(mode,email,password);
     if(success) {setPassword('');setInviteToken('');}
-  }
-  async function create(event:FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if(await account.createServerPlaylist(playlistName.trim())) setPlaylistName('');
   }
   async function createInvite(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,19 +99,15 @@ export function AccountPanel({account}: {account:AccountApi}) {
           {item.current ? <span className="server-pill">Actual</span> : <button type="button" className="icon-button" aria-label="Cerrar esta sesión" onClick={()=>{if(window.confirm('¿Cerrar esta sesión remota?')) void account.revokeSession(item.id);}}><Trash2 size={17}/></button>}
         </div>)}</div>
       </section>
-      <section className="content-section">
-        <div className="section-heading"><h2>Playlists de mi cuenta</h2><span className="server-pill"><Cloud size={16}/> PostgreSQL</span></div>
-        <form className="playlist-create glass" onSubmit={(event)=>void create(event)}>
-          <label className="sr-only" htmlFor="cloud-playlist-name">Nombre de playlist en nube</label>
-          <input id="cloud-playlist-name" value={playlistName} onChange={(event)=>setPlaylistName(event.target.value)} placeholder="Nueva playlist de mi cuenta" maxLength={80} required/>
-          <button className="button primary small" disabled={account.playlistsBusy} type="submit"><Plus size={16}/> Crear en cuenta</button>
-        </form>
-        {account.playlistsBusy && <p className="disclosure">Sincronizando con el servidor…</p>}
-        <div className="personal-playlists account-remote-list">{account.serverPlaylists.length===0 ? <p className="empty-note">No hay playlists guardadas en la cuenta.</p> : account.serverPlaylists.map((item)=><div className="playlist-entry glass" key={item.id}>
-          <ListMusic size={21}/><strong className="remote-title">{item.name}</strong><span className="server-pill">En cuenta</span>
-          <button type="button" className="icon-button" disabled={account.playlistsBusy} aria-label={'Eliminar playlist '+item.name+' del servidor'} onClick={()=>{if(window.confirm('¿Eliminar '+item.name+' de tu cuenta?')) void account.removeServerPlaylist(item.id);}}><Trash2 size={17}/></button>
-        </div>)}</div>
-        <p className="disclosure">En esta etapa las playlists remotas solo almacenan nombre y propietario. Sus canciones y los archivos de audio aún no se sincronizan.</p>
+      <section className="content-section account-library-entry">
+        <div className="section-heading"><h2>Mi música sincronizada</h2></div>
+        <div className="settings-panel glass account-cloud-summary">
+          <Cloud size={22} aria-hidden="true"/>
+          <div><strong>{account.serverPlaylists.length} playlists en tu cuenta</strong>
+            <p>Las listas guardan sus canciones cloud y referencias externas. Los archivos locales permanecen en este dispositivo hasta que los subas a tu nube.</p>
+          </div>
+          <button type="button" className="button secondary small" onClick={onOpenPlaylists}>Administrar playlists <ArrowRight size={16}/></button>
+        </div>
       </section>
     </> : <div className="auth-card glass">
       <div className="account-user-icon"><LockKeyhole size={27}/></div>
