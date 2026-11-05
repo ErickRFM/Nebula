@@ -140,7 +140,7 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
    }
    return;
   }
-  const match=/^\\/batch\\/([0-9a-f-]{36})(\\/cancel)?$/.exec(url.pathname);
+  const match=new RegExp('^/batch/([0-9a-f-]{36})(/cancel)?$').exec(url.pathname);
   if(match&&(req.method==='GET'&&!match[2]||req.method==='POST'&&match[2])){
    if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
    if(url.searchParams.size){reply(res,400,{error:'invalid_batch_params'});return;}
