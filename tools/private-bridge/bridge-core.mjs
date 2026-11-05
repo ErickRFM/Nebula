@@ -67,11 +67,11 @@ async function readJson(req,limit=LIMIT){
  try {return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
  catch {throw Error('invalid_json');}
 }
-export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',origins=DEFAULT_ORIGINS,clock=Date.now,logger=()=>{}}){
+export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',origins=DEFAULT_ORIGINS,clock=Date.now,logger=()=>{},downloadDir=process.env.NEBULA_DOWNLOAD_DIR}){
  if(typeof secret!=='string'||secret.length<32)throw Error('Bridge token must have at least 32 characters');
  if(!runner||typeof runner.search!=='function'||typeof runner.stream!=='function')throw Error('runner required');
  let active=0;const searchHits=[];const playlistHits=[];
- const batches=createPlaylistBatchManager({runner,downloadDir:process.env.NEBULA_DOWNLOAD_DIR});
+ const batches=createPlaylistBatchManager({runner,downloadDir,clock});
  const server=createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
