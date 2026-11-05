@@ -121,7 +121,7 @@ function FullPlayer({player,onBack}: {player: PlayerApi; onBack: () => void}) {
           <button className={'icon-button ' + (player.repeat !== 'off' ? 'is-on' : '')} type="button" aria-label="Repetición" title={'Repetición: ' + player.repeat} onClick={player.cycleRepeat}>{player.repeat === 'one' ? <Repeat1 size={20}/> : <Repeat size={20}/>}</button>
         </div>
         <div className="volume-row"><Volume2 size={20}/><label className="sr-only" htmlFor="playback-volume">Volumen</label><input id="playback-volume" type="range" min="0" max="1" step=".01" value={player.volume} onChange={(e)=>player.setVolume(Number(e.target.value))}/><span>{Math.round(player.volume*100)}%</span></div>
-        <div className="lyrics-panel glass"><div className="lyrics-heading"><Mic2 size={18}/> Letras y momentos</div><p>Las letras sincronizadas estarán disponibles cuando contemos con los permisos correspondientes.</p></div>
+        <div className="player-source-hint" role="status">{player.state==='error'?'No se pudo reproducir esta pista. Elige otra canción o revisa el archivo.':player.state==='buffering'||player.state==='loading'?'Preparando el audio…':'Reproducción de tu biblioteca y fuentes compatibles.'}</div>
       </div>
     </div>
   </section>;
@@ -238,11 +238,12 @@ export function NebulaApp() {
         {screen === 'inicio' && <>
           <section className="hero glass">
             <div className="hero-copy"><Tag>✦ TU MÚSICA, TU UNIVERSO</Tag>
-              <h1>{localCount ? 'Tu música merece ' : 'Todo comienza con '}<em>{localCount?'otro nivel.':'una canción.'}</em></h1>
-              <p>{localCount ? 'Retoma tu colección, encuentra nuevas pistas y conecta tus dispositivos desde NÉBULA.' : 'Importa tu música o explora los catálogos disponibles. Lo que aparece como reproducible se puede escuchar.'}</p>
+              <h1>{player.current ? 'Tu música sigue ' : localCount ? 'Vuelve a lo que ' : 'Encuentra tu '}<em>{player.current?'contigo.':localCount?'te mueve.':'próxima canción.'}</em></h1>
+              <p>{player.current ? 'Continúa escuchando '+player.current.title+' o descubre algo nuevo.' : localCount ? 'Escucha tu colección y descubre canciones sin perder tu lugar.' : 'Busca artistas y canciones, o añade tus propios archivos para escucharlos aquí.'}</p>
               <div className="hero-actions">
-                <button className="button primary" type="button" onClick={()=>navigate('buscar')}><Search size={17}/> Buscar música</button>
-                <UploadButton onFiles={player.importFiles} small/>
+                {player.current && <button className="button primary" type="button" onClick={()=>navigate('reproductor')}><Play size={17}/> Ir al reproductor</button>}
+                <button className={player.current?'button secondary':'button primary'} type="button" onClick={()=>navigate('buscar')}><Search size={17}/> Buscar música</button>
+                {!player.current && <UploadButton onFiles={player.importFiles} small/>}
               </div>
             </div><div className="hero-planet" aria-hidden="true"><div className="planet-rings"/></div>
           </section>
@@ -255,7 +256,7 @@ export function NebulaApp() {
             <SectionHeader title="De tu colección" action="Abrir biblioteca" onAction={()=>navigate('biblioteca')}/>
             <div className="album-grid">{personalAlbums.slice(0,4).map(album=><AlbumCard key={album.id} title={album.title} subtitle={album.artist+' · '+album.tracks.length+' canciones'} cover={album.cover} onClick={()=>player.playQueue(album.tracks)}/>)}</div>
           </section>}
-          <section className="content-section"><SectionHeader title="Reproducir desde aquí" action="Ver toda mi música" onAction={()=>navigate('biblioteca')}/>
+          <section className="content-section"><SectionHeader title="Escucha de nuevo" action="Ver toda mi música" onAction={()=>navigate('biblioteca')}/>
             {player.ownTracks.length ? <div className="track-list glass">{player.ownTracks.slice(0,6).map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>)}</div>
               : <div className="music-empty glass"><span className="music-empty-icon"><Headphones size={25}/></span><div><strong>Tu biblioteca empieza aquí</strong><p>Importa un álbum o abre Buscar para descubrir música disponible.</p></div><button className="button secondary small" type="button" onClick={()=>navigate('biblioteca')}>Ir a biblioteca</button></div>}
           </section>
@@ -272,7 +273,7 @@ export function NebulaApp() {
             <section className="content-section search-discovery"><div className="section-heading"><h2>Explora por sonido</h2></div>
               <div className="genre-grid">{genres.slice(1).map((name,i)=><button className={'genre-card genre-'+i} type="button" onClick={()=>{setSearch(name);setGenre('Todos');}} key={name}><strong>{name}</strong><Disc3 size={56}/></button>)}</div>
             </section>
-            <div className="search-start glass"><Search size={21}/><span>Escribe al menos dos caracteres para consultar tu biblioteca y las fuentes disponibles.</span></div>
+            <div className="search-start glass"><Search size={21}/><span>Busca por nombre, artista o álbum. Verás las grabaciones disponibles y las fuentes adicionales.</span></div>
           </> : <>
             <MainstreamCatalogPanel query={search} onActivate={()=>{if(player.state==='playing')player.toggle();}}/>
             <section className="content-section search-local"><div className="section-heading"><div><h2>En tu biblioteca</h2><p className="search-section-note">Canciones guardadas en este dispositivo</p></div><span className="server-pill">{filteredTracks.length} resultados</span></div>
