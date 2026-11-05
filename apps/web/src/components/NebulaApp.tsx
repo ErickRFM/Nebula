@@ -24,6 +24,7 @@ import { ExternalMediaBridges } from './ExternalMediaBridges';
 import { CloudLibrary } from './CloudLibrary';
 import { Mp3UrlImport } from './Mp3UrlImport';
 import { Mp3ConvertPanel } from './Mp3ConvertPanel';
+import { LibraryArchivePanel } from './LibraryArchivePanel';
 import { CloudSearchResults } from './CloudSearchResults';
 import { AccountPlaylistTracks } from './AccountPlaylistTracks';
 import { RoomsPanel } from './RoomsPanel';
@@ -290,6 +291,7 @@ export function NebulaApp() {
         {screen === 'biblioteca' && <>
           <div className="heading-with-action"><div><Tag>TODO LO QUE TE MUEVE</Tag><h1 className="page-title">Tu biblioteca</h1><p className="page-description">Tu colección, a tu ritmo y en un solo lugar.</p></div><UploadButton onFiles={player.importFiles} small/></div>
           <div className="stats-grid"><div className="stat-card glass"><Tag>MI COLECCIÓN</Tag><strong>{localCount} <span>pistas propias</span></strong><small>{player.loadingLibrary ? 'Cargando...' : 'Disponibles en este dispositivo'}</small></div><div className="stat-card glass blue"><Tag>TUS FAVORITOS</Tag><strong>{player.favorites.length+account.accountFavorites.length} <span>guardadas</span></strong><small>Favoritos locales y de cuenta</small></div></div>
+          <LibraryArchivePanel onImport={player.importFiles} localCount={localCount}/>
           <Mp3UrlImport onImport={player.importFiles}/>
           <Mp3ConvertPanel onImport={player.importFiles}/>
           <CloudLibrary account={account} onPlay={player.playExternal}/>

@@ -677,3 +677,16 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .mp3-converted-row span{min-width:0;overflow-wrap:anywhere}
 .mp3-converted-row small{color:#d3c8e4}
 @media(max-width:600px){.mp3-converter-card{padding:13px}.mp3-converter-actions .button{width:100%}.mp3-converted-row .button{flex:1;justify-content:center}}
+
+
+/* Export and restore local audio without external storage. */
+.nebula-archive{min-width:0}
+.nebula-archive .section-heading h2{display:flex;gap:9px;align-items:center}
+.nebula-archive-actions{display:flex;flex-wrap:wrap;gap:12px;padding:15px;border-radius:16px}
+.nebula-archive-actions .button{min-height:44px}
+.nebula-archive-restore{display:inline-flex;position:relative;align-items:center;justify-content:center;gap:9px;
+ min-height:44px;padding:10px 17px;border-radius:11px;border:1px solid var(--edge);
+ font-weight:650;font-size:.83rem;cursor:pointer;color:var(--ink);overflow:hidden}
+.nebula-archive-restore:focus-within{outline:2px solid #be9bff;outline-offset:3px}
+.nebula-archive-restore input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+@media(max-width:600px){.nebula-archive-actions>*{width:100%;justify-content:center}}
