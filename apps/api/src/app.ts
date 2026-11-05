@@ -400,12 +400,21 @@ export async function buildApp({ pool, secret, origin, registrationEnabled }: Op
   });
 
   app.setErrorHandler((error, request, reply) => {
-    request.log.error(error);
     const status =
       typeof error === 'object' && error !== null && 'statusCode' in error && typeof error.statusCode === 'number'
         ? error.statusCode
         : 500;
     if (status === 429) return reply.code(429).send(fail('rate_limited'));
+    if(status>=500){
+      const failure=classifyDatabaseFailure(error);
+      if(failure.category!=='unknown'){
+        // Avoid accidental logging of the SQL query, credentials or connection URL.
+        request.log.error({databaseCategory:failure.category,databaseCode:failure.code},'NÉBULA database unavailable');
+        reply.header('Retry-After','30');
+        return reply.code(503).send(fail(failure.category==='schema'?'schema_incomplete':'database_unavailable'));
+      }
+    }
+    request.log.error(error);
     return reply.code(status >= 400 && status < 500 ? status : 500).send(fail('server_error'));
   });
   return app;

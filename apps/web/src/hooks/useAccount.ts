@@ -27,6 +27,7 @@ export const isAccountApiConfigured=Boolean(configuredBase) || process.env.NEXT_
 
 function apiError(code:string,status:number):string {
   if(status===429) return 'Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.';
+  if(status===503 && code==='unknown') return 'El servicio de cuentas está temporalmente indisponible. Tus archivos locales siguen disponibles.';
   switch(code){
     case 'invalid_credentials': return 'Correo o contraseña incorrectos.';
     case 'account_already_exists': return 'Ya existe una cuenta con este correo.';
@@ -39,6 +40,8 @@ function apiError(code:string,status:number):string {
     case 'forbidden': return 'Tu cuenta no tiene permisos para esta acción.';
     case 'invalid_playlist_name': return 'El nombre debe tener entre 1 y 80 caracteres.';
     case 'missing_client_header': return 'Solicitud de sesión no reconocida por el cliente.';
+    case 'database_unavailable': return 'La base de datos de NÉBULA no responde. Tu contraseña no necesariamente está mal. El propietario debe revisar la conexión de PostgreSQL.';
+    case 'schema_incomplete': return 'La base de datos de NÉBULA necesita completar su configuración. Avisa al propietario.';
     case 'unauthorized': return 'La sesión caducó. Vuelve a iniciar sesión.';
     default: return 'No se pudo completar la solicitud (HTTP ' + status + ').';
   }
