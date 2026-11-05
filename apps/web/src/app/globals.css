@@ -811,3 +811,12 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .account-cloud-summary>div{flex:1 1 calc(100% - 55px)}
  .account-cloud-summary>.button{flex:1 1 100%;justify-content:center}
 }
+
+/* Secondary destinations remain reachable on compact screens. */
+.mobile-more-menu{display:none}
+@media(max-width:760px){
+ .topbar{overflow:visible}
+ .mobile-more-menu{position:absolute;display:grid;gap:3px;top:calc(100% + 8px);right:8px;min-width:190px;padding:8px;border:1px solid var(--edge);border-radius:15px;background:#202137;box-shadow:0 18px 48px rgba(0,0,0,.4);z-index:15}
+ .mobile-more-menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:10px 13px;border:0;border-radius:9px;text-align:left;background:transparent;color:var(--ink);font-weight:650}
+ .mobile-more-menu button:hover,.mobile-more-menu button:focus-visible{background:var(--surface-hover,#2b2b45)}
+}
