@@ -48,7 +48,14 @@ test('private bridge converts an authorized YouTube URL into downloadable librar
  const library=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Biblioteca',exact:true});
  if(await library.isVisible())await library.click();
  else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Biblioteca',exact:true}).click();
- await expect(page.getByText('Video dQw4w9WgXcQ.mp3')).toBeVisible();
+ // The library shows the parsed song title without the file extension.
+ await expect(page.getByText('Video dQw4w9WgXcQ',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Descargar archivo original de Video dQw4w9WgXcQ'})).toBeVisible();
+ await page.reload();
+ const restored=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Biblioteca',exact:true});
+ if(await restored.isVisible())await restored.click();
+ else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Biblioteca',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Descargar archivo original de Video dQw4w9WgXcQ'})).toBeVisible();
 });
 
 test('embedded YouTube link opens the paired MP3 bridge with URL prefilled',async({page})=>{
