@@ -13,14 +13,14 @@ import {PrivateCloudCover} from './PrivateCloudCover';
 
 type CloudTrack = {
   id: string; title: string; artist: string; album?:string; genre?:string; mimeType: string;
-  byteSize: number; createdAt: string; coverUrl?:string|null;
+  byteSize: number; createdAt: string; coverUrl?:string|null; isOwner?:boolean;
 };
 type CloudList = { pendingItems: CloudTrack[]; configured: boolean };
 type CloudSearchPage={items:CloudTrack[];nextCursor:string|null;hasMore:boolean};
 type UploadTicket = { id: string; uploadUrl: string; contentType: string; expiresInSeconds: number };
 
 const MAX_BYTES = 100 * 1024 * 1024;
-// The API permits 20 upload reservations per minute for an authenticated account.
+// Keep batches bounded, even with anonymous guest accounts.
 const MAX_BATCH_FILES = 20;
 const supported = /\.(mp3|m4a|wav|ogg|opus|flac|aac)$/i;
 
@@ -111,7 +111,7 @@ export function CloudLibrary({
 
   async function uploadFiles(files:File[], controller=new AbortController()):Promise<boolean> {
     if (!files.length) return false;
-    if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return false; }
+    if (!account.user) { setError('La biblioteca compartida todavía está conectando. Intenta de nuevo.'); return false; }
     if(files.length>MAX_BATCH_FILES){setError('Seleccionaste '+files.length+' archivos. El máximo por lote es '+MAX_BATCH_FILES+' para evitar límites del servidor. Divide la carpeta en varios lotes; no se omitirá ninguna canción silenciosamente.');return false;}
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
@@ -138,7 +138,7 @@ export function CloudLibrary({
         }catch(failure){
           if(failure instanceof ApiRequestError && failure.status===409){
             duplicates++;
-            setMessage(file.name+' ya estaba en tu nube; omitiendo duplicado ('+duplicates+').');
+            setMessage(file.name+' ya existe en NÉBULA; omitiendo duplicado ('+duplicates+').');
             continue;
           }
           throw failure;
@@ -170,7 +170,7 @@ export function CloudLibrary({
           throw failure;
         }
       }
-      setMessage(uploaded+' canción(es) nuevas en tu nube; '+duplicates+' duplicado(s) omitidos.'+(artworkFailed?' '+artworkFailed+' portada(s) pendientes.':''));
+      setMessage(uploaded+' canción(es) compartidas en NÉBULA; '+duplicates+' duplicado(s) omitidos.'+(artworkFailed?' '+artworkFailed+' portada(s) pendientes.':''));
       return true;
     }catch(failure){
       setError(failure instanceof Error?failure.message:'Error al subir canciones.');
@@ -243,12 +243,12 @@ export function CloudLibrary({
   }
 
   async function remove(item: CloudTrack) {
-    if (!window.confirm('¿Eliminar ' + item.title + ' de tu nube privada?')) return;
+    if (!item.isOwner || !window.confirm('¿Eliminar ' + item.title + ' que subiste a NÉBULA?')) return;
     setBusy(true); setError(''); setMessage('');
     try {
       await account.cloudRequest('/v1/library/cloud/' + encodeURIComponent(item.id), { method: 'DELETE' });
       await refresh();
-      setMessage('Canción eliminada de tu nube.');
+      setMessage('Canción eliminada de NÉBULA.');
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo eliminar la canción.');
     } finally { setBusy(false); }
@@ -256,22 +256,22 @@ export function CloudLibrary({
 
   return <section className="content-section cloud-library">
     <div className="section-heading">
-      <h2><Cloud size={21}/> Mi música en la nube</h2>
+      <h2><Cloud size={21}/> Música compartida en la nube</h2>
       <span className="server-pill">{items.length}{nextCursor?'+':''} canciones · Cloudflare R2</span>
     </div>
     {!account.configured || !account.user ? <div className="disclosure">
-      <CloudOff size={18}/> Inicia sesión en Cuenta para guardar y escuchar tus canciones desde cualquier dispositivo.
+      <CloudOff size={18}/> {account.restoring ? 'Conectando con la biblioteca sin necesidad de iniciar sesión…' : account.configured ? 'No hay conexión con NÉBULA Cloud. La música local sigue disponible.' : 'La biblioteca local está disponible; falta configurar la API para compartir música.'}
     </div> : <>
       <div className="cloud-actions glass">
         <div>
-          <strong>Biblioteca privada</strong>
-          <p>Sube tus canciones o una carpeta (máximo 20 archivos por lote). Leemos etiquetas MP3 en tu dispositivo; el audio va directo al R2 privado.</p>
+          <strong>Biblioteca para todos</strong>
+          <p>Sube tus canciones o una carpeta (máximo 20 archivos por lote). Leemos etiquetas de audio en tu dispositivo y lo guardamos en R2. Las canciones subidas serán visibles y reproducibles para todos.</p>
         </div>
         <label className={'button primary small' + (busy || !configured ? ' cloud-disabled' : '')}>
           <CloudUpload size={17}/> {busy ? 'Subiendo…' : 'Subir a la nube'}
           <input className="file-input" type="file" multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac"
             disabled={busy || !configured} onChange={(event) => { void upload(event); }}
-            aria-label="Subir canciones privadas a Cloudflare R2"/>
+            aria-label="Compartir canciones en NÉBULA Cloud"/>
         </label>
         <label className={'button secondary small'+(busy || !configured ? ' cloud-disabled' : '')}>
           Importar carpeta
@@ -283,7 +283,7 @@ export function CloudLibrary({
       </div>
       <form className="authorized-web-import glass" onSubmit={event=>{void importFromWeb(event);}}>
         <div><strong>Importar un archivo de audio desde la web</strong>
-          <p>Pega el enlace HTTPS directo de un MP3, FLAC u otro audio permitido, no la URL de una página, video de YouTube ni un convertidor. La descarga ocurre en tu navegador y la subida en tu R2 privado.</p>
+          <p>Pega el enlace HTTPS directo de un MP3, FLAC u otro audio permitido, no la URL de una página, video de YouTube ni un convertidor. La descarga ocurre en tu navegador y la música se comparte en NÉBULA Cloud.</p>
         </div>
         <label htmlFor="authorized-audio-url">URL directa del archivo</label>
         <input id="authorized-audio-url" type="url" required value={remoteAudioUrl}
@@ -293,7 +293,7 @@ export function CloudLibrary({
         <label className="authorized-web-confirm">
           <input type="checkbox" checked={importAuthorized} onChange={event=>setImportAuthorized(event.target.checked)}
             disabled={busy||!configured}/>
-          Confirmo que puedo descargar y almacenar este archivo en mi biblioteca privada.
+          Confirmo que puedo descargar y compartir este archivo con todos los usuarios de NÉBULA.
         </label>
         <button type="submit" className="button primary small"
           disabled={busy||!configured||!remoteAudioUrl.trim()||!importAuthorized}>Importar a NÉBULA Cloud</button>
@@ -301,14 +301,14 @@ export function CloudLibrary({
       </form>
       {busy && <div className="cloud-upload-progress"><progress max={100} value={uploadProgress??0} aria-label="Progreso de carga de música"/><span>{uploadProgress??0}%</span></div>}
       {!configured && !loading && <p className="disclosure">El almacenamiento R2 todavía no está disponible en la API.</p>}
-      {loading && <p className="disclosure">Sincronizando tu biblioteca privada…</p>}
+      {loading && <p className="disclosure">Cargando la música compartida…</p>}
       {pendingItems.length>0 && <div className="cloud-actions glass"><div><strong>Cargas pendientes ({pendingItems.length})</strong><p>Puedes limpiar intentos interrumpidos y volver a seleccionar tus archivos. No se muestran como canciones listas.</p></div><div>{pendingItems.map(item=><button key={item.id} type="button" className="button secondary small" disabled={busy} onClick={()=>{void account.cloudRequest('/v1/library/cloud/'+encodeURIComponent(item.id),{method:'DELETE'}).then(()=>refresh()).catch(()=>setError('No se pudo limpiar la carga pendiente.'));}}>Descartar {item.title}</button>)}</div></div>}
       {message && <p className="disclosure" role="status">{message}</p>}
       {coverFailures>0 && <p className="disclosure">Puedes cambiar las portadas pendientes individualmente, sin repetir la carga de audio.</p>}
       {error && <p className="account-error" role="alert">{error}</p>}
       {account.serverPlaylists.length>0 && <div className="cloud-actions glass"><label htmlFor="cloud-target-playlist">Añadir canciones a playlist de cuenta</label><select id="cloud-target-playlist" value={targetPlaylist} onChange={(event)=>setTargetPlaylist(event.target.value)}><option value="">Selecciona una playlist</option>{account.serverPlaylists.map((list)=><option key={list.id} value={list.id}>{list.name}</option>)}</select></div>}
       <div className="track-list glass">
-        {!items.length ? <p className="empty-note">Tu nube todavía no tiene canciones. Sube un MP3 o FLAC para empezar.</p> :
+        {!items.length ? <p className="empty-note">La biblioteca compartida todavía no tiene canciones. Sube un MP3 o FLAC para empezar.</p> :
           items.map((item) => <div className="track-row" key={item.id}>
             <button type="button" className="track-main" disabled={busy} onClick={() => { void play(item); }}>
               <PrivateCloudCover key={item.id} trackId={item.id} coverUrl={item.coverUrl} account={account} fallback={<span className="cloud-track-icon"><Play size={17}/></span>}/>
@@ -317,21 +317,21 @@ export function CloudLibrary({
             <span className="track-album">{item.album||'NÉBULA Cloud'}</span>
             <button type="button" className="button small" disabled={busy} aria-pressed={account.accountFavorites.some(f=>f.cloudTrackId===item.id)} onClick={()=>{void account.toggleAccountFavorite('cloud',item.id).then(ok=>{if(ok)setMessage('Favoritos de cuenta actualizados.');else setError('No se pudo guardar el favorito.');});}}>{account.accountFavorites.some(f=>f.cloudTrackId===item.id)?'♥ Favorito':'♡ Favorito'}</button>
             {account.serverPlaylists.length>0 && <button type="button" className="button small" disabled={busy || !targetPlaylist} onClick={()=>{void account.addAccountPlaylistItem(targetPlaylist,'cloud',item.id).then((ok)=>{if(ok)setMessage('Canción añadida a la playlist de tu cuenta.');else setError('No fue posible añadir esta canción a la playlist.');});}}>Añadir a lista</button>}
-            <label className={'button secondary small'+(busy?' cloud-disabled':'')}>
+            {item.isOwner && <label className={'button secondary small'+(busy?' cloud-disabled':'')}>
               Cambiar portada
               <input type="file" className="file-input" accept="image/png,image/jpeg" disabled={busy}
                 aria-label={'Elegir portada PNG o JPEG para '+item.title}
                 onChange={e=>{const file=e.target.files?.[0];e.target.value='';void changeCover(item.id,file);}}/>
-            </label>
+            </label>}
             <button type="button" className="button secondary small" disabled={busy} aria-label={'Descargar '+item.title+' de mi nube'} onClick={()=>{void download(item);}}><Download size={15}/> Descargar</button>
-            <button type="button" className="icon-button" disabled={busy} title="Eliminar de R2"
+            {item.isOwner && <button type="button" className="icon-button" disabled={busy} title="Eliminar mi carga de R2"
               aria-label={'Eliminar ' + item.title + ' de la nube'} onClick={() => { void remove(item); }}>
               <Trash2 size={17}/>
-            </button>
+            </button>}
           </div>)}
       </div>
       {nextCursor&&<button type="button" className="button secondary small" disabled={loading||moreBusy||busy} onClick={()=>{void loadMore();}}>{moreBusy?'Cargando…':'Mostrar más canciones'}</button>}
-      <p className="disclosure">La música se almacena en un bucket privado. Los enlaces de reproducción expiran automáticamente y se renuevan para la pista activa.</p>
+      <p className="disclosure">La biblioteca es compartida y no requiere login. Los archivos permanecen en R2 privado y solo se entregan enlaces temporales de reproducción.</p>
     </>}
   </section>;
 }
