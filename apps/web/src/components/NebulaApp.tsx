@@ -4,7 +4,7 @@ import { useEffect, useState, type ChangeEvent } from 'react';
 import {
   AudioLines, Bell, ChevronLeft, ChevronRight, CircleUserRound, CloudUpload,
   Compass, Disc3, Download, Headphones, Heart, Home, Library, ListMusic,
-  Mic2, MonitorSpeaker, MoreHorizontal, Music2, Pause, Play, Plus,
+  MonitorSpeaker, MoreHorizontal, Music2, Pause, Play, Plus,
   Repeat, Repeat1, Search, Settings2, Shuffle, SkipBack, SkipForward,
   SlidersHorizontal, Sparkles, Users, Volume2, Waves, X, Trash2, ListPlus,
   type LucideIcon,
