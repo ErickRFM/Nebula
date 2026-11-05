@@ -128,6 +128,7 @@ function FullPlayer({player,onBack}: {player: PlayerApi; onBack: () => void}) {
 }
 export function NebulaApp() {
   const [screen, setScreen] = useState<Screen>('inicio');
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [previousScreen, setPreviousScreen] = useState<Screen>('inicio');
   const [search, setSearch] = useState('');
   const [genre, setGenre] = useState('Todos');
@@ -213,6 +214,7 @@ export function NebulaApp() {
   function navigate(target: Screen) {
     if (target === 'reproductor' && screen !== 'reproductor') setPreviousScreen(screen);
     setScreen(target);
+    setMobileMoreOpen(false);
   }
   const playbackActive = Boolean(player.current);
   return <div className="nebula-shell">
@@ -230,9 +232,12 @@ export function NebulaApp() {
         <div className="mobile-brand"><Brand/></div><div className="desktop-location"><span>{screen==='reproductor'?'Reproduciendo ahora':navigation.find(item=>item.id===screen)?.label??'NÉBULA Music'}</span></div>
         <div className="topbar-actions">
           <button className="icon-button glass-chip" title="Buscar" aria-label="Buscar" type="button" onClick={()=>navigate('buscar')}><Search size={19}/></button>
-          <button className="icon-button glass-chip mobile-only" title="Ajustes" aria-label="Ajustes" type="button" onClick={()=>navigate('ajustes')}><Settings2 size={19}/></button>
+          <button className="icon-button glass-chip mobile-only" title="Más secciones" aria-label="Más secciones" aria-expanded={mobileMoreOpen} type="button" onClick={()=>setMobileMoreOpen(open=>!open)}><MoreHorizontal size={19}/></button>
           <button className="icon-button glass-chip" title="Mi cuenta" aria-label="Mi cuenta" type="button" onClick={()=>navigate('cuenta')}><CircleUserRound size={20}/></button>
         </div>
+        {mobileMoreOpen && <nav className="mobile-more-menu" aria-label="Más secciones de NÉBULA">
+          {navigation.filter(item=>['explorar','playlists','ajustes','cuenta'].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
+        </nav>}
       </header>
       <main className={'main-area ' + (screen === 'reproductor' ? 'main-player' : '')}>
         {screen === 'inicio' && <>
