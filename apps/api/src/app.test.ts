@@ -108,6 +108,25 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(invalid.statusCode).toBe(401);
   });
 
+  it('creates guest accounts without credentials and keeps owner-only admin routes protected', async () => {
+    const a=await app.inject({method:'POST',url:'/v1/auth/guest',headers:{'x-nebula-client':'web','x-forwarded-for':'198.51.100.81'},payload:{}});
+    const b=await app.inject({method:'POST',url:'/v1/auth/guest',headers:{'x-nebula-client':'web','x-forwarded-for':'198.51.100.82'},payload:{}});
+    expect(a.statusCode).toBe(201);
+    expect(b.statusCode).toBe(201);
+    expect(a.json().user.id).not.toBe(b.json().user.id);
+    expect(a.json().user.role).toBe('member');
+    expect(a.json().accessToken).toBeTruthy();
+    const headers={authorization:'Bearer '+a.json().accessToken};
+    const me=await app.inject({method:'GET',url:'/v1/me',headers});
+    expect(me.statusCode).toBe(200);
+    const forbidden=await app.inject({method:'POST',url:'/v1/admin/invites',headers,payload:{}});
+    expect(forbidden.statusCode).toBe(403);
+    const refreshCookie=cookieValue(a,'nebula_refresh');
+    expect(refreshCookie).toBeTruthy();
+    const resumed=await app.inject({method:'POST',url:'/v1/auth/refresh',headers:{cookie:'nebula_refresh='+refreshCookie,'x-nebula-client':'web'},payload:{}});
+    expect(resumed.statusCode).toBe(200);
+  });
+
   it('enforces ownership on playlist list, rename and delete', async () => {
     const a = await register('owner');
     const b = await register('viewer');
@@ -377,7 +396,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(attempts.filter(result => result.statusCode === 401)).toHaveLength(1);
   });
 
-  it('isolates private R2 tracks and issues signed URLs only to their owner', async () => {
+  it('shares ready R2 tracks with guests while preventing edits to others uploads', async () => {
     const previous = {
       R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
       R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
@@ -408,7 +427,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       const id = ticket.json().id as string;
       expect(new URL(ticket.json().uploadUrl).searchParams.get('X-Amz-SignedHeaders')).toBe('content-type;host');
       const strangerList = await app.inject({ method: 'GET', url: '/v1/library/cloud', headers: headers(b.token) });
-      expect(strangerList.json().items).toEqual([]);
+      expect(strangerList.json().items.some((item:{id:string})=>item.id===id)).toBe(false);
       expect(strangerList.json().pendingItems).toEqual([]);
       const pendingMine=await app.inject({method:'GET',url:'/v1/library/cloud',
         headers:{...headers(a.token),'x-forwarded-for':'198.51.100.74'}});
@@ -424,9 +443,9 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       expect(new URL(download.json().url).searchParams.get('response-content-disposition')).toContain('attachment;');
       expect(new URL(download.json().url).searchParams.get('X-Amz-Expires')).toBe('300');
       const deniedDownload = await app.inject({method:'GET',url:'/v1/library/cloud/'+id+'/download',headers:headers(b.token)});
-      expect(deniedDownload.statusCode).toBe(404);
+      expect(deniedDownload.statusCode).toBe(200);
       const blocked = await app.inject({ method: 'GET', url: '/v1/library/cloud/' + id + '/play', headers: headers(b.token) });
-      expect(blocked.statusCode).toBe(404);
+      expect(blocked.statusCode).toBe(200);
       const blockedDelete = await app.inject({ method: 'DELETE', url: '/v1/library/cloud/' + id, headers: headers(b.token) });
       expect(blockedDelete.statusCode).toBe(404);
       await pool.query('DELETE FROM cloud_tracks WHERE id=$1', [id]);
@@ -456,7 +475,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(missing.json().error).toBe('missing_client_header');
   });
 
-  it('searches a large owner-scoped cloud library with collision-safe cursors and private hashes', async()=>{
+  it('searches a shared cloud catalog with collision-safe cursors and per-owner upload hashes', async()=>{
     const a=await register('cloud-search-a','198.51.100.199');
     const b=await register('cloud-search-b','198.51.100.200');
     const ownerId=(await pool.query<{id:string}>('SELECT id FROM users WHERE email=$1',[a.email])).rows[0].id;
@@ -467,31 +486,32 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
         VALUES ($1,$2,$3,$4,'Artista Único','Álbum Real','Indie','audio/mpeg',128,'ready',$5,'2026-10-20T12:00:00Z')`,
         [ids[i],ownerId,'users/'+ownerId+'/'+ids[i]+'.mp3','Canción Nebulosa '+i,String(i).padStart(64,'a')]);
     }
+    const outsideId=randomUUID();
     await pool.query(`INSERT INTO cloud_tracks(id,user_id,object_key,title,artist,album,genre,mime_type,byte_size,status)
       VALUES ($1,$2,$3,'Canción Nebulosa ajena','Artista','Álbum','Pop','audio/mpeg',128,'ready')`,
-      [randomUUID(),outsiderId,'users/'+outsiderId+'/outside.mp3']);
+      [outsideId,outsiderId,'users/'+outsiderId+'/outside.mp3']);
     const auth={authorization:'Bearer '+a.token};
     const unauthorized=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=nebulo'});
     expect(unauthorized.statusCode).toBe(401);
-    const first=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=cancion&limit=2',headers:auth});
+    const first=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=nebulosa&limit=3',headers:auth});
     expect(first.statusCode).toBe(200);
-    expect(first.json().items).toHaveLength(2);
+    expect(first.json().items).toHaveLength(3);
     expect(first.json().hasMore).toBe(true);
-    expect(first.json().items[0].album).toBe('Álbum Real');
+    expect(first.json().items.some((item:{album:string})=>item.album==='Álbum Real')).toBe(true);
     const cursor=first.json().nextCursor as string;
-    const second=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=cancion&limit=2&cursor='+encodeURIComponent(cursor),headers:auth});
+    const second=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=nebulosa&limit=3&cursor='+encodeURIComponent(cursor),headers:auth});
     expect(second.statusCode).toBe(200);
     expect(second.json().items).toHaveLength(2);
     expect(second.json().hasMore).toBe(false);
     const results=[...first.json().items,...second.json().items].map((row:{id:string})=>row.id);
-    expect(new Set(results).size).toBe(4);
-    expect(results.sort()).toEqual(ids.sort());
+    expect(new Set(results).size).toBe(5);
+    expect(results.sort()).toEqual([...ids,outsideId].sort());
     const invalid=await app.inject({method:'GET',url:'/v1/library/cloud/search?limit=2&cursor=invalid',headers:auth});
     expect(invalid.statusCode).toBe(400);
     const wild=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=%25',headers:auth});
     expect(wild.statusCode).toBe(400);
     const forbidden=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=Nebulosa',headers:{authorization:'Bearer '+b.token}});
-    expect(forbidden.json().items).toHaveLength(1); // only the other account's song
+    expect(forbidden.json().items).toHaveLength(5); // shared visibility across accounts
     await expect(pool.query(`INSERT INTO cloud_tracks(id,user_id,object_key,title,artist,mime_type,byte_size,status,sha256)
       VALUES ($1,$2,$3,'Duplicate','Artista','audio/mpeg',128,'pending',$4)`,
       [randomUUID(),ownerId,'users/'+ownerId+'/dup.mp3',String(0).padStart(64,'a')])).rejects.toMatchObject({code:'23505'});
@@ -572,7 +592,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       expect(cover.statusCode).toBe(200);
       expect(cover.json().coverUrl).toContain('.png?');
       expect((await app.inject({method:'GET',url:endpoint+'/cover',
-        headers:auth(outsider.token)})).statusCode).toBe(404);
+        headers:auth(outsider.token)})).statusCode).toBe(200);
       expect(mock).toHaveBeenCalledTimes(4);
       const browse=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=Cover%20test',
         headers:auth(owner.token)});
@@ -581,7 +601,7 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
       expect(item?.coverObjectKey).toBeUndefined();
       const strangerBrowse=await app.inject({method:'GET',url:'/v1/library/cloud/search?q=Cover%20test',
         headers:auth(outsider.token)});
-      expect(strangerBrowse.json().items).toHaveLength(0);
+      expect(strangerBrowse.json().items.some((item:{id:string})=>item.id===trackId)).toBe(true);
     }finally{
       vi.restoreAllMocks();
       await pool.query('DELETE FROM cloud_tracks WHERE id=$1',[trackId]);
