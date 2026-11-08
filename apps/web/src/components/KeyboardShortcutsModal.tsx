@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
 
 export interface KeyboardShortcutsModalProps {
@@ -21,64 +22,74 @@ const shortcuts = [
 ];
 
 export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  const containerRef = useFocusTrap();
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div
-        className="modal-dialog glass"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="shortcuts-title"
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 520 }}
+    <AnimatePresence>
+      <motion.div
+        className="modal-backdrop"
+        onClick={onClose}
+        role="presentation"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
       >
-        <button
-          type="button"
-          className="modal-close icon-button"
-          aria-label="Cerrar ventana"
-          onClick={onClose}
+        <motion.div
+          className="modal-dialog glass"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shortcuts-title"
+          onClick={(e) => e.stopPropagation()}
+          ref={containerRef}
+          style={{ maxWidth: 520 }}
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          transition={{ duration: 0.2 }}
         >
-          <X size={18} />
-        </button>
-
-        <div className="modal-header">
-          <div className="modal-icon-badge modal-primary">
-            <Keyboard size={24} />
-          </div>
-          <div>
-            <h3 id="shortcuts-title">Atajos de teclado</h3>
-            <p>Controla NÉBULA rápidamente sin usar el ratón.</p>
-          </div>
-        </div>
-
-        <div className="shortcuts-list">
-          {shortcuts.map((sc) => (
-            <div key={sc.key} className="shortcut-row">
-              <span className="shortcut-desc">{sc.description}</span>
-              <kbd className="shortcut-key">{sc.key}</kbd>
-            </div>
-          ))}
-        </div>
-
-        <div className="modal-actions" style={{ marginTop: 20 }}>
-          <button type="button" className="button primary small" onClick={onClose} style={{ width: '100%' }}>
-            Entendido
+          <button
+            type="button"
+            className="modal-close icon-button"
+            aria-label="Cerrar ventana"
+            onClick={onClose}
+          >
+            <X size={18} />
           </button>
-        </div>
-      </div>
-    </div>
+
+          <div className="modal-header">
+            <div className="modal-icon-badge modal-primary">
+              <Keyboard size={24} />
+            </div>
+            <div>
+              <h3 id="shortcuts-title">Atajos de teclado</h3>
+              <p>Controla NÉBULA rápidamente sin usar el ratón.</p>
+            </div>
+          </div>
+
+          <div className="shortcuts-list">
+            {shortcuts.map((sc) => (
+              <div key={sc.key} className="shortcut-row">
+                <span className="shortcut-desc">{sc.description}</span>
+                <kbd className="shortcut-key">{sc.key}</kbd>
+              </div>
+            ))}
+          </div>
+
+          <div className="modal-actions" style={{ marginTop: 20 }}>
+            <button
+              type="button"
+              className="button primary small"
+              onClick={onClose}
+              style={{ width: '100%' }}
+            >
+              Entendido
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

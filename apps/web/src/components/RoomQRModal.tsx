@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+// @ts-ignore
 import QRCode from 'qrcode';
 import { Copy, Check, QrCode, X } from 'lucide-react';
 
@@ -32,7 +33,7 @@ export function RoomQRModal({ isOpen, onClose, roomName, inviteCode }: RoomQRMod
         light: '#f5eeff',
       },
       errorCorrectionLevel: 'M',
-    }).then((url) => {
+    }).then((url: string) => {
       setQrDataUrl(url);
     }).catch(() => {
       // Fallback: encode just the invite code

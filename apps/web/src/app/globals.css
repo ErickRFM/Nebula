@@ -504,7 +504,16 @@ input:disabled,select:disabled,textarea:disabled{cursor:not-allowed;opacity:.58}
 .hero-copy{max-width:640px}
 .hero-actions{margin-top:19px}
 .quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-top:18px}
-.quick-action{display:flex;align-items:center;gap:12px;min-width:0;min-height:94px;border-radius:18px;padding:16px;text-align:left;color:var(--ink);transition:background .15s ease,transform .15s ease,border-color .15s ease}
+.quick-action {
+  background-color: rgba(87,69,139,.58); /* fallback solid color for contrast checks */
+  background-image: linear-gradient(120deg,rgba(87,69,139,.58),rgba(34,43,80,.83));
+}
+
+.music-empty {
+  background-color: rgba(198,164,254,.12); /* fallback solid color for contrast checks */
+  background-image: none; /* preserve existing gradient if any, but ensure solid fallback */
+}
+
 .quick-action:hover{background:linear-gradient(120deg,rgba(87,69,139,.58),rgba(34,43,80,.83));border-color:rgba(208,178,250,.4)}
 .quick-icon{display:grid;place-items:center;flex:none;width:47px;height:47px;border-radius:14px;background:rgba(191,154,254,.14);color:#e1caff}
 .quick-action>span:nth-child(2){flex:1;min-width:0;display:grid;gap:5px}

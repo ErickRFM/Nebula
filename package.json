@@ -1,13 +1,14 @@
 {
   "name": "nebula",
   "version": "0.1.0",
-  "private": true,
+  "type": "module",
   "packageManager": "npm@10.9.2",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
+    "audit:a11y": "axe http://localhost:3001",
     "dev": "npm run dev -w @nebula/web",
     "build": "npm run build -w @nebula/web && npm run build -w @nebula/api",
     "typecheck": "npm run typecheck -w @nebula/web && npm run typecheck -w @nebula/api",
@@ -23,11 +24,15 @@
     "owner:bootstrap": "npm run owner:bootstrap -w @nebula/api"
   },
   "devDependencies": {
-    "typescript": "^5.9.0",
-    "vitest": "^3.2.4",
-    "@types/node": "^22.15.0",
+    "@axe-core/cli": "^4.14.0",
+    "@axe-core/playwright": "^4.14.0",
     "@capacitor/cli": "^7.4.3",
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^22.15.0",
+    "axe-core": "^4.14.0",
+    "puppeteer": "^25.16.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=20.11.0"
@@ -37,6 +42,11 @@
     "@fastify/cookie": "11.1.0"
   },
   "dependencies": {
-    "light-my-request": "6.6.0"
+    "framer-motion": "^14.10.1",
+    "light-my-request": "6.6.0",
+    "qrcode": "^1.5.4"
+  },
+  "allowScripts": {
+    "puppeteer@25.16.0": true
   }
 }

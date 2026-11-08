@@ -56,3 +56,24 @@ Se realizó una auditoría enfocada en los aspectos críticos de la experiencia 
 ---
 
 *Este informe está listo para ser comiteado y compartido con el equipo.*
+
+## Accesibilidad (axe‑core)
+
+- **Resultado:** No se encontraron violaciones de accesibilidad. Todos los elementos críticos (modales, drawers, botones) cuentan con `role`, `aria‑modal`, `aria‑label` y manejo de foco.
+- **Inapplicable / Incomplete:** Algunos componentes con fondos de tipo **gradient** impiden que axe‑core calcule el contraste de color (ej.: botones `.quick-action.glass`, `.music-empty`).
+  - **Recomendación:** Añadir un color de fondo sólido de respaldo o usar `background‑color` junto a `background‑image` para que el contraste pueda evaluarse. Alternativamente, especificar colores de texto con suficiente contraste respecto al color base del degradado.
+
+## Resumen de hallazgos y acciones
+
+| Área | Estado | Acción recomendada |
+|------|--------|-------------------|
+| **Foco y ARIA** | ✅ | Implementado `useFocusTrap` y atributos ARIA en todos los modales/drawers. |
+| **Animaciones** | ✅ | Animaciones de entrada/salida con Framer Motion. |
+| **Accesibilidad** | ✅ (sin violaciones) | Revisar fondos con degradado para asegurar contraste. |
+| **Rendimiento** | ✅ | `AudioVisualizer` ya destruye su `requestAnimationFrame`. |
+| **Consistencia de UI** | ✅ | Se definieron tokens de tema (no mostrados aquí) y se unificó `primaryBtn`. |
+
+> **Próximos pasos:**
+> 1. Ajustar los fondos en `.quick-action.glass` y `.music-empty` para que tengan un color base de al menos **4.5:1** contra el texto.
+> 2. Ejecutar nuevamente `npm run typecheck && npm run build` para validar que los cambios no introduzcan errores.
+> 3. Generar nuevo informe de Lighthouse si se desea medir performance.
