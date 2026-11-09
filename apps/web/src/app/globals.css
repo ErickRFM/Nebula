@@ -63,7 +63,7 @@ p{line-height:1.55}
 .content-section{margin-top:35px}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:17px}
 .section-heading h2{margin:0}
-.text-action{color:#c8b0f9;background:transparent;border:0;display:inline-flex;align-items:center;gap:3px;font-size:.77rem;font-weight:800}
+.text-action{color:#c8b0f9;background:transparent;border:0;display:inline-flex;align-items:center;gap:3px;font-size:.77rem;font-weight:800;min-height:28px;padding-block:4px}
 .album-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}
 .album-card{border:1px solid var(--edge);text-align:left;border-radius:17px;padding:10px 10px 14px;color:var(--ink);background:rgba(30,33,60,.74);min-width:0;transition:transform .2s,background .2s}
 .album-card:hover{transform:translateY(-3px);background:rgba(59,54,98,.85)}
@@ -256,7 +256,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .auth-form input{margin-bottom:9px;min-height:46px;padding:12px 14px;border:1px solid var(--edge);background:rgba(255,255,255,.06);color:var(--ink);border-radius:12px;min-width:0}
 .auth-form input::placeholder{color:#9791b0}
 .auth-form button{margin-top:6px}
-.account-switch{color:#d4b8ff;background:none;border:0;font-weight:700;margin-top:20px;font-size:.82rem}
+.account-switch{color:#d4b8ff;background:none;border:0;font-weight:700;margin-top:20px;font-size:.82rem;min-height:32px;padding-block:5px}
 .account-session{border-radius:20px;padding:18px;display:flex;gap:16px;align-items:center;margin-top:22px}
 .account-user-label{display:grid;gap:4px;flex:1;min-width:0}
 .account-user-label strong{font-size:1rem}
@@ -269,7 +269,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 @media(max-width:760px){.auth-card{padding:21px 17px}.account-session{flex-wrap:wrap}.account-user-label{flex-basis:70%}.account-session .button{width:100%}.server-pill{font-size:.64rem}}
 
 /* C06 — Live external catalog, following existing Cosmic Glass tokens. */
-.explore-page{max-width:1180px}
+.explore-page{max-width:1180px;margin-top:26px}
 .explore-form{display:flex;align-items:center;gap:11px;border-radius:16px;padding:11px 13px;max-width:790px}
 .explore-form input{flex:1;min-width:0;min-height:40px;border:0;background:transparent;color:var(--ink);outline:0}
 .explore-form input::placeholder{color:var(--muted)}
@@ -504,7 +504,7 @@ input:disabled,select:disabled,textarea:disabled{cursor:not-allowed;opacity:.58}
 .hero-copy{max-width:640px}
 .hero-actions{margin-top:19px}
 .quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-top:18px}
-.quick-action {
+.quick-action{display:flex;align-items:center;gap:12px;min-width:0;min-height:94px;border-radius:18px;padding:16px;text-align:left;color:var(--ink);transition:background .15s ease,transform .15s ease,border-color .15s ease;
   background-color: rgba(87,69,139,.58); /* fallback solid color for contrast checks */
   background-image: linear-gradient(120deg,rgba(87,69,139,.58),rgba(34,43,80,.83));
 }
@@ -877,6 +877,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
   .playlist-picker-create-row{flex-wrap:wrap}
   .playlist-picker-create-row>input,.playlist-picker-create-row>.button{flex:1 1 100%}
 }
+@media(max-width:760px){.library-heading{flex-wrap:wrap;align-items:flex-start}.library-heading>div{flex:1 1 100%}.library-heading>.upload-control{order:2}}
 @media(prefers-reduced-motion:reduce){.genre-card{transition:none;transform:none!important}}
 
 /* Local audio controls: compact, accessible, and consistent with NÉBULA surfaces. */
@@ -890,7 +891,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 
 
 /* NÉBULA Audio Studio V2 — same controls in player and settings. */
-.audio-studio{margin:18px 0 22px;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(196,179,245,.20);border-radius:22px;background:linear-gradient(155deg,rgba(26,29,55,.98),rgba(18,23,45,.97));box-shadow:0 16px 36px rgba(0,0,0,.16);min-width:0}
+.audio-studio{margin:18px 0 22px;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(196,179,245,.20);border-radius:22px;background:linear-gradient(155deg,rgba(26,29,55,.98),rgba(18,23,45,.97));box-shadow:0 16px 36px rgba(0,0,0,.16);min-width:0;max-width:810px}
 .audio-studio-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .audio-studio-eyebrow{display:block;color:#bba2f4;font-size:.7rem;font-weight:800;letter-spacing:.17em;margin-bottom:6px}
 .audio-studio-heading h3{font-size:clamp(1.15rem,2vw,1.55rem);line-height:1.25;margin:0 0 6px}
