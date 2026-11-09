@@ -1,14 +1,16 @@
 /**
- * NÉBULA Audio Studio V2: non-destructive, local-file-only Web Audio DSP.
+ * NÉBULA Audio Studio: non-destructive, local-file-only Web Audio DSP.
  *
  * Do not route CORS-protected external audio/video through MediaElementAudioSourceNode:
  * it can turn cross-origin media silent. The original IndexedDB file is never edited.
  *
- * Signal: source -> dry ---------------------> output -> speakers
- *                -> hum -> 7-band EQ -> trim -> compressor -> wet
+ * Signal: source -> dry -----------------------------> output -> analyser -> speakers
+ *                -> hum -> 7-band EQ -> trim -> compressor -> limiter -> wet
  * When effects are off, the dry path is unity gain (no hidden attenuation).
  */
-export type AudioPreset = 'off' | 'balanced' | 'clarity' | 'bass' | 'vocal' | 'punch' | 'custom';
+export type AudioPreset =
+  | 'off' | 'balanced' | 'clarity' | 'bass' | 'vocal' | 'punch'
+  | 'treble' | 'podcast' | 'night' | 'electronic' | 'custom';
 
 export const AUDIO_BANDS = [
   { frequency: 60, label: '60 Hz' },
@@ -19,18 +21,22 @@ export const AUDIO_BANDS = [
   { frequency: 6000, label: '6 kHz' },
   { frequency: 12000, label: '12 kHz' },
 ] as const;
-export const MAX_EQ_DB = 6;
+export const MAX_EQ_DB = 12;
 export type AudioBands = number[];
 type Profile = { low: number; mid: number; high: number; compression: boolean; bands: readonly number[] };
 
 export const AUDIO_PRESETS: Record<AudioPreset, Profile> = {
-  off:      { low: 0,   mid: 0,    high: 0,   compression: false, bands: [0, 0, 0, 0, 0, 0, 0] },
-  balanced: { low: 1,   mid: -0.5, high: 1,   compression: true,  bands: [1, 0.5, -0.5, 0, 0.5, 1, 0.5] },
-  clarity:  { low: -1,  mid: 1.5,  high: 2,   compression: true,  bands: [-0.5, -0.5, -1, 0.5, 2, 1.5, 1] },
-  bass:     { low: 2.5, mid: -0.8, high: 0.5, compression: true,  bands: [2.5, 1.5, -0.5, -0.5, 0, 0.5, 0.5] },
-  vocal:    { low: -1,  mid: 2,    high: 1,   compression: true,  bands: [-1, -0.5, 0, 2, 2.5, 1, 0.5] },
-  punch:    { low: 2,   mid: 0.5,  high: 1,   compression: true,  bands: [2, 0.5, -1, 0.5, 1, 1.5, 1] },
-  custom:   { low: 0,   mid: 0,    high: 0,   compression: true,  bands: [0, 0, 0, 0, 0, 0, 0] },
+  off:        { low: 0,   mid: 0,    high: 0,    compression: false, bands: [0, 0, 0, 0, 0, 0, 0] },
+  balanced:   { low: 1,   mid: -0.5, high: 1,    compression: true,  bands: [1, 0.5, -0.5, 0, 0.5, 1, 0.5] },
+  clarity:    { low: -1,  mid: 1.5,  high: 2,    compression: true,  bands: [-0.5, -0.5, -1, 0.5, 2, 1.5, 1] },
+  bass:       { low: 2.5, mid: -0.8, high: 0.5,  compression: true,  bands: [2.5, 1.5, -0.5, -0.5, 0, 0.5, 0.5] },
+  vocal:      { low: -1,  mid: 2,    high: 1,    compression: true,  bands: [-1, -0.5, 0, 2, 2.5, 1, 0.5] },
+  punch:      { low: 2,   mid: 0.5,  high: 1,    compression: true,  bands: [2, 0.5, -1, 0.5, 1, 1.5, 1] },
+  treble:     { low: -1,  mid: 1,    high: 3,    compression: true,  bands: [-1, -0.5, 0, 1, 2.5, 3.5, 4] },
+  podcast:    { low: -2,  mid: 2.5,  high: 1,    compression: true,  bands: [-6, -3, 0, 2.5, 3.5, 2, 1] },
+  night:      { low: 1,   mid: -1,   high: -1.5, compression: true,  bands: [2, 1, 0.5, 0, -1, -1.5, -2] },
+  electronic: { low: 3,   mid: 0,    high: 2,    compression: true,  bands: [4, 3, 0, -1, 1.5, 3, 3] },
+  custom:     { low: 0,   mid: 0,    high: 0,    compression: true,  bands: [0, 0, 0, 0, 0, 0, 0] },
 };
 
 export function normalizeAudioPreset(value: unknown): AudioPreset {
@@ -55,6 +61,8 @@ export interface AudioEnhancer {
   setPreset(preset: AudioPreset): void;
   setBands(bands: readonly number[]): void;
   setHumFilter(enabled: boolean): void;
+  setBypass(enabled: boolean): void;
+  getAnalyser(): AnalyserNode | null;
   resume(): Promise<void>;
   fadeIn(): void;
   dispose(): void;
@@ -105,6 +113,21 @@ export function createAudioEnhancer(element: HTMLAudioElement): AudioEnhancer {
   compressor.threshold.value = -16;
   compressor.ratio.value = 2;
 
+  // Safety limiter for large boosts. DynamicsCompressor is not a true-peak limiter,
+  // but it catches transient overshoot after the EQ without silencing the preview.
+  const limiter = context.createDynamicsCompressor();
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.12;
+  limiter.knee.value = 0;
+  limiter.threshold.value = -1.5;
+  limiter.ratio.value = 20;
+
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.82;
+  analyser.minDecibels = -92;
+  analyser.maxDecibels = -12;
+
   source.connect(dry);
   dry.connect(output);
   source.connect(highpass);
@@ -117,12 +140,15 @@ export function createAudioEnhancer(element: HTMLAudioElement): AudioEnhancer {
   }
   previous.connect(headroom);
   headroom.connect(compressor);
-  compressor.connect(wet);
+  compressor.connect(limiter);
+  limiter.connect(wet);
   wet.connect(output);
-  output.connect(context.destination);
+  output.connect(analyser);
+  analyser.connect(context.destination);
 
   let preset: AudioPreset = 'off';
   let humEnabled = false;
+  let bypassed = false;
   let customBands: AudioBands = [...AUDIO_PRESETS.balanced.bands];
   let disposed = false;
 
@@ -131,13 +157,13 @@ export function createAudioEnhancer(element: HTMLAudioElement): AudioEnhancer {
   };
 
   function sync() {
-    const enabled = preset !== 'off' || humEnabled;
+    const enabled = !bypassed && (preset !== 'off' || humEnabled);
     const bands = presetAudioBands(preset, customBands);
     bands.forEach((gain, i) => smooth(eq[i].gain, gain));
-    // Leave headroom for EQ boosts. Compression is not a true-peak limiter.
+    // Partial headroom: the limiter catches the remaining transient peaks.
     const peakBoost = Math.max(0, ...bands);
-    smooth(headroom.gain, Math.pow(10, -Math.max(0, peakBoost - 0.5) / 20));
-    const compression = preset !== 'off' && AUDIO_PRESETS[preset].compression;
+    smooth(headroom.gain, Math.pow(10, -(peakBoost * 0.5) / 20));
+    const compression = !bypassed && preset !== 'off' && AUDIO_PRESETS[preset].compression;
     smooth(compressor.threshold, compression ? (preset === 'punch' ? -19 : -16) : -1);
     smooth(compressor.ratio, compression ? (preset === 'punch' ? 2.6 : 2) : 1);
     smooth(highpass.frequency, humEnabled ? 28 : 12);
@@ -160,6 +186,10 @@ export function createAudioEnhancer(element: HTMLAudioElement): AudioEnhancer {
     humEnabled = value === true;
     sync();
   }
+  function setBypass(value: boolean) {
+    bypassed = value === true;
+    sync();
+  }
   function fadeIn() {
     if (disposed) return;
     const now = context.currentTime;
@@ -178,9 +208,15 @@ export function createAudioEnhancer(element: HTMLAudioElement): AudioEnhancer {
     for (const filter of eq) filter.disconnect();
     headroom.disconnect();
     compressor.disconnect();
+    limiter.disconnect();
     wet.disconnect();
     output.disconnect();
+    analyser.disconnect();
     void context.close().catch(() => {});
   }
-  return { setPreset, setBands, setHumFilter, resume: () => context.resume(), fadeIn, dispose };
+  return {
+    setPreset, setBands, setHumFilter, setBypass,
+    getAnalyser: () => (disposed ? null : analyser),
+    resume: () => context.resume(), fadeIn, dispose,
+  };
 }

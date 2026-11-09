@@ -27,10 +27,14 @@ export type Player = {
   audioPreset: AudioPreset;
   audioBands: number[];
   humFilter: boolean;
+  abBypass: boolean;
   storageDurability: 'unknown' | 'granted' | 'best-effort' | 'unavailable';
   setAudioPreset: (preset: AudioPreset) => void;
   setAudioBands: (bands: number[]) => void;
   setHumFilter: (enabled: boolean) => void;
+  setAbBypass: (enabled: boolean) => void;
+  getAudioAnalyser: () => AnalyserNode | null;
+  warmAudioAnalyser: () => void;
   requestStoragePersistence: () => Promise<void>;
   importFiles: (list: FileList | File[] | null) => void;
   removeLocalTrack: (id: string) => Promise<boolean>;
@@ -65,10 +69,12 @@ export function useLocalAudio(): Player {
   const [audioPreset, setAudioPresetState] = useState<AudioPreset>('off');
   const [audioBands, setAudioBandsState] = useState<number[]>([...AUDIO_PRESETS.off.bands]);
   const [humFilter, setHumFilterState] = useState(false);
+  const [abBypass, setAbBypassState] = useState(false);
   const [storageDurability, setStorageDurability] = useState<'unknown'|'granted'|'best-effort'|'unavailable'>('unknown');
   const audioPresetRef=useRef<AudioPreset>('off');
   const customBandsRef=useRef<number[]>([...AUDIO_PRESETS.balanced.bands]);
   const humFilterRef=useRef(false);
+  const abBypassRef=useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const localAudioRef = useRef<HTMLAudioElement | null>(null);
   const externalAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -315,7 +321,7 @@ export function useLocalAudio(): Player {
     }
   },[]);
 
-  const ensureEnhancer=useCallback(():AudioEnhancer|null=>{
+  const ensureEnhancer=useCallback((notify=true):AudioEnhancer|null=>{
     if(enhancerRef.current)return enhancerRef.current;
     const local=localAudioRef.current;
     if(!local || typeof AudioContext==='undefined')return null;
@@ -325,9 +331,10 @@ export function useLocalAudio(): Player {
       enhancer.setPreset(audioPresetRef.current);
       if(audioPresetRef.current==='custom')enhancer.setBands(customBandsRef.current);
       enhancer.setHumFilter(humFilterRef.current);
+      enhancer.setBypass(abBypassRef.current);
       return enhancer;
     }catch{
-      setNotice('Tu navegador no admite estos efectos de audio. El archivo original sigue disponible.');
+      if(notify)setNotice('Tu navegador no admite estos efectos de audio. El archivo original sigue disponible.');
       return null;
     }
   },[]);
@@ -337,10 +344,14 @@ export function useLocalAudio(): Player {
     audioPresetRef.current=next;
     setAudioPresetState(next);
     setAudioBandsState(presetAudioBands(next,customBandsRef.current));
+    if(next==='off'&&abBypassRef.current){
+      abBypassRef.current=false;setAbBypassState(false);
+    }
     try{localStorage.setItem('nebula:audio-preset:v1',next);}catch{}
     if(next!=='off'&&currentRef.current?.startsWith('local-'))ensureEnhancer();
     enhancerRef.current?.setPreset(next);
     if(next==='custom')enhancerRef.current?.setBands(customBandsRef.current);
+    enhancerRef.current?.setBypass(abBypassRef.current);
     if(next!=='off')void enhancerRef.current?.resume().catch(()=>{});
   },[ensureEnhancer]);
 
@@ -350,22 +361,43 @@ export function useLocalAudio(): Player {
     audioPresetRef.current='custom';
     setAudioPresetState('custom');
     setAudioBandsState(normalized);
+    if(abBypassRef.current){abBypassRef.current=false;setAbBypassState(false);}
     try{
       localStorage.setItem('nebula:audio-bands:v2',JSON.stringify(normalized));
       localStorage.setItem('nebula:audio-preset:v1','custom');
     }catch{}
     if(currentRef.current?.startsWith('local-'))ensureEnhancer();
     enhancerRef.current?.setBands(normalized);
+    enhancerRef.current?.setBypass(false);
     void enhancerRef.current?.resume().catch(()=>{});
   },[ensureEnhancer]);
 
   const setHumFilter=useCallback((enabled:boolean)=>{
     humFilterRef.current=enabled;
     setHumFilterState(enabled);
+    if(enabled&&abBypassRef.current){abBypassRef.current=false;setAbBypassState(false);}
     try{localStorage.setItem('nebula:hum-filter:v1',String(enabled));}catch{}
     if(enabled&&currentRef.current?.startsWith('local-'))ensureEnhancer();
     enhancerRef.current?.setHumFilter(enabled);
+    enhancerRef.current?.setBypass(abBypassRef.current);
     if(enabled)void enhancerRef.current?.resume().catch(()=>{});
+  },[ensureEnhancer]);
+
+  const setAbBypass=useCallback((enabled:boolean)=>{
+    const next=enabled===true;
+    abBypassRef.current=next;
+    setAbBypassState(next);
+    if(currentRef.current?.startsWith('local-'))ensureEnhancer(false);
+    enhancerRef.current?.setBypass(next);
+    if(!next)void enhancerRef.current?.resume().catch(()=>{});
+  },[ensureEnhancer]);
+
+  const getAudioAnalyser=useCallback(()=>enhancerRef.current?.getAnalyser()??null,[]);
+
+  const warmAudioAnalyser=useCallback(()=>{
+    if(!currentRef.current?.startsWith('local-'))return;
+    const enhancer=ensureEnhancer(false);
+    if(enhancer)void enhancer.resume().catch(()=>{});
   },[ensureEnhancer]);
 
   const requestStoragePersistence=useCallback(async()=>{
@@ -410,6 +442,7 @@ export function useLocalAudio(): Player {
       enhancer?.setPreset(audioPresetRef.current);
       if(audioPresetRef.current==='custom')enhancer?.setBands(customBandsRef.current);
       enhancer?.setHumFilter(humFilterRef.current);
+      enhancer?.setBypass(abBypassRef.current);
       enhancer?.fadeIn();
       void enhancer?.resume().catch(()=>{});
     }
@@ -621,7 +654,8 @@ export function useLocalAudio(): Player {
 
   return {
     tracks, ownTracks, current, state, notice, setNotice, time, duration, volume, shuffle, repeat, favorites,
-    loadingLibrary, audioPreset, audioBands, humFilter, storageDurability, setAudioPreset, setAudioBands, setHumFilter, requestStoragePersistence,
+    loadingLibrary, audioPreset, audioBands, humFilter, abBypass, storageDurability,
+    setAudioPreset, setAudioBands, setHumFilter, setAbBypass, getAudioAnalyser, warmAudioAnalyser, requestStoragePersistence,
     importFiles, removeLocalTrack, downloadLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
     toggleShuffle: () => setShuffle((value)=>!value),
     cycleRepeat: () => setRepeat((value)=>value==='off' ? 'all' : value==='all' ? 'one' : 'off'),
