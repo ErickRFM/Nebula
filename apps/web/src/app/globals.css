@@ -978,3 +978,47 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .bridge-state{justify-self:start;margin-top:2px}
 }
 @media(prefers-reduced-motion:reduce){.bridge-select,.bridge-state{transition:none!important}}
+
+/* ── Motion, carga y feedback ───────────────────────────────────────────────
+   Solo transform/opacity: no alteran el layout ni el scroll. El bloque global
+   de prefers-reduced-motion (arriba) neutraliza estas animaciones. */
+@keyframes nebula-screen-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes nebula-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes nebula-shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@keyframes nebula-notice-in{from{opacity:0;transform:translateY(-6px) scale(.99)}to{opacity:1;transform:none}}
+.screen-enter{animation:nebula-screen-in .28s cubic-bezier(.22,.9,.3,1) both}
+.rooms-list .room-entry,.track-list .track-row{animation:nebula-rise .26s ease both}
+.rooms-list .room-entry:nth-child(2),.track-list .track-row:nth-child(2){animation-delay:.03s}
+.rooms-list .room-entry:nth-child(3),.track-list .track-row:nth-child(3){animation-delay:.06s}
+.rooms-list .room-entry:nth-child(4),.track-list .track-row:nth-child(4){animation-delay:.09s}
+.rooms-list .room-entry:nth-child(5),.track-list .track-row:nth-child(5){animation-delay:.12s}
+.rooms-list .room-entry:nth-child(n+6),.track-list .track-row:nth-child(n+6){animation-delay:.15s}
+.button:not(:disabled):active,.icon-button:not(:disabled):active,.chip:not(:disabled):active{transform:translateY(1px) scale(.985)}
+@media(hover:hover) and (pointer:fine){
+ .room-entry-main:hover .room-entry-icon{background:rgba(172,137,245,.22);border-color:rgba(201,166,255,.36)}
+ .room-entry-icon{transition:background .16s ease,border-color .16s ease}
+}
+.skeleton{display:block;position:relative;overflow:hidden;background:rgba(255,255,255,.07);border-radius:9px;min-height:12px}
+.skeleton:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.11),transparent);transform:translateX(-100%);animation:nebula-shimmer 1.4s ease-in-out infinite}
+.room-skeleton-row{display:flex;align-items:center;gap:13px;padding:12px 13px;border-bottom:1px solid var(--edge)}
+.room-skeleton-row:last-child{border-bottom:0}
+.room-skeleton-row .skeleton:first-child{width:41px;height:41px;border-radius:12px;flex:none}
+.room-skeleton-lines{flex:1;display:grid;gap:7px}
+.room-skeleton-lines .skeleton:first-child{width:46%}
+.room-skeleton-lines .skeleton:last-child{width:30%;height:10px}
+.room-notice{display:flex;align-items:flex-start;gap:10px;margin:14px 0 0;padding:12px 14px;border-radius:14px;border:1px solid rgba(128,225,205,.28);background:rgba(64,150,140,.13);color:#d9f7f1;font-size:.82rem;animation:nebula-notice-in .22s ease both}
+.room-notice>svg{flex:none;margin-top:1px;color:#8fe6d5}
+.room-notice-text{flex:1;min-width:0}
+.room-notice-close{flex:none;border:0;background:none;color:inherit;opacity:.7;width:28px;height:28px;display:grid;place-items:center;border-radius:9px}
+.room-notice-close:hover{opacity:1;background:rgba(255,255,255,.1)}
+.room-sync-badges{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.room-sync-badges .status-dot{margin-right:0}
+.room-hero-head{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:6px}
+.room-hero-head h2{margin:0}
+.room-sync-badges>span{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--edge);font-size:.72rem;font-weight:600;color:#d9d4ee;white-space:nowrap}
+.room-sync-badges .is-live{color:#bff4e7;border-color:rgba(128,225,205,.34);background:rgba(64,150,140,.16)}
+.room-diagnostics{margin:12px 0 0;font-size:.77rem;color:#aba6c6}
+.room-diagnostics summary{cursor:pointer;font-weight:700;color:#c9c3e2;min-height:32px;display:flex;align-items:center;gap:7px}
+.room-diagnostics summary::marker{color:#b79bff}
+.room-diagnostics p{margin:6px 0 0;max-width:64ch}
+@media(max-width:560px){.room-sync-badges>span{font-size:.69rem;padding:5px 9px}}
