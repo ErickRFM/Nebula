@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 // @ts-ignore
 import QRCode from 'qrcode';
 import { Copy, Check, QrCode, X } from 'lucide-react';
+import { buildRoomInviteLink } from '../lib/room-invite-link';
 
 interface RoomQRModalProps {
   isOpen: boolean;
@@ -16,10 +17,11 @@ export function RoomQRModal({ isOpen, onClose, roomName, inviteCode }: RoomQRMod
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
-  // Generate deep-linkable URL
-  const joinUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}${window.location.pathname}#salas?code=${encodeURIComponent(inviteCode)}`
-    : `https://nebula.music#salas?code=${inviteCode}`;
+  // The invite link carries the code in the URL fragment, matching the parser
+  // used when the guest opens the link (#room=...).
+  const joinUrl = typeof window !== 'undefined' && inviteCode
+    ? buildRoomInviteLink(window.location.href, inviteCode)
+    : 'https://nebula.music';
 
   useEffect(() => {
     if (!isOpen || !inviteCode) return;

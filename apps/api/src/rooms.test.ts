@@ -145,6 +145,28 @@ describe.skipIf(!url)('rooms private lifecycle (PostgreSQL)', () => {
     expect(empty.json().items).toHaveLength(0);
   });
 
+  it('hides queue entries whose track is no longer ready', async () => {
+    const me = await app.inject({ method: 'GET', url: '/v1/me', headers: auth(a) });
+    const userId = me.json().user.id as string;
+    const readyId = crypto.randomUUID();
+    const pendingId = crypto.randomUUID();
+    await pool.query(`
+      INSERT INTO cloud_tracks (id,user_id,object_key,title,artist,mime_type,byte_size,status)
+      VALUES ($1,$2,$3,'Ready entry','Artist','audio/mpeg',2048,'ready'),
+             ($4,$2,$5,'Pending entry','Artist','audio/mpeg',2048,'ready')
+    `, [readyId, userId, 'users/' + userId + '/ready-' + readyId + '.mp3',
+      pendingId, 'users/' + userId + '/pending-' + pendingId + '.mp3']);
+    for (const trackId of [readyId, pendingId]) {
+      const added = await app.inject({ method: 'POST', url: '/v1/rooms/' + roomId + '/queue',
+        headers: auth(a), payload: { trackId, rightsConfirmed: true } });
+      expect(added.statusCode).toBe(201);
+    }
+    await pool.query("UPDATE cloud_tracks SET status='pending' WHERE id=$1", [pendingId]);
+    const list = await app.inject({ method: 'GET', url: '/v1/rooms/' + roomId + '/queue', headers: auth(b) });
+    expect(list.statusCode).toBe(200);
+    expect(list.json().items.map((item: { trackId: string }) => item.trackId)).toEqual([readyId]);
+  });
+
   it('requires renewed rights confirmation when changing the currently shared audio', async () => {
     const me = await app.inject({ method: 'GET', url: '/v1/me', headers: auth(a) });
     const userId = me.json().user.id as string;
