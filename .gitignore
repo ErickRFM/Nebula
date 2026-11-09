@@ -14,3 +14,5 @@ android/
 ios/
 *.log
 *.apk
+.vercel
+.env*
