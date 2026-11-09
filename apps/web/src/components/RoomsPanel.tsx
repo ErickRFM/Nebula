@@ -373,9 +373,16 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       <RadioTower size={28} aria-hidden="true"/>
     </div>
 
-    {!account.user ? <div className="disclosure">
-      Necesitas iniciar sesión para crear salas o unirte a ellas.
-      <button type="button" className="button primary small" onClick={onAccount}>Ir a mi cuenta</button>
+    {!account.user ? <div className="room-empty glass rooms-signed-out">
+      <span className="room-empty-icon"><RadioTower size={27}/></span>
+      <h3>Escuchen juntos, cada quien en su dispositivo</h3>
+      <p>Las salas son espacios privados: el anfitrión comparte música autorizada desde su biblioteca y la reproducción se sincroniza para quienes están dentro.</p>
+      <ul className="room-empty-points">
+        <li><Users size={15}/> Acceso solo con cuenta e invitación privada</li>
+        <li><Headphones size={15}/> Audio autorizado, sin retransmitir ni eludir DRM</li>
+        <li><RadioTower size={15}/> Reloj compartido para escuchar en sincronía</li>
+      </ul>
+      <button type="button" className="button primary small" onClick={onAccount}>Iniciar sesión para crear una sala</button>
     </div> : <>
       {error && <p className="account-error" role="alert">{error}</p>}
       {notice && <p className="disclosure" role="status">{notice}</p>}

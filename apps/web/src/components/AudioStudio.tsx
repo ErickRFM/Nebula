@@ -27,7 +27,7 @@ export function AudioStudio({ player, compact = false }: { player: Player; compa
         <h3>Tu música, con más definición</h3>
         <p>Ecualización de 7 bandas y dinámica controlada. Los archivos originales no se modifican.</p>
       </div>
-      <span className={'audio-studio-status' + (enhanced ? ' is-enhanced' : '')}>{enhanced ? 'Efectos activos' : 'Sonido original'}</span>
+      {enhanced && <span className="audio-studio-status is-enhanced">Efectos activos</span>}
     </div>
     <div className="audio-studio-profile">
       <label htmlFor={id + '-preset'}>Perfil del ecualizador</label>
