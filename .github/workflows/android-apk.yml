@@ -55,9 +55,16 @@ jobs:
           grep '^networkTimeout=' "$props"
       - name: Build installable debug APK
         working-directory: android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          for attempt in 1 2 3; do
+            echo "Gradle build attempt $attempt"
+            if ./gradlew :app:assembleDebug --no-daemon --stacktrace; then exit 0; fi
+            sleep 20
+          done
+          exit 1
       - name: Check APK and checksum
         run: |
           test -s android/app/build/outputs/apk/debug/app-debug.apk
