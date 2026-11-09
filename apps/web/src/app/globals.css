@@ -101,6 +101,7 @@ p{line-height:1.55}
 .chip{color:#bfc0dd;background:#ffffff10;border:1px solid var(--edge);padding:9px 16px;border-radius:999px;font-weight:700;font-size:.76rem}
 .chip.active{color:#1d1236;background:#c8a8ff}
 .genre-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.genre-grid>.genre-card:last-child:nth-child(3n+2){grid-column:span 2}
 .genre-card{text-align:left;position:relative;overflow:hidden;height:118px;display:flex;align-items:center;border:0;border-radius:18px;padding:20px;color:#fff;background:linear-gradient(120deg,#453477,#443b6c)}
 .genre-card strong{font-size:1rem;z-index:1}
 .genre-card svg{position:absolute;right:12px;bottom:-11px;transform:rotate(-26deg);opacity:.27;width:100px;height:100px}
@@ -214,7 +215,7 @@ p{line-height:1.55}
  .mini-cover{width:41px;height:41px}.mini-controls{gap:2px}.mini-controls>.icon-button:first-child{display:none}
  .mini-heart{width:29px}.mini-track strong{font-size:.77rem}
  .bottom-nav{display:flex;position:fixed;left:0;right:0;bottom:0;height:66px;padding:7px 10px max(6px,env(safe-area-inset-bottom));border-radius:0;justify-content:space-around;align-items:center;z-index:9;background:rgba(13,14,34,.94)}
- .bottom-nav button{min-width:54px;display:grid;place-items:center;gap:4px;color:#9f9bbd;border:0;background:none;font-size:.62rem}
+ .bottom-nav button{min-width:54px;display:grid;place-items:center;gap:4px;color:#9f9bbd;border:0;background:none;font-size:.69rem}
  .bottom-nav button.active{color:#d2b7ff}
  .full-top{margin-bottom:10px}
  .player-stage{display:block;margin:8px auto;max-width:450px}
@@ -413,6 +414,10 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .room-form .button{width:100%;margin-top:auto;min-height:47px}
 .rooms-list-section{margin-top:30px}.room-section-description,.search-section-note{font-size:.77rem;color:#b1adce;margin:5px 0 0}
 .room-empty{border-radius:18px;min-height:190px;display:grid;justify-items:center;align-content:center;text-align:center;gap:9px;padding:26px}
+.rooms-signed-out{min-height:340px;padding:32px 26px}
+.room-empty-points{list-style:none;margin:6px 0 14px;padding:0;display:grid;gap:8px;text-align:left;max-width:520px}
+.room-empty-points li{display:flex;align-items:center;gap:9px;color:#c9c4e2;font-size:.8rem}
+.room-empty-points svg{flex:none;color:#cbb1ff}
 .room-empty h3{font-size:1.05rem;margin:5px 0 0}.room-empty p{max-width:490px;color:#c0bbd9;font-size:.83rem;margin:0 0 5px}
 .room-empty-icon{width:55px;height:55px}.rooms-list{border-radius:17px;overflow:hidden}
 .room-entry{display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid var(--edge)}
@@ -438,7 +443,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .search-page > .external-bridges{margin-top:24px;padding-top:18px;border-top:1px solid var(--edge)}
 .search-page > .external-bridges .section-heading{margin-bottom:7px}
 .search-page > .external-bridges .page-description{margin-bottom:12px;font-size:.8rem}
-.search-source-hint{margin:10px 0 0;color:#bfb6d7;font-size:.78rem;padding:11px 13px;border:1px solid var(--edge);border-radius:12px;background:rgba(35,34,67,.52)}
+.search-source-hint{margin:10px 0 0;color:#cfc4e6;font-size:.78rem;padding:10px 14px;border-left:3px solid rgba(199,167,255,.55);border-radius:4px 12px 12px 4px;background:rgba(120,92,180,.14)}
 @media(max-width:850px){.room-grid{grid-template-columns:1fr}.search-page .genre-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.rooms-overview{gap:7px}.rooms-overview span{font-size:.67rem}.rooms-page>.heading-with-action>svg{display:none}.rooms-page .room-card{padding:18px}.room-card-header{gap:10px}.room-card-icon{width:39px;height:39px}.room-entry-state{display:none}.search-page .genre-grid{grid-template-columns:1fr 1fr}.search-page .genre-card{height:100px;padding:13px}.search-start{align-items:flex-start}.rooms-page .room-hero .button{width:100%;margin:7px 0}}
 
@@ -588,7 +593,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .mini-seek{height:15px}
  .settings-panel,.cloud-actions,.authorized-web-import{min-width:0}
 }
-@media(max-width:410px){.bottom-nav button{font-size:.57rem;min-width:51px}.bottom-nav button svg{width:19px}.hero-actions .button{flex:1}.quick-action small{font-size:.7rem}}
+@media(max-width:410px){.bottom-nav button{font-size:.69rem;min-width:51px}.bottom-nav button svg{width:19px}.hero-actions .button{flex:1}.quick-action small{font-size:.7rem}}
 @media(prefers-contrast:more){:root{--edge:rgba(255,255,255,.33);--muted:#ece7fa} .button.secondary{border-color:#f0e4ff}}
 @media(prefers-reduced-motion:reduce){.album-card,.button,.quick-action,.nav-item,.chip,.track-row{transition:none!important}}
 
@@ -905,7 +910,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .audio-studio-band{display:flex;min-width:0;flex-direction:column;align-items:center;justify-content:space-between;gap:12px;font-size:.72rem;font-weight:700;color:#bfc1dd}
 .audio-band-value{font-variant-numeric:tabular-nums;color:#f3d4ff;white-space:nowrap;font-size:.73rem}
 .audio-band-value small{font-size:.6rem;color:#a6a6c6;font-weight:500}
-.audio-studio-band input[type=range]{display:block;width:20px;height:126px;margin:0;writing-mode:vertical-lr;direction:rtl;accent-color:#c4a6ff;cursor:pointer;touch-action:none}
+.audio-studio-band input[type=range]{display:block;width:34px;height:126px;padding:0 7px;box-sizing:border-box;margin:0;writing-mode:vertical-lr;direction:rtl;accent-color:#c4a6ff;cursor:pointer;touch-action:none}
 .audio-studio-band input[type=range]:focus-visible{outline:2px solid #8edce7;outline-offset:5px}
 .audio-band-label{color:#bbbad5;font-size:clamp(.58rem,.85vw,.72rem);white-space:nowrap}
 .audio-studio-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:15px 0;border-bottom:1px solid #ffffff12}
@@ -923,7 +928,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .audio-studio-profile{grid-template-columns:1fr;gap:7px}
  .audio-studio-eq{gap:2px;padding:16px 3px 12px}
  .audio-studio-band{gap:8px}
- .audio-studio-band input[type=range]{height:105px;width:18px}
+ .audio-studio-band input[type=range]{height:105px;width:30px;padding:0 5px}
  .audio-band-value{font-size:.65rem}
  .audio-band-value small{display:none}
  .audio-band-label{font-size:.58rem}
