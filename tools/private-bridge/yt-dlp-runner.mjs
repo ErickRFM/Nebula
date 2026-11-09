@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process';
 import {PassThrough} from 'node:stream';
 import {normalizeVideos,VIDEO_ID} from './bridge-core.mjs';
+import {normalizeEntries,sanitizeYouTubeUrl,MAX_RESOLVE_ENTRIES as MAX_PLAYLIST_PREVIEW} from './url-policy.mjs';
 
 function runJson(executable,args,timeoutMs=18000){
  return new Promise((resolve,reject)=>{
@@ -34,6 +35,16 @@ export function createYtdlpRunner({enabled=false,ytdlp='yt-dlp',ffmpeg='ffmpeg'}
    ]);
    return normalizeVideos(payload);
   },
+  async resolve(url){
+   if(!enabled)throw Error('bridge_disabled');
+   const safe=sanitizeYouTubeUrl(url);
+   if(!safe)throw Error('invalid_url');
+   const payload=await runJson(ytdlp,[
+    '--ignore-config','--no-warnings','--no-progress','--flat-playlist','--dump-single-json',
+    '--playlist-items','1-'+MAX_PLAYLIST_PREVIEW,safe,
+   ],30000);
+   return normalizeEntries(payload);
+  },
   stream(id){
    if(!enabled)throw Error('bridge_disabled');
    if(!VIDEO_ID.test(id))throw Error('invalid_video_id');
@@ -44,7 +55,7 @@ export function createYtdlpRunner({enabled=false,ytdlp='yt-dlp',ffmpeg='ffmpeg'}
    ],{shell:false,windowsHide:true,stdio:['ignore','pipe','pipe']});
    const convert=spawn(ffmpeg,[
     '-nostdin','-hide_banner','-loglevel','error',
-    '-i','pipe:0','-vn','-ac','2','-b:a','160k','-f','mp3','pipe:1',
+    '-i','pipe:0','-vn','-ac','2','-q:a','0','-f','mp3','pipe:1',
    ],{shell:false,windowsHide:true,stdio:['ignore','pipe','pipe']});
    let stopped=false;let sawBytes=false;
    const watchdog=setTimeout(()=>output.destroy(Error('stream_timeout')),25*60_000);

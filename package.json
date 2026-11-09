@@ -42,9 +42,7 @@
     "@fastify/cookie": "11.1.0"
   },
   "dependencies": {
-    "framer-motion": "^14.10.1",
-    "light-my-request": "6.6.0",
-    "qrcode": "^1.5.4"
+    "light-my-request": "6.6.0"
   },
   "allowScripts": {
     "puppeteer@25.16.0": true

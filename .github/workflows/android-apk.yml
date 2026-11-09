@@ -44,11 +44,27 @@ jobs:
         run: node scripts/integrate-android.mjs
       - name: Sync browser assets to Android
         run: npx cap sync android
+      - name: Raise Gradle wrapper network timeout
+        run: |
+          props=android/gradle/wrapper/gradle-wrapper.properties
+          if grep -q '^networkTimeout=' "$props"; then
+            sed -i 's/^networkTimeout=.*/networkTimeout=60000/' "$props"
+          else
+            printf '\nnetworkTimeout=60000\n' >> "$props"
+          fi
+          grep '^networkTimeout=' "$props"
       - name: Build installable debug APK
         working-directory: android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          for attempt in 1 2 3; do
+            echo "Gradle build attempt $attempt"
+            if ./gradlew :app:assembleDebug --no-daemon --stacktrace; then exit 0; fi
+            sleep 20
+          done
+          exit 1
       - name: Check APK and checksum
         run: |
           test -s android/app/build/outputs/apk/debug/app-debug.apk

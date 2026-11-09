@@ -63,7 +63,7 @@ p{line-height:1.55}
 .content-section{margin-top:35px}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:17px}
 .section-heading h2{margin:0}
-.text-action{color:#c8b0f9;background:transparent;border:0;display:inline-flex;align-items:center;gap:3px;font-size:.77rem;font-weight:800}
+.text-action{color:#c8b0f9;background:transparent;border:0;display:inline-flex;align-items:center;gap:3px;font-size:.77rem;font-weight:800;min-height:28px;padding-block:4px}
 .album-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}
 .album-card{border:1px solid var(--edge);text-align:left;border-radius:17px;padding:10px 10px 14px;color:var(--ink);background:rgba(30,33,60,.74);min-width:0;transition:transform .2s,background .2s}
 .album-card:hover{transform:translateY(-3px);background:rgba(59,54,98,.85)}
@@ -256,7 +256,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .auth-form input{margin-bottom:9px;min-height:46px;padding:12px 14px;border:1px solid var(--edge);background:rgba(255,255,255,.06);color:var(--ink);border-radius:12px;min-width:0}
 .auth-form input::placeholder{color:#9791b0}
 .auth-form button{margin-top:6px}
-.account-switch{color:#d4b8ff;background:none;border:0;font-weight:700;margin-top:20px;font-size:.82rem}
+.account-switch{color:#d4b8ff;background:none;border:0;font-weight:700;margin-top:20px;font-size:.82rem;min-height:32px;padding-block:5px}
 .account-session{border-radius:20px;padding:18px;display:flex;gap:16px;align-items:center;margin-top:22px}
 .account-user-label{display:grid;gap:4px;flex:1;min-width:0}
 .account-user-label strong{font-size:1rem}
@@ -269,7 +269,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 @media(max-width:760px){.auth-card{padding:21px 17px}.account-session{flex-wrap:wrap}.account-user-label{flex-basis:70%}.account-session .button{width:100%}.server-pill{font-size:.64rem}}
 
 /* C06 — Live external catalog, following existing Cosmic Glass tokens. */
-.explore-page{max-width:1180px}
+.explore-page{max-width:1180px;margin-top:26px}
 .explore-form{display:flex;align-items:center;gap:11px;border-radius:16px;padding:11px 13px;max-width:790px}
 .explore-form input{flex:1;min-width:0;min-height:40px;border:0;background:transparent;color:var(--ink);outline:0}
 .explore-form input::placeholder{color:var(--muted)}
@@ -504,7 +504,7 @@ input:disabled,select:disabled,textarea:disabled{cursor:not-allowed;opacity:.58}
 .hero-copy{max-width:640px}
 .hero-actions{margin-top:19px}
 .quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-top:18px}
-.quick-action {
+.quick-action{display:flex;align-items:center;gap:12px;min-width:0;min-height:94px;border-radius:18px;padding:16px;text-align:left;color:var(--ink);transition:background .15s ease,transform .15s ease,border-color .15s ease;
   background-color: rgba(87,69,139,.58); /* fallback solid color for contrast checks */
   background-image: linear-gradient(120deg,rgba(87,69,139,.58),rgba(34,43,80,.83));
 }
@@ -877,6 +877,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
   .playlist-picker-create-row{flex-wrap:wrap}
   .playlist-picker-create-row>input,.playlist-picker-create-row>.button{flex:1 1 100%}
 }
+@media(max-width:760px){.library-heading{flex-wrap:wrap;align-items:flex-start}.library-heading>div{flex:1 1 100%}.library-heading>.upload-control{order:2}}
 @media(prefers-reduced-motion:reduce){.genre-card{transition:none;transform:none!important}}
 
 /* Local audio controls: compact, accessible, and consistent with NÉBULA surfaces. */
@@ -890,7 +891,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 
 
 /* NÉBULA Audio Studio V2 — same controls in player and settings. */
-.audio-studio{margin:18px 0 22px;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(196,179,245,.20);border-radius:22px;background:linear-gradient(155deg,rgba(26,29,55,.98),rgba(18,23,45,.97));box-shadow:0 16px 36px rgba(0,0,0,.16);min-width:0}
+.audio-studio{margin:18px 0 22px;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(196,179,245,.20);border-radius:22px;background:linear-gradient(155deg,rgba(26,29,55,.98),rgba(18,23,45,.97));box-shadow:0 16px 36px rgba(0,0,0,.16);min-width:0;max-width:810px}
 .audio-studio-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .audio-studio-eyebrow{display:block;color:#bba2f4;font-size:.7rem;font-weight:800;letter-spacing:.17em;margin-bottom:6px}
 .audio-studio-heading h3{font-size:clamp(1.15rem,2vw,1.55rem);line-height:1.25;margin:0 0 6px}
@@ -929,3 +930,46 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .audio-studio-footer{gap:12px}
  .audio-studio-value{font-size:.68rem}
 }
+
+/* Puente privado: lista seleccionable de pistas y cola de descargas por lotes. */
+.bridge-queue{display:grid;gap:12px;margin:16px 0 4px;padding:14px;border-radius:19px}
+.bridge-queue-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.bridge-queue-count{font-size:.78rem;font-weight:750;color:#ded7f2;font-variant-numeric:tabular-nums}
+.bridge-queue-actions{display:flex;gap:7px;flex-wrap:wrap}
+.bridge-queue .track-list{border:1px solid var(--edge);border-radius:14px;background:rgba(15,19,42,.55);max-height:min(460px,68vh);overflow:auto}
+.bridge-track{gap:9px}
+.bridge-track-actions{display:flex;align-items:center;gap:8px;flex:none}
+.bridge-track.picked{background:rgba(201,166,255,.11)}
+.bridge-select{flex:none;width:19px;height:19px;min-width:19px;accent-color:#c1a1fb;cursor:pointer}
+.bridge-select:disabled{cursor:not-allowed;opacity:.55}
+.bridge-state{flex:none;min-width:82px;text-align:center;padding:6px 10px;border:1px solid var(--edge);border-radius:999px;background:#ffffff0d;color:#d7c8fa;font-size:.68rem;font-weight:750}
+.bridge-state.working{background:#d4b6ff;border-color:transparent;color:#1d1236}
+.bridge-state.done{background:rgba(142,233,198,.12);border-color:rgba(142,233,198,.42);color:#95eec6}
+.bridge-state.failed{background:rgba(255,179,199,.12);border-color:rgba(255,179,199,.42);color:#ffbdce}
+.bridge-destinations{display:grid;gap:8px;margin:14px 0 0;padding:13px 14px 14px;border:1px solid var(--edge);border-radius:14px;background:rgba(35,34,67,.42)}
+.bridge-destinations legend{padding:0 6px;font-size:.72rem;font-weight:750;color:#c9c4e4}
+.bridge-destinations label{display:flex;align-items:center;gap:10px;font-size:.82rem;color:#e6e1f6;cursor:pointer}
+.bridge-destinations input{flex:none;width:18px;height:18px;accent-color:#c1a1fb}
+.bridge-queue-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bridge-queue-footer .disclosure{flex:1 1 200px;margin:0}
+.button.danger{background:rgba(255,120,150,.14);border:1px solid rgba(255,179,199,.45);color:#ffc2d2}
+.button.danger:hover{background:rgba(255,120,150,.24)}
+@media(pointer:coarse){.bridge-select{width:26px;height:26px;min-width:26px}}
+@media(max-width:760px){
+ .bridge-queue{padding:11px}
+ .bridge-queue-head{align-items:flex-start}
+ .bridge-queue .track-list{max-height:none}
+ .bridge-state{min-width:0}
+ .bridge-queue-footer>.button{flex:1 1 100%;justify-content:center}
+ .bridge-track{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"check title link" "check actions state";column-gap:10px;row-gap:9px;align-items:center;padding:12px}
+ .bridge-select{grid-area:check;align-self:start;margin-top:13px}
+ .bridge-track .track-descriptor{grid-area:title}
+ .bridge-track>a{grid-area:link;align-self:start;margin-top:13px}
+ .bridge-track-actions{grid-area:actions;justify-self:start}
+ .bridge-state{grid-area:state;justify-self:end}
+}
+@media(max-width:420px){
+ .bridge-track{grid-template-areas:"check title link" "check actions actions" "check state state"}
+ .bridge-state{justify-self:start;margin-top:2px}
+}
+@media(prefers-reduced-motion:reduce){.bridge-select,.bridge-state{transition:none!important}}
