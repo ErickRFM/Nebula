@@ -20,6 +20,44 @@ export function isPlayableExternalUrl(value:unknown,bridgeEnabled=BRIDGE_ENABLED
  }catch{return false;}
 }
 export type BridgeVideo={id:string;title:string;artist:string;durationSeconds:number|null;sourceUrl:string};
+export type YouTubeTarget={kind:'playlist'|'video';videoId:string|null;listId:string|null;canonicalUrl:string};
+const VIDEO_RE=/^[A-Za-z0-9_-]{11}$/;
+const LIST_RE=/^[A-Za-z0-9_-]{3,80}$/;
+const YT_HOSTS=new Set(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtu.be']);
+export function parseYouTubeUrl(value:unknown):YouTubeTarget|null{
+ if(typeof value!=='string'||value.length>2048)return null;
+ let url:URL;
+ try{url=new URL(value);}catch{return null;}
+ if(url.protocol!=='https:'||url.username||url.password)return null;
+ const host=url.hostname.toLowerCase();
+ if(!YT_HOSTS.has(host))return null;
+ const videoId=(host==='youtu.be'?url.pathname.slice(1):url.searchParams.get('v'))||null;
+ const listId=url.searchParams.get('list');
+ const safeVideo=videoId&&VIDEO_RE.test(videoId)?videoId:null;
+ const safeList=listId&&LIST_RE.test(listId)?listId:null;
+ if(!safeVideo&&!safeList)return null;
+ if(safeList)return {kind:'playlist',videoId:safeVideo,listId:safeList,canonicalUrl:'https://www.youtube.com/playlist?list='+safeList};
+ return {kind:'video',videoId:safeVideo,listId:null,canonicalUrl:'https://www.youtube.com/watch?v='+safeVideo};
+}
+export function bridgeEntries(payload:unknown):{items:BridgeVideo[];truncated:boolean}{
+ const data=payload&&typeof payload==='object'?payload as {items?:unknown;truncated?:unknown}:null;
+ const items=Array.isArray(data?.items)?data.items:[];
+ return {
+  items:items.slice(0,200).flatMap((raw):BridgeVideo[]=>{
+   const item=raw&&typeof raw==='object'?raw as Record<string,unknown>:null;
+   if(!item||typeof item.id!=='string'||!VIDEO_RE.test(item.id))return [];
+   const sec=item.durationSeconds;
+   return [{
+    id:item.id,
+    title:typeof item.title==='string'&&item.title?item.title.slice(0,180):'Sin título',
+    artist:typeof item.artist==='string'&&item.artist?item.artist.slice(0,100):'YouTube',
+    durationSeconds:typeof sec==='number'&&Number.isFinite(sec)&&sec>=0?sec:null,
+    sourceUrl:'https://www.youtube.com/watch?v='+item.id,
+   }];
+  }),
+  truncated:data?.truncated===true,
+ };
+}
 export function bridgeVideos(payload:unknown):BridgeVideo[]{
  const data=payload&&typeof payload==='object'? (payload as {items?:unknown}).items:null;
  if(!Array.isArray(data))return [];

@@ -111,6 +111,24 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
    }catch(e){logger('search_failed',e?.message);reply(res,502,{error:'search_unavailable'});}
    return;
   }
+  if(req.method==='GET'&&url.pathname==='/resolve'){
+   if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
+   if(runner.enabled===false){reply(res,503,{error:'bridge_disabled'});return;}
+   if(typeof runner.resolve!=='function'){reply(res,503,{error:'resolver_unavailable'});return;}
+   if(url.searchParams.size!==1||!url.searchParams.has('url')){reply(res,400,{error:'invalid_resolve_params'});return;}
+   const now=clock();
+   while(searchHits.length&&searchHits[0]<now-60_000)searchHits.shift();
+   if(searchHits.length>=10){reply(res,429,{error:'resolve_rate_limited'});return;}
+   searchHits.push(now);
+   try{
+    const resolved=await runner.resolve(url.searchParams.get('url'));
+    reply(res,200,{items:Array.isArray(resolved?.items)?resolved.items:[],truncated:resolved?.truncated===true});
+   }catch(e){
+    if(e?.message==='invalid_url')reply(res,400,{error:'invalid_url'});
+    else{logger('resolve_failed',e?.message);reply(res,502,{error:'resolve_unavailable'});}
+   }
+   return;
+  }
   if(req.method==='POST'&&url.pathname==='/ticket'){
    if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
    if(runner.enabled===false){reply(res,503,{error:'bridge_disabled'});return;}
