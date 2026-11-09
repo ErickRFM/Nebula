@@ -323,7 +323,7 @@ export function NebulaApp() {
           {navigation.filter(item=>[...collectionDestinations,...settingsDestinations].includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" aria-current={screen===item.id?'page':undefined} onClick={()=>navigate(item.id)}><Icon size={18}/>{item.label}</button>;})}
         </nav>}
       </header>
-      <main className={'main-area ' + (screen === 'reproductor' ? 'main-player' : '')}>
+      <main key={screen} className={'main-area screen-enter ' + (screen === 'reproductor' ? 'main-player' : '')}>
         {screen === 'inicio' && <>
           <section className="hero glass">
             <div className="hero-copy"><Tag>TU MÚSICA, TU UNIVERSO</Tag>

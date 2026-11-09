@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Copy, Headphones, Music2, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Copy, Headphones, Music2, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomDevicesPanel } from './RoomDevicesPanel';
@@ -9,6 +9,7 @@ import { RoomAcousticQaPanel } from './RoomAcousticQaPanel';
 import { RoomRequestsPanel } from './RoomRequestsPanel';
 import { useRoomEventStream } from '../lib/room-event-stream';
 import { buildRoomInviteLink, roomInviteFromHash } from '../lib/room-invite-link';
+import { reorderQueue, withRevisionRetry } from '../lib/room-actions';
 
 type Room = {
   id: string; name: string; mode: 'listening' | 'party'; status: string;
@@ -21,6 +22,10 @@ type QueueItem = { id: string; trackId: string; title: string; artist: string; p
 type RoomDetail = { room: Room; serverNowMs: number };
 type RoomMember = { userId: string; role: 'host' | 'listener'; email: string | null; joinedAt: string };
 
+// The server clock offset belongs to the deployment, not to a single room.
+// Reusing it avoids a bad first seek (and a visible jump) when switching rooms.
+let lastKnownClockOffsetMs = 0;
+
 export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { account: AccountApi; onAccount: () => void; onLibrary: () => void; onActivate: () => void }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -29,9 +34,11 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
   const [mode, setMode] = useState<'listening' | 'party'>('listening');
   const [code, setCode] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
-  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [clockOffsetMs, setClockOffsetMs] = useState(lastKnownClockOffsetMs);
   const [clockMetrics, setClockMetrics] = useState<{ rttMs: number; samples: number } | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [queueBusy, setQueueBusy] = useState(false);
+  const queueBusyRef = useRef(false);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [cloudItems, setCloudItems] = useState<{ id: string; title: string; artist: string }[]>([]);
   const [selectedCloudId, setSelectedCloudId] = useState('');
@@ -51,6 +58,30 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     window.addEventListener('hashchange', fillInvite);
     return () => window.removeEventListener('hashchange', fillInvite);
   }, []);
+
+  // Confirmations are transient; errors stay until the next action succeeds.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''), 7000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  // Reopen the last room on return. Only the id is stored; membership and
+  // authorization are always re-checked against the API.
+  const restoredRoom = useRef(false);
+  useEffect(() => {
+    if (!restoredRoom.current) {
+      restoredRoom.current = true;
+      try {
+        const saved = window.sessionStorage.getItem('nebula:room');
+        if (saved) { setSelectedId(saved); return; }
+      } catch { /* storage can be disabled */ }
+    }
+    try {
+      if (selectedId) window.sessionStorage.setItem('nebula:room', selectedId);
+      else window.sessionStorage.removeItem('nebula:room');
+    } catch { /* storage can be disabled */ }
+  }, [selectedId]);
 
   const refresh = useCallback(async () => {
     if (!account.user) { setRooms([]); setSelected(null); setLoadingRooms(false); return; }
@@ -81,58 +112,18 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     }
   }, [selectedId, account.user?.id, account.cloudRequest, refresh]);
 
-  // Use multiple NTP-style probes rather than estimating clock skew from a
-  // single room snapshot. The lowest-RTT half of recent probes limits jitter.
-  useEffect(() => {
-    if (!selectedId || !account.user) return;
-    let cancelled = false;
-    const samples: ClockSample[] = [];
-    setClockMetrics(null);
-    setClockOffsetMs(0);
-    const probe = async () => {
-      try {
-        const clientSentMs = Date.now();
-        const result = await account.cloudRequest<{serverReceivedMs:number;serverSentMs:number}>('/v1/rooms/clock');
-        const clientReceivedMs = Date.now();
-        if (cancelled) return;
-        const sample = clockSample({ clientSentMs, clientReceivedMs, ...result });
-        if (!sample) return;
-        samples.push(sample);
-        if (samples.length > 12) samples.shift();
-        const offset = estimateClockOffset(samples);
-        if (offset !== null) setClockOffsetMs(offset);
-        setClockMetrics({ rttMs: Math.round(sample.roundTripMs), samples: samples.length });
-      } catch { if (!cancelled) setClockMetrics(null); }
-    };
-    void probe();
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void probe(); }, 15_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [selectedId, account.user?.id, account.cloudRequest]);
-
-  const onRoomEvent = useCallback((event: { revision: number; participantCount: number }) => {
-    // REST remains authoritative; event payload has no sensitive media URLs.
-    // Refresh on revision changes and participant updates (e.g. host transfer).
-    void event;
-    void refreshSelected();
-  }, [refreshSelected]);
-  useRoomEventStream(selectedId, account.accessToken, onRoomEvent);
-
-  useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => {
-    if (!selectedId || !account.user) return;
-    void refreshSelected();
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshSelected(); }, 15_000);
-    return () => window.clearInterval(timer);
-  }, [selectedId, account.user?.id, refreshSelected]);
-
   const refreshQueue = useCallback(async () => {
     if (!selectedId || !account.user) { setQueue([]); return; }
+    // An in-flight optimistic reorder is newer than this poll.
+    if (queueBusyRef.current) return;
     try {
       const result = await account.cloudRequest<{items:QueueItem[]}>('/v1/rooms/' + selectedId + '/queue');
       setQueue(result.items);
     } catch { /* retain the last confirmed queue during transient failures */ }
   }, [selectedId, account.user?.id, account.cloudRequest]);
 
+  // Queue mutations do not bump the room revision, so the queue keeps its own
+  // fallback poll. Timeline and membership changes also arrive over the stream.
   useEffect(() => {
     if (!selectedId || !account.user) return;
     void refreshQueue();
@@ -151,9 +142,65 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
   useEffect(() => {
     if (!selectedId || !account.user) { setMembers([]); return; }
     void refreshMembers();
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshMembers(); }, 10_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshMembers(); }, 20_000);
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshMembers]);
+
+  // Use multiple NTP-style probes rather than estimating clock skew from a
+  // single room snapshot. The lowest-RTT half of recent probes limits jitter.
+  useEffect(() => {
+    if (!selectedId || !account.user) return;
+    let cancelled = false;
+    const samples: ClockSample[] = [];
+    setClockMetrics(null);
+    const probe = async () => {
+      try {
+        const clientSentMs = Date.now();
+        const result = await account.cloudRequest<{serverReceivedMs:number;serverSentMs:number}>('/v1/rooms/clock');
+        const clientReceivedMs = Date.now();
+        if (cancelled) return;
+        const sample = clockSample({ clientSentMs, clientReceivedMs, ...result });
+        if (!sample) return;
+        samples.push(sample);
+        if (samples.length > 12) samples.shift();
+        const offset = estimateClockOffset(samples);
+        if (offset !== null) { lastKnownClockOffsetMs = offset; setClockOffsetMs(offset); }
+        setClockMetrics({ rttMs: Math.round(sample.roundTripMs), samples: samples.length });
+      } catch { if (!cancelled) setClockMetrics(null); }
+    };
+    const probeWhenVisible = () => { if (document.visibilityState === 'visible') void probe(); };
+    void probe();
+    const timer = window.setInterval(probeWhenVisible, 15_000);
+    // A backgrounded tab stops sampling; measure once more on return.
+    document.addEventListener('visibilitychange', probeWhenVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', probeWhenVisible);
+    };
+  }, [selectedId, account.user?.id, account.cloudRequest]);
+
+  // The event stream is a hint; REST stays authoritative. Bursts are collapsed
+  // so a host changing several fields does not trigger a request per event.
+  const liveTimer = useRef<number | undefined>(undefined);
+  const scheduleLiveRefresh = useCallback(() => {
+    if (liveTimer.current) window.clearTimeout(liveTimer.current);
+    liveTimer.current = window.setTimeout(() => {
+      void refreshSelected();
+      void refreshMembers();
+    }, 250);
+  }, [refreshSelected, refreshMembers]);
+  useEffect(() => () => { if (liveTimer.current) window.clearTimeout(liveTimer.current); }, []);
+  const onRoomEvent = useCallback(() => { scheduleLiveRefresh(); }, [scheduleLiveRefresh]);
+  useRoomEventStream(selectedId, account.accessToken, onRoomEvent);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!selectedId || !account.user) return;
+    void refreshSelected();
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshSelected(); }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [selectedId, account.user?.id, refreshSelected]);
 
   function removeMember(member: RoomMember) {
     if (!selected || !window.confirm('¿Expulsar a esta persona de la sala?')) return;
@@ -189,25 +236,51 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     });
   }
 
-  function moveQueueItem(index: number, direction: -1 | 1) {
-    if (!selected || index + direction < 0 || index + direction >= queue.length) return;
-    const ordered = [...queue];
-    [ordered[index], ordered[index + direction]] = [ordered[index + direction], ordered[index]];
-    void action(async () => {
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/queue/reorder', {
-        method: 'PATCH', body: JSON.stringify({ itemIds: ordered.map(item => item.id) }),
-      });
-      await refreshQueue();
-      setNotice('Orden de reproducción actualizado.');
+  // A stale revision is expected when two controls are used quickly. Re-read the
+  // authoritative room and retry once instead of surfacing a generic conflict.
+  function retryOnRevisionConflict(roomId: string, work: (revision: number) => Promise<unknown>) {
+    return withRevisionRetry({
+      initialRevision: selected?.revision ?? 0,
+      send: work,
+      isConflict: cause => cause instanceof ApiRequestError && cause.status === 409,
+      reloadRevision: async () => {
+        const fresh = await account.cloudRequest<RoomDetail>('/v1/rooms/' + encodeURIComponent(roomId));
+        setSelected(fresh.room);
+        return fresh.room.revision;
+      },
     });
+  }
+
+  function moveQueueItem(index: number, direction: -1 | 1) {
+    if (!selected || queueBusy) return;
+    const ordered = reorderQueue(queue, index, direction);
+    if (!ordered) return;
+    const confirmed = queue;
+    // Reorder locally first: a delayed poll or busy panel must not swallow the
+    // tap. The server order is restored if the request fails.
+    setQueue(ordered);
+    setQueueBusy(true); queueBusyRef.current = true; setError('');
+    void (async () => {
+      try {
+        await account.cloudRequest('/v1/rooms/' + selected.id + '/queue/reorder', {
+          method: 'PATCH', body: JSON.stringify({ itemIds: ordered.map(item => item.id) }),
+        });
+        setNotice('Orden de reproducción actualizado.');
+      } catch (cause) {
+        setQueue(confirmed);
+        setError(cause instanceof Error ? cause.message : 'No se pudo reordenar la cola.');
+        void refreshQueue();
+      } finally { queueBusyRef.current = false; setQueueBusy(false); }
+    })();
   }
 
   function nextFromQueue() {
     if (!selected) return;
+    const roomId = selected.id;
     void action(async () => {
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/next', {
-        method: 'POST', body: JSON.stringify({ expectedRevision: selected.revision }),
-      });
+      await retryOnRevisionConflict(roomId, revision => account.cloudRequest('/v1/rooms/' + roomId + '/next', {
+        method: 'POST', body: JSON.stringify({ expectedRevision: revision }),
+      }));
       await refreshSelected(); await refreshQueue();
       setNotice('Reproducción de la siguiente canción programada.');
     });
@@ -241,17 +314,19 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       setError('Selecciona una canción propia y confirma que tienes derecho a compartirla.');
       return;
     }
+    const roomId = selected.id;
+    const trackId = selectedCloudId;
     void action(async () => {
       // Select a valid ready track before enabling access to the private audio.
       // If timeline assignment fails, sharing remains disabled rather than looking
       // enabled with no playable track.
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/timeline', {
+      await retryOnRevisionConflict(roomId, revision => account.cloudRequest('/v1/rooms/' + roomId + '/timeline', {
         method: 'POST', body: JSON.stringify({
-          expectedRevision: selected.revision, trackId: selectedCloudId, status: 'playing', positionMs: 0,
+          expectedRevision: revision, trackId, status: 'playing', positionMs: 0,
           rightsConfirmed: true,
         }),
-      });
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/sharing', {
+      }));
+      await account.cloudRequest('/v1/rooms/' + roomId + '/sharing', {
         method: 'POST', body: JSON.stringify({ enabled: true, rightsConfirmed: true }),
       });
       await refreshSelected();
@@ -267,12 +342,14 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
         status: selected.playbackStatus, positionMs: selected.positionMs,
         effectiveServerTimeMs: Date.parse(selected.effectiveAt),
       }, Date.now() + clockOffsetMs);
+    const roomId = selected.id;
+    const trackId = selected.trackId;
     void action(async () => {
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/timeline', {
+      await retryOnRevisionConflict(roomId, revision => account.cloudRequest('/v1/rooms/' + roomId + '/timeline', {
         method: 'POST', body: JSON.stringify({
-          expectedRevision: selected.revision, trackId: selected.trackId, status, positionMs: Math.floor(positionMs),
+          expectedRevision: revision, trackId, status, positionMs: Math.floor(positionMs),
         }),
-      });
+      }));
       await refreshSelected();
     });
   }
@@ -385,7 +462,11 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       <button type="button" className="button primary small" onClick={onAccount}>Iniciar sesión para crear una sala</button>
     </div> : <>
       {error && <p className="account-error" role="alert">{error}</p>}
-      {notice && <p className="disclosure" role="status">{notice}</p>}
+      {notice && <div className="room-notice" role="status">
+        <CheckCircle2 size={17} aria-hidden="true"/>
+        <span className="room-notice-text">{notice}</span>
+        <button type="button" className="room-notice-close" aria-label="Descartar aviso" onClick={()=>setNotice('')}><X size={15}/></button>
+      </div>}
       <div className="room-grid">
         <section className="room-card glass" aria-labelledby="room-create-heading">
           <div className="room-card-header"><span className="room-card-icon"><Plus size={21}/></span><div><h2 id="room-create-heading">Crear sala</h2><p>Inicia una sesión privada de escucha.</p></div></div>
@@ -409,7 +490,11 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
         <div className="section-heading"><div><h2>Mis salas</h2><p className="room-section-description">Tus sesiones y salas compartidas.</p></div>
           <button type="button" className="icon-button glass-chip" disabled={loadingRooms} aria-label="Actualizar salas" onClick={()=>{void refresh();}}><RefreshCw size={18}/></button>
         </div>
-        {loadingRooms&&!rooms.length ? <div className="room-empty glass" role="status"><p>Actualizando tus salas…</p></div> :
+        {loadingRooms&&!rooms.length ? <div className="rooms-list glass" role="status" aria-label="Cargando tus salas">
+          {[0,1,2].map(index=><div className="room-skeleton-row" key={index} aria-hidden="true">
+            <span className="skeleton"/><span className="room-skeleton-lines"><span className="skeleton"/><span className="skeleton"/></span>
+          </div>)}
+        </div> :
           !rooms.length ? <div className="room-empty glass">
             <span className="room-empty-icon"><Music2 size={27}/></span><h3>Aquí comienza tu próxima sesión</h3>
             <p>Aún no participas en ninguna sala. Crea una, selecciona música de tu biblioteca e invita a tus amigos.</p>
@@ -425,10 +510,21 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       </section>
       {selected && selectedId === selected.id && <section className="room-hero glass">
         <div>
-          <h2>{selected.name}</h2>
-          <p>{selected.participantCount} participante(s) · {selected.ownerUserId===account.user.id?'Eres anfitrión':'Eres invitado'}</p>
-          <p>Estado de sala sincronizado con PostgreSQL · revisión {selected.revision}.</p>
-          <p>Reloj: {clockMetrics ? 'RTT de red ' + clockMetrics.rttMs + ' ms · ' + clockMetrics.samples + ' muestras · offset estimado ' + Math.round(clockOffsetMs) + ' ms' : 'midiendo conexión…'}. Estas cifras no miden el retardo acústico.</p>
+          <div className="room-hero-head">
+            <h2>{selected.name}</h2>
+            <span className="room-entry-state">{selected.ownerUserId===account.user.id?'Anfitrión':'Invitado'}</span>
+          </div>
+          <p>{selected.participantCount} participante(s) · {selected.mode==='party'?'Party Sound (beta)':'Escucha compartida'} · {selected.trackId ? (selected.playbackStatus==='playing'?'Reproduciendo':'En pausa') : 'Sin canción seleccionada'}</p>
+          <div className="room-sync-badges">
+            <span className="is-live"><span className="status-dot"/> En vivo · revisión {selected.revision}</span>
+            <span>{clockMetrics ? 'Reloj ±' + Math.round(Math.abs(clockOffsetMs)) + ' ms · ' + clockMetrics.rttMs + ' ms RTT' : 'Midiendo reloj…'}</span>
+            <span>{selected.shareEnabled ? 'Audio autorizado' : 'Sin audio compartido'}</span>
+          </div>
+          <details className="room-diagnostics">
+            <summary>Detalles técnicos de sincronización</summary>
+            <p>El estado de la sala se guarda en PostgreSQL y los cambios llegan por un canal de eventos; la API sigue siendo la fuente de verdad.</p>
+            <p>Reloj: {clockMetrics ? 'offset estimado ' + Math.round(clockOffsetMs) + ' ms con ' + clockMetrics.samples + ' muestras y RTT de red ' + clockMetrics.rttMs + ' ms' : 'aún midiendo la conexión'}. Estas cifras no miden el retardo acústico; calibra cada salida en «Dispositivos de la sala».</p>
+          </details>
           {selected.ownerUserId===account.user.id && <button type="button" className="button small" disabled={busy} onClick={rotateCode}>Generar nuevo código</button>}
           {issuedCode && <div>
             <p>Código privado (se muestra una sola vez):</p>
@@ -464,6 +560,10 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
         </div>
       </section>}
       {selected && selectedId===selected.id && <section className="content-section">
+        <div className="section-heading"><h2>Escucha aquí</h2><span>{selected.trackId && selected.shareEnabled ? 'Audio disponible' : 'Pendiente de audio'}</span></div>
+        <RoomDevicesPanel room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>
+      </section>}
+      {selected && selectedId===selected.id && <section className="content-section">
         <div className="section-heading"><h2>Participantes</h2><span>{members.length} en la sala</span></div>
         <div className="track-list glass">
           {members.map(member => <div className="track-row" key={member.userId}>
@@ -486,15 +586,14 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
               <span className="track-index">{index+1}</span>
               <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist}</small></span>
               {selected.ownerUserId===account.user?.id && <>
-                <button type="button" className="button small" aria-label={'Subir '+item.title} disabled={busy || index===0} onClick={()=>moveQueueItem(index,-1)}>↑</button>
-                <button type="button" className="button small" aria-label={'Bajar '+item.title} disabled={busy || index===queue.length-1} onClick={()=>moveQueueItem(index,1)}>↓</button>
+                <button type="button" className="button small" aria-label={'Subir '+item.title} disabled={busy || queueBusy || index===0} onClick={()=>moveQueueItem(index,-1)}>↑</button>
+                <button type="button" className="button small" aria-label={'Bajar '+item.title} disabled={busy || queueBusy || index===queue.length-1} onClick={()=>moveQueueItem(index,1)}>↓</button>
                 <button type="button" className="icon-button" aria-label={'Quitar '+item.title} disabled={busy} onClick={()=>removeFromQueue(item.id)}><X size={17}/></button>
               </>}
             </div>)}
         </div>
       </section>}
       {selected && selectedId===selected.id && <RoomRequestsPanel roomId={selected.id} hostId={selected.ownerUserId} account={account}/>}
-      {selected && selectedId===selected.id && <RoomDevicesPanel room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>}
       {selected && selectedId===selected.id && <RoomAcousticQaPanel/>}
     </>}
   </section>;

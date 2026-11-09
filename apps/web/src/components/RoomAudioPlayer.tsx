@@ -163,6 +163,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enab
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
     if (room.playbackStatus === 'paused') {
       audio.pause(); audio.playbackRate = 1;
+      setLogicalDriftMs(null);
       if (audio.readyState >= 1) audio.currentTime = Math.max(0, room.positionMs / 1000);
       return;
     }
@@ -189,7 +190,10 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enab
       const audio = audioRef.current;
       if (!audio || audio.paused || audio.readyState < 1) return;
       const correction = correctionForDrift(audio.currentTime * 1000, targetMs(), true);
-      setLogicalDriftMs(Math.round(correction.errorMs));
+      // Publish only meaningful changes: a per-second state write would re-render
+      // the whole device panel for sub-perceptual jitter.
+      const nextDrift = Math.round(correction.errorMs);
+      setLogicalDriftMs(previous => previous !== null && Math.abs(previous - nextDrift) < 5 ? previous : nextDrift);
       if (correction.kind === 'seek') {
         audio.currentTime = correction.targetPositionMs / 1000;
         audio.playbackRate = 1;
@@ -237,12 +241,16 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enab
         if (enabled && a.paused) onPlaybackStateChange?.('ready');
         const previous = resumeRef.current;
         resumeRef.current = null;
-        if (previous && Number.isFinite(previous.position)) {
+        if (previous && Number.isFinite(previous.position) && room.playbackStatus === 'playing') {
           a.currentTime = Math.max(0, previous.position);
-          if (previous.wasPlaying && room.playbackStatus === 'playing') {
+          if (previous.wasPlaying) {
             void a.play().catch(() => setError('Pulsa Play para reanudar la salida de este dispositivo.'));
           }
-        } else if (room.playbackStatus === 'playing') {
+        } else if (room.playbackStatus === 'paused') {
+          // The paused room position is authoritative; a resume point captured
+          // before a URL refresh may predate the host's last pause.
+          a.currentTime = Math.max(0, room.positionMs / 1000);
+        } else {
           a.currentTime = Math.max(0, targetMs() / 1000);
         }
       }}
