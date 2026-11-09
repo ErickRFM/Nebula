@@ -895,7 +895,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 @media(max-width:560px){.audio-profile-row{align-items:stretch}.audio-profile-row select{flex:1 1 auto}.settings-panel .setting-row{flex-wrap:wrap}.audio-setting-select{width:100%;max-width:none}}
 
 
-/* NÉBULA Audio Studio V2 — same controls in player and settings. */
+/* NÉBULA Audio Studio V3 — curva interactiva, presets, espectro y A/B. */
 .audio-studio{margin:18px 0 22px;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(196,179,245,.20);border-radius:22px;background:linear-gradient(155deg,rgba(26,29,55,.98),rgba(18,23,45,.97));box-shadow:0 16px 36px rgba(0,0,0,.16);min-width:0;max-width:810px}
 .audio-studio-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .audio-studio-eyebrow{display:block;color:#bba2f4;font-size:.7rem;font-weight:800;letter-spacing:.17em;margin-bottom:6px}
@@ -903,16 +903,52 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .audio-studio-heading p{color:#b9b6d0;margin:0;font-size:.82rem;max-width:500px}
 .audio-studio-status{font-size:.73rem;font-weight:750;line-height:1.4;color:#bac2d9;border:1px solid #ffffff26;background:#ffffff09;border-radius:999px;padding:7px 11px;white-space:nowrap}
 .audio-studio-status.is-enhanced{color:#b8f5df;border-color:#50bd9970;background:#295a503a}
-.audio-studio-profile{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,240px);gap:12px;align-items:center;border-top:1px solid #ffffff15;margin-top:18px;padding-top:17px}
-.audio-studio-profile label{font-size:.83rem;font-weight:750;color:#e9e7f6}
-.audio-studio-profile select{width:100%;min-height:44px;border:1px solid #ffffff2b;border-radius:11px;background:#1d2342;color:#f4efff;padding:9px 12px;font:inherit}
-.audio-studio-eq{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:stretch;gap:8px;margin-top:16px;padding:19px 6px 12px;border-radius:16px;background:#10172b;border:1px solid #ffffff13;min-width:0}
-.audio-studio-band{display:flex;min-width:0;flex-direction:column;align-items:center;justify-content:space-between;gap:12px;font-size:.72rem;font-weight:700;color:#bfc1dd}
-.audio-band-value{font-variant-numeric:tabular-nums;color:#f3d4ff;white-space:nowrap;font-size:.73rem}
-.audio-band-value small{font-size:.6rem;color:#a6a6c6;font-weight:500}
-.audio-studio-band input[type=range]{display:block;width:34px;height:126px;padding:0 7px;box-sizing:border-box;margin:0;writing-mode:vertical-lr;direction:rtl;accent-color:#c4a6ff;cursor:pointer;touch-action:none}
-.audio-studio-band input[type=range]:focus-visible{outline:2px solid #8edce7;outline-offset:5px}
-.audio-band-label{color:#bbbad5;font-size:clamp(.58rem,.85vw,.72rem);white-space:nowrap}
+
+.eq-presets{border:0;padding:0;margin:16px 0 0;min-width:0}
+.eq-presets legend{padding:0;margin-bottom:8px;font-size:.78rem;font-weight:750;color:#c9c4e4}
+.eq-preset-list{display:flex;flex-wrap:wrap;gap:7px;overflow-x:auto;padding:2px 1px 7px;scrollbar-width:none;overscroll-behavior-x:contain}
+.eq-preset-list::-webkit-scrollbar{display:none}
+.eq-preset{position:relative;flex:none;display:grid;gap:1px;padding:8px 11px;border:1px solid #ffffff1f;border-radius:11px;background:#1a1f3a;cursor:pointer;transition:background .16s ease,border-color .16s ease}
+.eq-preset input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.eq-preset:not(.is-selected):hover{background:#232a4d}
+.eq-preset.is-selected{border-color:rgba(201,166,255,.72);background:linear-gradient(135deg,rgba(201,166,255,.24),rgba(119,214,222,.16))}
+.eq-preset:focus-within{outline:2px solid var(--cyan);outline-offset:2px}
+.eq-preset-name{font-size:.78rem;font-weight:750;color:#efeafb;line-height:1.2;white-space:nowrap}
+.eq-preset-hint{font-size:.64rem;color:#9d9bbd;line-height:1.2;white-space:nowrap}
+
+.eq-graph{position:relative;height:clamp(220px,34vw,300px);margin-top:14px;border:1px solid #ffffff12;border-radius:16px;overflow:hidden;touch-action:pan-y;min-width:0;background:radial-gradient(120% 140% at 12% 0%,rgba(119,214,222,.09),transparent 55%),radial-gradient(120% 150% at 88% 100%,rgba(233,160,205,.10),transparent 60%),#0c1224}
+.eq-spectrum{position:absolute;inset:0;width:100%;height:100%;opacity:.7;pointer-events:none}
+.eq-curve{position:relative;display:block;width:100%;height:100%}
+.eq-grid-line{stroke:rgba(255,255,255,.09);stroke-width:1}
+.eq-grid-line.is-zero{stroke:rgba(255,255,255,.22);stroke-dasharray:4 5}
+.eq-axis-label{fill:#8d8cb0;font-size:10px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.02em;user-select:none}
+.eq-node{cursor:ns-resize;outline:none;touch-action:none}
+.eq-node-hit{fill:transparent}
+.eq-node-halo{fill:rgba(201,166,255,.16);stroke:transparent;stroke-width:2;transition:fill .15s ease}
+.eq-node:hover .eq-node-halo,.eq-node.is-active .eq-node-halo{fill:rgba(119,214,222,.3)}
+.eq-node:focus-visible .eq-node-halo{fill:rgba(119,214,222,.28);stroke:#8edce7}
+.eq-node-dot{fill:#f4efff;stroke:#a98cf0;stroke-width:2;transition:fill .15s ease,stroke .15s ease}
+.eq-node:hover .eq-node-dot,.eq-node.is-active .eq-node-dot{fill:#8edce7;stroke:#eaffff}
+.eq-active-label{fill:#cdeff5;font-size:11px;font-weight:750;font-variant-numeric:tabular-nums}
+
+.eq-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
+.eq-ab{display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid #ffffff1c;border-radius:11px;background:#141a31}
+.eq-ab-caption{padding:0 8px 0 6px;font-size:.62rem;font-weight:800;letter-spacing:.12em;color:#9d9bbd}
+.eq-ab button{min-height:36px;border:0;border-radius:8px;padding:0 12px;background:transparent;color:#b9b6d0;font:inherit;font-size:.75rem;font-weight:750;cursor:pointer;transition:background .16s ease,color .16s ease}
+.eq-ab button[aria-pressed="true"]{background:#2c3358;color:#f4efff;box-shadow:inset 0 0 0 1px #ffffff1f}
+.eq-ab button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.eq-ab button:disabled{opacity:.42;cursor:not-allowed}
+.eq-reset{min-height:38px;padding:0 13px;font-size:.75rem}
+.eq-reset:disabled{opacity:.45;cursor:not-allowed}
+
+.eq-faders{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:13px;padding:14px 6px 10px;border:1px solid #ffffff12;border-radius:15px;background:#10172b;min-width:0}
+.eq-fader{display:flex;min-width:0;flex-direction:column;align-items:center;gap:9px;font-size:.7rem;font-weight:700;color:#bfc1dd}
+.eq-fader-value{font-variant-numeric:tabular-nums;color:#f3d4ff;white-space:nowrap;font-size:.72rem}
+.eq-fader-value small{font-size:.6rem;color:#a6a6c6;font-weight:500}
+.eq-fader input[type=range]{display:block;width:32px;height:112px;padding:0 7px;box-sizing:border-box;margin:0;writing-mode:vertical-lr;direction:rtl;accent-color:#c4a6ff;cursor:pointer;touch-action:none}
+.eq-fader input[type=range]:focus-visible{outline:2px solid #8edce7;outline-offset:5px}
+.eq-fader-label{color:#bbbad5;font-size:clamp(.58rem,.85vw,.7rem);white-space:nowrap}
+
 .audio-studio-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:15px 0;border-bottom:1px solid #ffffff12}
 .audio-studio-footer strong{font-size:.85rem}
 .audio-studio-footer p{font-size:.76rem;line-height:1.45;color:#afafcb;margin:4px 0 0;max-width:520px}
@@ -921,20 +957,45 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .audio-studio-disclosure{margin:14px 0 0;color:#a9b1ca;font-size:.72rem;line-height:1.5}
 .audio-studio-compact{margin:15px 0;padding:16px}
 .audio-studio-compact .audio-studio-heading h3{font-size:1.12rem}
-.audio-studio-compact .audio-studio-band input[type=range]{height:95px}
+.audio-studio-compact .eq-graph{height:clamp(190px,30vw,250px)}
+.audio-studio-compact .eq-fader input[type=range]{height:92px}
+
+@media(pointer:coarse){
+ .eq-preset{padding:10px 13px}
+ .eq-ab button,.eq-reset{min-height:44px}
+}
 @media(max-width:760px){
- .audio-studio{padding:15px;border-radius:18px}
+ .audio-studio{padding:14px;border-radius:18px}
  .audio-studio-heading{gap:10px}
- .audio-studio-profile{grid-template-columns:1fr;gap:7px}
- .audio-studio-eq{gap:2px;padding:16px 3px 12px}
- .audio-studio-band{gap:8px}
- .audio-studio-band input[type=range]{height:105px;width:30px;padding:0 5px}
- .audio-band-value{font-size:.65rem}
- .audio-band-value small{display:none}
- .audio-band-label{font-size:.58rem}
+ .audio-studio-heading p{font-size:.78rem}
+ .eq-preset-list{flex-wrap:nowrap;padding-bottom:9px}
+ .eq-graph{height:228px}
+ .eq-faders{gap:1px;padding:12px 3px 10px}
+ .eq-fader{gap:7px}
+ .eq-fader input[type=range]{height:98px;width:28px;padding:0 5px}
+ .eq-fader-value{font-size:.64rem}
+ .eq-fader-value small{display:none}
+ .eq-fader-label{font-size:.56rem}
+ .eq-toolbar{gap:8px}
+ .eq-ab{flex:1 1 auto;justify-content:stretch}
+ .eq-ab button{flex:1;padding:0 8px}
  .audio-studio-footer{gap:12px}
  .audio-studio-value{font-size:.68rem}
 }
+@media(prefers-reduced-motion:reduce){
+ .eq-preset,.eq-ab button,.eq-node-dot,.eq-node-halo{transition:none!important}
+}
+
+html.nebula-high-contrast .audio-studio{background:#101019;border-color:rgba(255,255,255,.5);box-shadow:none}
+html.nebula-high-contrast .eq-preset{background:#181826;border-color:rgba(255,255,255,.4)}
+html.nebula-high-contrast .eq-preset.is-selected{background:#ffe59b;border-color:#ffe59b}
+html.nebula-high-contrast .eq-preset.is-selected .eq-preset-name{color:#12100e}
+html.nebula-high-contrast .eq-preset.is-selected .eq-preset-hint{color:#3b3320}
+html.nebula-high-contrast .eq-graph,html.nebula-high-contrast .eq-faders{background:#0b0b12;border-color:rgba(255,255,255,.42)}
+html.nebula-high-contrast .eq-grid-line{stroke:rgba(255,255,255,.3)}
+html.nebula-high-contrast .eq-axis-label{fill:#e5e2f2}
+html.nebula-high-contrast .eq-ab{background:#181826;border-color:rgba(255,255,255,.42)}
+html.nebula-high-contrast .eq-ab button[aria-pressed="true"]{background:#ffe59b;color:#12100e}
 
 /* Puente privado: lista seleccionable de pistas y cola de descargas por lotes. */
 .bridge-queue{display:grid;gap:12px;margin:16px 0 4px;padding:14px;border-radius:19px}

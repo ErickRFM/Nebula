@@ -3,93 +3,88 @@
 import { useEffect, useRef } from 'react';
 
 interface AudioVisualizerProps {
-  isPlaying: boolean;
+  active: boolean;
+  getAnalyser: () => AnalyserNode | null;
+  width: number;
+  height: number;
+  margin: { top: number; right: number; bottom: number; left: number };
   className?: string;
 }
 
-export function AudioVisualizer({ isPlaying, className = 'visualizer-canvas' }: AudioVisualizerProps) {
+/** Real-time spectrum behind the EQ curve. It reads the same graph the EQ processes. */
+export function AudioVisualizer({ active, getAnalyser, width, height, margin, className = 'eq-spectrum' }: AudioVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
 
-    let phase = 0;
-    const barCount = 36;
-    const bars: number[] = new Array(barCount).fill(0.15);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
 
-    const render = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
+    let frame = 0;
+    let buffer = new Uint8Array(0);
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let reduced = media.matches || document.documentElement.classList.contains('reduce-motion');
 
-      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-      }
-
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, width, height);
-
-      phase += isPlaying ? 0.08 : 0.02;
-
-      // Create cosmic gradient
-      const grad = ctx.createLinearGradient(0, height, width, 0);
-      grad.addColorStop(0, '#77d6de');
-      grad.addColorStop(0.5, '#c9a6ff');
-      grad.addColorStop(1, '#e9a0cd');
-
-      const gap = 3;
-      const totalGaps = (barCount - 1) * gap;
-      const barWidth = Math.max(2, (width - totalGaps) / barCount);
-
-      for (let i = 0; i < barCount; i++) {
-        const x = i * (barWidth + gap);
-        // Harmonic waves calculation
-        const target = isPlaying
-          ? 0.2 +
-            0.45 * Math.sin(phase + i * 0.35) * Math.sin(phase * 0.7 + i * 0.2) +
-            0.25 * Math.sin(phase * 1.3 + i * 0.6)
-          : 0.12 + 0.06 * Math.sin(phase + i * 0.2);
-
-        const clamped = Math.max(0.08, Math.min(0.95, target));
-        // Smooth lerp
-        bars[i] += (clamped - bars[i]) * 0.2;
-
-        const barHeight = Math.max(3, bars[i] * (height - 6));
-        const y = height - barHeight;
-
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        if (typeof ctx.roundRect === 'function') {
-          ctx.roundRect(x, y, barWidth, barHeight, 2);
-        } else {
-          ctx.rect(x, y, barWidth, barHeight);
+    const draw = () => {
+      const analyser = getAnalyser();
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.clearRect(0, 0, width, height);
+      if (analyser && active) {
+        if (buffer.length !== analyser.frequencyBinCount) {
+          buffer = new Uint8Array(analyser.frequencyBinCount);
         }
-        ctx.fill();
+        analyser.getByteFrequencyData(buffer);
+        const left = margin.left;
+        const right = width - margin.right;
+        const top = margin.top;
+        const bottom = height - margin.bottom;
+        const plotWidth = Math.max(1, right - left);
+        const plotHeight = Math.max(1, bottom - top);
+        const nyquist = analyser.context.sampleRate / 2;
+        const steps = Math.max(28, Math.round(plotWidth));
+        const gradient = context.createLinearGradient(left, bottom, right, top);
+        gradient.addColorStop(0, 'rgba(119,214,222,.30)');
+        gradient.addColorStop(.55, 'rgba(201,166,255,.22)');
+        gradient.addColorStop(1, 'rgba(233,160,205,.18)');
+        context.beginPath();
+        context.moveTo(left, bottom);
+        for (let index = 0; index <= steps; index++) {
+          const ratio = index / steps;
+          const x = left + ratio * plotWidth;
+          const frequency = 20 * Math.pow(20000 / 20, ratio);
+          const bin = Math.min(buffer.length - 1, Math.max(0, Math.round((frequency / nyquist) * buffer.length)));
+          const value = buffer[bin] / 255;
+          context.lineTo(x, bottom - Math.pow(value, 1.35) * plotHeight * 0.94);
+        }
+        context.lineTo(right, bottom);
+        context.closePath();
+        context.fillStyle = gradient;
+        context.fill();
       }
-
-      ctx.restore();
-      animRef.current = requestAnimationFrame(render);
+      frame = active && !reduced ? requestAnimationFrame(draw) : 0;
     };
 
-    animRef.current = requestAnimationFrame(render);
+    const updateReduced = () => {
+      const next = media.matches || document.documentElement.classList.contains('reduce-motion');
+      if (reduced && !next && active && !frame) draw();
+      reduced = next;
+    };
+    media.addEventListener?.('change', updateReduced);
+    const observer = new MutationObserver(updateReduced);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
+    draw();
     return () => {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
+      cancelAnimationFrame(frame);
+      media.removeEventListener?.('change', updateReduced);
+      observer.disconnect();
     };
-  }, [isPlaying]);
+  }, [active, getAnalyser, width, height, margin.left, margin.right, margin.top, margin.bottom]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className={className}
-      aria-label="Visualizador de frecuencias de audio"
-      role="img"
-    />
-  );
+  return <canvas ref={canvasRef} className={className} aria-hidden="true"/>;
 }

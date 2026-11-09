@@ -62,6 +62,7 @@ class FakeAudioContext {
   createGain() { return this.add('gain'); }
   createBiquadFilter() { return this.add('filter'); }
   createDynamicsCompressor() { return this.add('compressor'); }
+  createAnalyser() { return this.add('analyser'); }
   resume() { return Promise.resolve(); }
   close() { this.closed = true; return Promise.resolve(); }
 }
@@ -79,6 +80,7 @@ describe('Web Audio graph', () => {
       node.connections.some((connection) => connection === dry?.connections[0]));
     expect(dry?.gain.value).toBe(1);
     expect(wet?.gain.value).toBe(0);
+    expect(enhancer.getAnalyser()).not.toBeNull();
     enhancer.setPreset('punch');
     expect(dry?.gain.value).toBe(0);
     expect(wet?.gain.value).toBe(1);
@@ -87,6 +89,12 @@ describe('Web Audio graph', () => {
     expect(context.nodes.filter((node) => node.kind === 'filter' && node.gain.value !== 0)).toHaveLength(4);
     enhancer.setHumFilter(true);
     expect(context.nodes.filter((node) => node.type === 'notch').map((node) => node.frequency.value)).toEqual([60, 120]);
+    enhancer.setBypass(true);
+    expect(dry?.gain.value).toBe(1);
+    expect(wet?.gain.value).toBe(0);
+    enhancer.setBypass(false);
+    expect(dry?.gain.value).toBe(0);
+    expect(wet?.gain.value).toBe(1);
     enhancer.setPreset('off');
     enhancer.setHumFilter(false);
     expect(dry?.gain.value).toBe(1);
@@ -95,6 +103,7 @@ describe('Web Audio graph', () => {
     await enhancer.resume();
     enhancer.dispose();
     enhancer.dispose();
+    expect(enhancer.getAnalyser()).toBeNull();
     expect(context.closed).toBe(true);
     expect(context.nodes.every((node) => node.disconnected)).toBe(true);
   });
