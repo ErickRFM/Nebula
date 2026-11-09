@@ -224,7 +224,7 @@ export function RoomAudioPlayer({ room, account, clockOffsetMs, onActivate, enab
     }
   }
 
-  return <div className="room-card glass">
+  return <div className="room-card glass room-audio-panel">
     <h3>Salida de audio de este dispositivo</h3>
     {!room.trackId && <p>El anfitrión todavía no ha seleccionado una canción de R2.</p>}
     {room.trackId && !room.shareEnabled && <p>El anfitrión todavía no ha autorizado compartir esta pista.</p>}

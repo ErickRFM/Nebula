@@ -605,7 +605,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 /* Room physical QA: opt-in local-only stereo reference evidence. */
 .room-acoustic-qa .room-card{padding:clamp(18px,2.5vw,28px);display:grid;gap:15px}
 .room-acoustic-qa .room-card>p{margin:0;max-width:900px;color:#c9c3de;font-size:.82rem}
-.room-qa-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.room-qa-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 .room-qa-fields label{display:grid;gap:7px;font-size:.79rem;color:#e1daee}
 .room-qa-fields input,.room-acoustic-qa input[type=file]{width:100%;min-width:0;min-height:43px;border:1px solid rgba(207,192,251,.26);border-radius:12px;background:rgba(9,12,35,.48);color:var(--ink);padding:10px}
 .room-acoustic-qa .room-qa-result{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:14px;border:1px solid rgba(200,177,247,.26);border-radius:14px;background:rgba(88,66,124,.15)}
@@ -1083,3 +1083,105 @@ html.nebula-high-contrast .eq-ab button[aria-pressed="true"]{background:#ffe59b;
 .room-diagnostics summary::marker{color:#b79bff}
 .room-diagnostics p{margin:6px 0 0;max-width:64ch}
 @media(max-width:560px){.room-sync-badges>span{font-size:.69rem;padding:5px 9px}}
+
+/* ── Salas: workspace de dos columnas ───────────────────────────────────────
+   Un CTA primario por estado, invitación siempre accesible y cola con contexto.
+   Solo transform/opacity en transiciones; el bloque global de reduced motion
+   ya neutraliza animaciones. */
+.room-switcher{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;margin-top:22px;scrollbar-width:thin}
+.room-switch{flex:none;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--edge);background:rgba(255,255,255,.04);color:var(--ink);border-radius:999px;padding:9px 14px;min-height:42px}
+.room-switch .status-dot{opacity:.45}
+.room-switch small{color:var(--muted);font-size:.66rem;white-space:nowrap}
+.room-switch:hover{background:rgba(255,255,255,.07)}
+.room-switch.is-active{border-color:rgba(201,166,255,.45);background:rgba(172,137,245,.16)}
+.room-switch.is-active .status-dot{opacity:1}
+.room-switch.is-action{border-style:dashed;color:var(--muted)}
+.room-switch:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.room-grid-compact{margin-top:14px}
+.room-workspace{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:18px;margin-top:16px;align-items:start}
+.room-workspace-main,.room-workspace-side{display:grid;gap:16px;min-width:0}
+.room-panel{border:1px solid var(--edge);border-radius:18px;padding:clamp(16px,2vw,22px);background:linear-gradient(160deg,rgba(43,40,74,.72),rgba(22,28,56,.72));min-width:0}
+.room-panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.room-panel-head h3{margin:0;font-size:1rem}
+.room-panel-note{color:var(--muted);font-size:.74rem;line-height:1.55}
+p.room-panel-note{margin:0 0 10px}
+.room-now{overflow:hidden}
+.room-now.is-playing{border-color:rgba(128,225,205,.32)}
+.room-now-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.room-now-head h2{margin:2px 0 10px;font-size:1.35rem;overflow-wrap:anywhere}
+.room-chips{display:flex;flex-wrap:wrap;gap:7px}
+.room-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--edge);background:rgba(255,255,255,.05);border-radius:999px;padding:5px 10px;font-size:.7rem;color:#ded7f2;white-space:nowrap}
+.room-chip.is-role{color:#e6d5ff;border-color:rgba(201,166,255,.3)}
+.room-chip.is-live{color:#bdf3e7}
+.room-chip .status-dot{margin-right:0;background:#54e0bf}
+.room-now-track{display:flex;align-items:center;gap:14px;margin:16px 0;padding:14px;border-radius:14px;border:1px solid rgba(201,183,252,.14);background:rgba(17,21,48,.35);min-width:0}
+.room-now-icon{display:grid;place-items:center;flex:none;width:46px;height:46px;border-radius:13px;background:rgba(172,137,245,.16);color:#e2ceff}
+.room-now-copy{display:grid;gap:3px;min-width:0}
+.room-now-copy strong{font-size:.95rem;overflow-wrap:anywhere}
+.room-now-copy small{color:var(--muted);font-size:.76rem}
+.room-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.room-actions .button{min-height:44px}
+.room-check{display:flex;align-items:flex-start;gap:10px;margin:12px 0;font-size:.8rem;color:#d8d2ea;line-height:1.5}
+.room-check input{width:18px;height:18px;flex:none;margin-top:1px}
+.room-field-label{display:block;margin:0 0 6px;font-size:.79rem;font-weight:700;color:#e0d8f1}
+#room-cloud-track{width:100%;min-height:48px;border-radius:12px;border:1px solid rgba(205,192,249,.24);background:rgba(11,15,37,.6);padding:12px 13px;color:#fbf8ff;margin-bottom:10px}
+.room-queue{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.room-queue-item{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid var(--edge);min-width:0}
+.room-queue-item:last-child{border-bottom:0}
+.room-queue-index{width:24px;flex:none;text-align:center;color:var(--muted);font-size:.76rem;font-variant-numeric:tabular-nums}
+.room-queue-item .track-descriptor{flex:1;min-width:0}
+.room-queue-actions{display:flex;gap:6px;align-items:center;flex:none}
+.room-queue-now{display:flex;align-items:center;gap:9px;padding:10px 12px;margin:0 0 10px;border-radius:12px;border:1px solid rgba(128,225,205,.3);background:rgba(64,150,140,.14);font-size:.8rem;min-width:0}
+.room-queue-now .status-dot{background:#54e0bf;flex:none}
+.room-queue-now-label{text-transform:uppercase;letter-spacing:.1em;font-size:.62rem;color:#9fe9da;flex:none}
+.room-queue-now strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room-queue-now small{color:var(--muted);flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room-queue-empty{display:grid;justify-items:center;gap:8px;padding:22px 12px;color:var(--muted);text-align:center}
+.room-queue-empty p{margin:0;font-size:.84rem}
+.room-queue-skeleton{display:grid;gap:8px;padding:6px 0}
+.room-queue-skeleton .skeleton{height:44px;border-radius:10px}
+.room-invite-code{padding:10px 12px;border-radius:12px;background:#11152c;border:1px solid var(--edge);margin-bottom:10px;overflow-x:auto}
+.room-invite-code code{font-size:.8rem;color:#eadbff;overflow-wrap:anywhere}
+.room-member-list{list-style:none;margin:0;padding:0;display:grid}
+.room-member-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--edge);min-width:0}
+.room-member-list li:last-child{border-bottom:0}
+.room-member-name{flex:1;display:grid;gap:2px;min-width:0}
+.room-member-name strong{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room-member-name small{color:var(--muted);font-size:.7rem}
+.room-member-actions{display:flex;gap:6px;flex:none}
+.room-alert{display:flex;align-items:flex-start;gap:10px;margin:14px 0 0;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,138,138,.32);background:rgba(160,60,60,.16);color:#ffe3e3;font-size:.82rem}
+.room-alert>svg{flex:none;margin-top:1px;color:#ff9d9d}
+.room-alert>span{flex:1;min-width:0}
+.room-workspace-side .content-section{margin-top:0}
+.room-workspace-side .content-section>.section-heading{margin-top:0}
+#room-devices .section-heading{margin-top:0}
+.room-devices-panel{min-width:0}
+.room-devices-panel .room-card{padding:clamp(16px,2vw,22px);border-radius:18px}
+/* Paneles heredados: sus campos eran inline y se solapaban al angostarse. */
+.room-audio-panel h3{margin:0 0 8px;font-size:1rem}
+.room-audio-panel label{display:block;margin:14px 0 6px;font-size:.79rem;font-weight:700;color:#e0d8f1}
+.room-audio-panel select{display:block;width:100%;max-width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(205,192,249,.24);background:rgba(11,15,37,.6);color:var(--ink);padding:10px 12px}
+.room-audio-panel input[type=range]{display:block;width:100%;margin:4px 0 6px;accent-color:var(--accent)}
+.room-audio-panel audio{width:100%;margin:8px 0}
+.room-audio-panel p{color:var(--muted);font-size:.8rem;line-height:1.55;margin:8px 0}
+.room-audio-panel .button{margin-top:10px}
+.room-requests label{display:block;margin:12px 0 6px;font-size:.79rem;font-weight:700;color:#e0d8f1}
+.room-requests input{display:block;width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(205,192,249,.24);background:rgba(11,15,37,.6);color:var(--ink);padding:10px 12px}
+.room-requests .button{margin-top:10px}
+@media(max-width:1024px){.room-workspace{grid-template-columns:1fr}}
+@media(max-width:720px){
+ .room-workspace-side{grid-template-columns:1fr}
+ .room-now-head{flex-direction:column;align-items:stretch}
+ .room-now-head>.button{width:100%}
+ .room-switcher{margin-top:16px;flex-wrap:wrap;overflow-x:visible}
+ .room-queue-now small{display:none}
+ .room-member-list li{flex-direction:column;align-items:stretch}
+ .room-member-actions .button{flex:1}
+}
+@media(max-width:420px){
+ .room-queue-index{display:none}
+ .room-queue-item{gap:8px}
+ .room-queue-actions{gap:4px}
+ .room-queue-actions .button.small{padding:8px 10px;min-width:38px}
+}
+@media(prefers-reduced-motion:reduce){.room-switch{transition:none}}

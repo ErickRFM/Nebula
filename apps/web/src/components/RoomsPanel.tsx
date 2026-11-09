@@ -1,12 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Copy, Headphones, Music2, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, Crown, Headphones, Link2, ListMusic, Music2, Pause, Play, Plus, QrCode, RadioTower, RefreshCw, Share2, SkipForward, Users, X } from 'lucide-react';
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomDevicesPanel } from './RoomDevicesPanel';
 import { RoomAcousticQaPanel } from './RoomAcousticQaPanel';
 import { RoomRequestsPanel } from './RoomRequestsPanel';
+import { RoomQRModal } from './RoomQRModal';
+import { ConfirmModal } from './ConfirmModal';
 import { useRoomEventStream } from '../lib/room-event-stream';
 import { buildRoomInviteLink, roomInviteFromHash } from '../lib/room-invite-link';
 import { reorderQueue, withRevisionRetry } from '../lib/room-actions';
@@ -48,6 +50,10 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
   const [loadingCloudItems, setLoadingCloudItems] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [queueLoaded, setQueueLoaded] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; confirmLabel: string; run: () => void } | null>(null);
 
   useEffect(() => {
     const fillInvite = () => {
@@ -120,12 +126,14 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       const result = await account.cloudRequest<{items:QueueItem[]}>('/v1/rooms/' + selectedId + '/queue');
       setQueue(result.items);
     } catch { /* retain the last confirmed queue during transient failures */ }
+    finally { setQueueLoaded(true); }
   }, [selectedId, account.user?.id, account.cloudRequest]);
 
   // Queue mutations do not bump the room revision, so the queue keeps its own
-  // fallback poll. Timeline and membership changes also arrive over the stream.
+  // fallback poll. The event stream also reports a queue fingerprint.
   useEffect(() => {
     if (!selectedId || !account.user) return;
+    setQueueLoaded(false);
     void refreshQueue();
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshQueue(); }, 5000);
     return () => window.clearInterval(timer);
@@ -188,8 +196,9 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     liveTimer.current = window.setTimeout(() => {
       void refreshSelected();
       void refreshMembers();
+      void refreshQueue();
     }, 250);
-  }, [refreshSelected, refreshMembers]);
+  }, [refreshSelected, refreshMembers, refreshQueue]);
   useEffect(() => () => { if (liveTimer.current) window.clearTimeout(liveTimer.current); }, []);
   const onRoomEvent = useCallback(() => { scheduleLiveRefresh(); }, [scheduleLiveRefresh]);
   useRoomEventStream(selectedId, account.accessToken, onRoomEvent);
@@ -203,22 +212,34 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
   }, [selectedId, account.user?.id, refreshSelected]);
 
   function removeMember(member: RoomMember) {
-    if (!selected || !window.confirm('¿Expulsar a esta persona de la sala?')) return;
-    void action(async () => {
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/members/' + member.userId, { method: 'DELETE' });
-      await refreshMembers(); await refreshSelected();
-      setNotice('Participante expulsado. Los enlaces de audio ya emitidos caducan como máximo en cinco minutos.');
+    if (!selected) return;
+    const roomId = selected.id;
+    setConfirmAction({
+      title: 'Expulsar participante',
+      message: 'La persona saldrá de la sala. Los enlaces de audio que ya recibió caducan como máximo en cinco minutos.',
+      confirmLabel: 'Expulsar',
+      run: () => { void action(async () => {
+        await account.cloudRequest('/v1/rooms/' + roomId + '/members/' + member.userId, { method: 'DELETE' });
+        await refreshMembers(); await refreshSelected();
+        setNotice('Participante expulsado.');
+      }); },
     });
   }
 
   function transferHost(member: RoomMember) {
-    if (!selected || !window.confirm('¿Transferir la administración de esta sala? Dejarás de ser anfitrión.')) return;
-    void action(async () => {
-      await account.cloudRequest('/v1/rooms/' + selected.id + '/transfer-host', {
-        method: 'POST', body: JSON.stringify({ memberId: member.userId }),
-      });
-      await refreshSelected(); await refreshMembers();
-      setNotice('Anfitrión transferido. Ahora eres participante.');
+    if (!selected) return;
+    const roomId = selected.id;
+    setConfirmAction({
+      title: 'Transferir la administración',
+      message: 'Esta persona pasará a ser anfitriona y tú quedarás como oyente en la sala.',
+      confirmLabel: 'Transferir',
+      run: () => { void action(async () => {
+        await account.cloudRequest('/v1/rooms/' + roomId + '/transfer-host', {
+          method: 'POST', body: JSON.stringify({ memberId: member.userId }),
+        });
+        await refreshSelected(); await refreshMembers();
+        setNotice('Anfitrión transferido. Ahora eres participante.');
+      }); },
     });
   }
 
@@ -402,9 +423,8 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     });
   }
 
-  async function shareRoomLink() {
-    if (!issuedCode) return;
-    const url = buildRoomInviteLink(window.location.href, issuedCode);
+  async function shareRoomLink(code: string) {
+    const url = buildRoomInviteLink(window.location.href, code);
     try {
       if (typeof navigator.share === 'function') {
         await navigator.share({ title: 'Sala privada NÉBULA', url });
@@ -420,11 +440,16 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
 
   function leaveOrClose(room: Room) {
     const isHost = room.ownerUserId === account.user?.id;
-    if (!window.confirm(isHost ? '¿Cerrar la sala para todos?' : '¿Salir de la sala?')) return;
-    void action(async () => {
-      await account.cloudRequest('/v1/rooms/' + room.id + (isHost ? '/close' : '/leave'), { method: 'POST', body: '{}' });
-      if (selectedId === room.id) { setSelectedId(null); setSelected(null); setIssuedCode(''); }
-      setNotice(isHost ? 'Sala cerrada.' : 'Saliste de la sala.');
+    setConfirmAction({
+      title: isHost ? 'Cerrar la sala' : 'Salir de la sala',
+      message: isHost ? 'La sala se cerrará para todos los participantes y la cola dejará de estar disponible.'
+        : 'Dejarás de escuchar esta sala. Puedes volver con una invitación del anfitrión.',
+      confirmLabel: isHost ? 'Cerrar sala' : 'Salir',
+      run: () => { void action(async () => {
+        await account.cloudRequest('/v1/rooms/' + room.id + (isHost ? '/close' : '/leave'), { method: 'POST', body: '{}' });
+        if (selectedId === room.id) { setSelectedId(null); setSelected(null); setIssuedCode(''); }
+        setNotice(isHost ? 'Sala cerrada.' : 'Saliste de la sala.');
+      }); },
     });
   }
 
@@ -438,6 +463,68 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       setNotice('Nuevo código generado. El anterior ya no funciona.');
     });
   }
+
+  // The server stores only the invite hash, so an existing code cannot be read
+  // back. "Invitar" therefore creates a fresh code on demand and says so.
+  async function ensureInvite(): Promise<string | null> {
+    if (!selected) return null;
+    if (issuedCode) return issuedCode;
+    setBusy(true); setError('');
+    try {
+      const result = await account.cloudRequest<{ inviteCode: string }>('/v1/rooms/' + selected.id + '/invite', {
+        method: 'POST', body: '{}',
+      });
+      setIssuedCode(result.inviteCode);
+      return result.inviteCode;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo crear el enlace de invitación.');
+      return null;
+    } finally { setBusy(false); }
+  }
+
+  async function copyInviteLink() {
+    const code = await ensureInvite();
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(buildRoomInviteLink(window.location.href, code));
+      setNotice('Enlace de invitación copiado.');
+    } catch { setError('No se pudo copiar el enlace. Copia el código manualmente.'); }
+  }
+
+  async function copyInviteCode() {
+    const code = await ensureInvite();
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); setNotice('Código copiado.'); }
+    catch { setError('No se pudo copiar el código. Selecciónalo manualmente.'); }
+  }
+
+  async function openQr() {
+    const code = await ensureInvite();
+    if (code) setInviteOpen(true);
+  }
+
+  const isHost = Boolean(selected && account.user && selected.ownerUserId === account.user.id);
+  const currentTrack = selected?.trackId ? queue.find(item => item.trackId === selected.trackId) : undefined;
+
+  const createJoinCards = (compact: boolean) => <div className={compact ? 'room-grid room-grid-compact' : 'room-grid'}>
+    <section className="room-card glass" aria-labelledby="room-create-heading">
+      <div className="room-card-header"><span className="room-card-icon"><Plus size={21}/></span><div><h2 id="room-create-heading">Crear sala</h2><p>Inicia una sesión privada de escucha.</p></div></div>
+      <form className="room-form" onSubmit={event=>{event.preventDefault();create();}}>
+        <div className="room-field"><label htmlFor="room-name">Nombre</label><input id="room-name" value={name} maxLength={80} placeholder="Ej. Fiesta en casa" autoComplete="off" onChange={e=>setName(e.target.value)} required/></div>
+        <div className="room-field"><label htmlFor="room-mode">Modo de sala</label><select id="room-mode" value={mode} onChange={e=>setMode(e.target.value as 'listening'|'party')}><option value="listening">Escucha compartida</option><option value="party">Party Sound (beta)</option></select></div>
+        <p className="room-form-note">Cada participante activa su propia salida de audio.</p>
+        <button type="submit" className="button primary" disabled={busy||!name.trim()}><Plus size={16}/> Crear sala</button>
+      </form>
+    </section>
+    <section className="room-card glass" aria-labelledby="room-join-heading">
+      <div className="room-card-header"><span className="room-card-icon"><Users size={21}/></span><div><h2 id="room-join-heading">Unirse a una sala</h2><p>Entra con una invitación privada.</p></div></div>
+      <form className="room-form" onSubmit={event=>{event.preventDefault();join();}}>
+        <div className="room-field"><label htmlFor="room-code">Código privado</label><input id="room-code" value={code} autoComplete="off" spellCheck={false} placeholder="Pega aquí tu código privado" onChange={e=>setCode(e.target.value)}/></div>
+        <p className="room-form-note">También puedes abrir el enlace compartido por el anfitrión.</p>
+        <button type="submit" className="button secondary" disabled={busy||code.trim().length<20}>Unirme</button>
+      </form>
+    </section>
+  </div>;
 
   return <section className="content-section rooms-page">
     <div className="heading-with-action">
@@ -461,140 +548,204 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       </ul>
       <button type="button" className="button primary small" onClick={onAccount}>Iniciar sesión para crear una sala</button>
     </div> : <>
-      {error && <p className="account-error" role="alert">{error}</p>}
+      {error && <div className="room-alert glass" role="alert">
+        <AlertCircle size={17} aria-hidden="true"/>
+        <span>{error}</span>
+        <button type="button" className="room-notice-close" aria-label="Descartar error" onClick={()=>setError('')}><X size={15}/></button>
+      </div>}
       {notice && <div className="room-notice" role="status">
         <CheckCircle2 size={17} aria-hidden="true"/>
         <span className="room-notice-text">{notice}</span>
         <button type="button" className="room-notice-close" aria-label="Descartar aviso" onClick={()=>setNotice('')}><X size={15}/></button>
       </div>}
-      <div className="room-grid">
-        <section className="room-card glass" aria-labelledby="room-create-heading">
-          <div className="room-card-header"><span className="room-card-icon"><Plus size={21}/></span><div><h2 id="room-create-heading">Crear sala</h2><p>Inicia una sesión privada de escucha.</p></div></div>
-          <form className="room-form" onSubmit={event=>{event.preventDefault();create();}}>
-            <div className="room-field"><label htmlFor="room-name">Nombre</label><input id="room-name" value={name} maxLength={80} placeholder="Ej. Fiesta en casa" autoComplete="off" onChange={e=>setName(e.target.value)} required/></div>
-            <div className="room-field"><label htmlFor="room-mode">Modo de sala</label><select id="room-mode" value={mode} onChange={e=>setMode(e.target.value as 'listening'|'party')}><option value="listening">Escucha compartida</option><option value="party">Party Sound (beta)</option></select></div>
-            <p className="room-form-note">Cada participante activa su propia salida de audio.</p>
-            <button type="submit" className="button primary" disabled={busy||!name.trim()}><Plus size={16}/> Crear sala</button>
-          </form>
-        </section>
-        <section className="room-card glass" aria-labelledby="room-join-heading">
-          <div className="room-card-header"><span className="room-card-icon"><Users size={21}/></span><div><h2 id="room-join-heading">Unirse a una sala</h2><p>Entra con una invitación privada.</p></div></div>
-          <form className="room-form" onSubmit={event=>{event.preventDefault();join();}}>
-            <div className="room-field"><label htmlFor="room-code">Código privado</label><input id="room-code" value={code} autoComplete="off" spellCheck={false} placeholder="Pega aquí tu código privado" onChange={e=>setCode(e.target.value)}/></div>
-            <p className="room-form-note">También puedes abrir el enlace compartido por el anfitrión.</p>
-            <button type="submit" className="button secondary" disabled={busy||code.trim().length<20}>Unirme</button>
-          </form>
-        </section>
-      </div>
-      <section className="content-section rooms-list-section">
-        <div className="section-heading"><div><h2>Mis salas</h2><p className="room-section-description">Tus sesiones y salas compartidas.</p></div>
-          <button type="button" className="icon-button glass-chip" disabled={loadingRooms} aria-label="Actualizar salas" onClick={()=>{void refresh();}}><RefreshCw size={18}/></button>
-        </div>
-        {loadingRooms&&!rooms.length ? <div className="rooms-list glass" role="status" aria-label="Cargando tus salas">
-          {[0,1,2].map(index=><div className="room-skeleton-row" key={index} aria-hidden="true">
-            <span className="skeleton"/><span className="room-skeleton-lines"><span className="skeleton"/><span className="skeleton"/></span>
-          </div>)}
-        </div> :
-          !rooms.length ? <div className="room-empty glass">
-            <span className="room-empty-icon"><Music2 size={27}/></span><h3>Aquí comienza tu próxima sesión</h3>
-            <p>Aún no participas en ninguna sala. Crea una, selecciona música de tu biblioteca e invita a tus amigos.</p>
-            <button type="button" className="button secondary small" onClick={()=>document.getElementById('room-name')?.focus()}>Crear mi primera sala</button>
-          </div> : <div className="rooms-list glass">{rooms.map(room=><div className={'room-entry '+(selectedId===room.id?'is-selected':'')} key={room.id}>
-            <button className="room-entry-main" type="button" aria-pressed={selectedId===room.id} onClick={()=>{setSelectedId(room.id);setIssuedCode('');}}>
-              <span className="room-entry-icon"><RadioTower size={20}/></span>
-              <span className="room-entry-detail"><strong>{room.name}</strong><small>{room.mode==='party'?'Party Sound · beta':'Escucha compartida'} · {room.participantCount} {room.participantCount===1?'participante':'participantes'}</small></span>
-              <span className="room-entry-state">{room.ownerUserId===account.user?.id?'Anfitrión':'Invitado'}</span>
-            </button>
-            <button className="icon-button" type="button" disabled={busy} aria-label={'Salir o cerrar '+room.name} onClick={()=>leaveOrClose(room)}><X size={17}/></button>
-          </div>)}</div>}
-      </section>
-      {selected && selectedId === selected.id && <section className="room-hero glass">
-        <div>
-          <div className="room-hero-head">
-            <h2>{selected.name}</h2>
-            <span className="room-entry-state">{selected.ownerUserId===account.user.id?'Anfitrión':'Invitado'}</span>
+      {selected ? <>
+        <nav className="room-switcher" aria-label="Cambiar de sala">
+          {rooms.map(room => <button key={room.id} type="button" className={'room-switch' + (selectedId===room.id?' is-active':'')} aria-current={selectedId===room.id?'true':undefined} onClick={()=>{setSelectedId(room.id);setIssuedCode('');}}>
+            <span className="status-dot" aria-hidden="true"/>
+            <span className="room-switch-name">{room.name}</span>
+            <small>{room.ownerUserId===account.user?.id?'Anfitrión':'Invitado'} · {room.participantCount}</small>
+          </button>)}
+          <button type="button" className="room-switch is-action" aria-expanded={showCreate} onClick={()=>setShowCreate(value=>!value)}>
+            <Plus size={15}/> {showCreate?'Ocultar':'Nueva o unirme'}
+          </button>
+        </nav>
+        {showCreate && createJoinCards(true)}
+
+        <div className="room-workspace">
+          <div className="room-workspace-main">
+            <section className={'room-panel room-now' + (selected.trackId && selected.playbackStatus==='playing' ? ' is-playing':'')} aria-labelledby="room-now-title">
+              <div className="room-now-head">
+                <div>
+                  <p className="eyebrow">SONANDO AHORA</p>
+                  <h2 id="room-now-title">{selected.name}</h2>
+                  <div className="room-chips">
+                    <span className="room-chip is-role">{isHost?<Crown size={13}/>:<Headphones size={13}/>} {isHost?'Anfitrión':'Invitado'}</span>
+                    <span className="room-chip">{selected.mode==='party'?'Party Sound (beta)':'Escucha compartida'}</span>
+                    <span className="room-chip is-live"><span className="status-dot"/>{selected.trackId && selected.playbackStatus==='playing'?'En vivo':'Sala abierta'}</span>
+                    <span className="room-chip"><Users size={13}/> {selected.participantCount} {selected.participantCount===1?'persona':'personas'}</span>
+                  </div>
+                </div>
+                <button type="button" className="button secondary small" disabled={busy} onClick={()=>leaveOrClose(selected)}>{isHost?'Cerrar sala':'Salir'}</button>
+              </div>
+
+              <div className="room-now-track">
+                <span className="room-now-icon"><Music2 size={22}/></span>
+                <div className="room-now-copy">
+                  <strong>{currentTrack ? currentTrack.title : selected.trackId ? 'Audio del anfitrión' : 'Sin canción compartida'}</strong>
+                  <small>{selected.trackId
+                    ? (selected.playbackStatus==='playing' ? 'Reproduciendo para toda la sala' : 'En pausa para toda la sala')
+                    : 'El anfitrión elige una canción y activa el audio compartido'}</small>
+                  {currentTrack && <small className="room-now-artist">{currentTrack.artist}</small>}
+                </div>
+              </div>
+
+              {isHost ? <div className="room-actions">
+                {selected.trackId ? <>
+                  <button type="button" className="button primary" disabled={busy} onClick={()=>changePlayback(selected.playbackStatus==='playing'?'paused':'playing')}>
+                    {selected.playbackStatus==='playing'?<><Pause size={16}/> Pausar para todos</>:<><Play size={16}/> Reanudar para todos</>}
+                  </button>
+                  <button type="button" className="button secondary" disabled={busy || !selected.shareEnabled || !queue.length} onClick={nextFromQueue}><SkipForward size={16}/> Siguiente de la cola</button>
+                  {selected.shareEnabled && <button type="button" className="button text-action" disabled={busy} onClick={disableSharing}>Dejar de compartir</button>}
+                </> : <button type="button" className="button primary" onClick={()=>document.getElementById('room-share')?.scrollIntoView({behavior:'smooth',block:'center'})}><Plus size={16}/> Compartir una canción</button>}
+              </div> : <div className="room-actions">
+                <button type="button" className="button secondary" onClick={()=>document.getElementById('room-devices')?.scrollIntoView({behavior:'smooth',block:'start'})}><Headphones size={16}/> Ir a mi salida de audio</button>
+              </div>}
+            </section>
+
+            {isHost && <section className="room-panel" id="room-share" aria-labelledby="room-share-title">
+              <div className="room-panel-head"><h3 id="room-share-title">Compartir música</h3><span className="room-panel-note">Desde tu biblioteca cloud</span></div>
+              <label htmlFor="room-cloud-track" className="room-field-label">Canción</label>
+              <select id="room-cloud-track" value={selectedCloudId} disabled={loadingCloudItems} onChange={e=>{setSelectedCloudId(e.target.value);setRightsConfirmed(false);}}>
+                <option value="">{loadingCloudItems?'Cargando canciones…':'Selecciona una canción'}</option>
+                {cloudItems.map(item=><option key={item.id} value={item.id}>{item.title} — {item.artist}</option>)}
+              </select>
+              {!loadingCloudItems && cloudItems.length===0 && <p className="room-panel-note" role="status">No tienes canciones cloud listas. Sube un MP3 o FLAC permitido a tu nube privada para compartirlo.</p>}
+              <label className="room-check">
+                <input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>
+                <span>Confirmo que tengo derechos para compartir este audio con los participantes.</span>
+              </label>
+              <div className="room-actions">
+                <button type="button" className="button primary" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={startSharedAudio}><Play size={16}/> Compartir y empezar</button>
+                <button type="button" className="button secondary" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={addToQueue}><ListMusic size={16}/> Agregar a la cola</button>
+                <button type="button" className="button text-action" onClick={onLibrary}>Ir a Biblioteca</button>
+                <button type="button" className="button text-action" disabled={loadingCloudItems} onClick={()=>{void refreshCloudItems();}}>Actualizar lista</button>
+              </div>
+            </section>}
+
+            <section className="room-panel" aria-labelledby="room-queue-title">
+              <div className="room-panel-head">
+                <h3 id="room-queue-title">Cola compartida</h3>
+                <span className="room-panel-note">{queue.length ? queue.length + (queue.length===1?' canción':' canciones') : 'Vacía'}</span>
+              </div>
+              {!isHost && <p className="room-panel-note">Solo el anfitrión reordena la cola. Puedes proponer canciones en «DJ colaborativo».</p>}
+              {queueLoaded && currentTrack && <div className="room-queue-now">
+                <span className="status-dot" aria-hidden="true"/><span className="room-queue-now-label">Ahora</span>
+                <strong>{currentTrack.title}</strong><small>{currentTrack.artist}</small>
+              </div>}
+              {!queueLoaded ? <div className="room-queue-skeleton" aria-hidden="true">{[0,1,2].map(index=><span className="skeleton" key={index}/>)}</div>
+                : !queue.length ? <div className="room-queue-empty">
+                    <ListMusic size={22} aria-hidden="true"/>
+                    <p>La cola está vacía.</p>
+                    {isHost && <button type="button" className="button secondary small" onClick={()=>document.getElementById('room-share')?.scrollIntoView({behavior:'smooth',block:'center'})}>Agregar una canción</button>}
+                  </div>
+                : <ol className="room-queue">{queue.map((item,index)=><li className="room-queue-item" key={item.id}>
+                    <span className="room-queue-index">{index+1}</span>
+                    <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist}</small></span>
+                    {isHost && <span className="room-queue-actions">
+                      <button type="button" className="button small" aria-label={'Subir '+item.title} disabled={busy || queueBusy || index===0} onClick={()=>moveQueueItem(index,-1)}>↑</button>
+                      <button type="button" className="button small" aria-label={'Bajar '+item.title} disabled={busy || queueBusy || index===queue.length-1} onClick={()=>moveQueueItem(index,1)}>↓</button>
+                      <button type="button" className="icon-button" aria-label={'Quitar '+item.title} disabled={busy} onClick={()=>removeFromQueue(item.id)}><X size={16}/></button>
+                    </span>}
+                  </li>)}</ol>}
+            </section>
           </div>
-          <p>{selected.participantCount} participante(s) · {selected.mode==='party'?'Party Sound (beta)':'Escucha compartida'} · {selected.trackId ? (selected.playbackStatus==='playing'?'Reproduciendo':'En pausa') : 'Sin canción seleccionada'}</p>
-          <div className="room-sync-badges">
-            <span className="is-live"><span className="status-dot"/> En vivo · revisión {selected.revision}</span>
-            <span>{clockMetrics ? 'Reloj ±' + Math.round(Math.abs(clockOffsetMs)) + ' ms · ' + clockMetrics.rttMs + ' ms RTT' : 'Midiendo reloj…'}</span>
-            <span>{selected.shareEnabled ? 'Audio autorizado' : 'Sin audio compartido'}</span>
-          </div>
-          <details className="room-diagnostics">
-            <summary>Detalles técnicos de sincronización</summary>
-            <p>El estado de la sala se guarda en PostgreSQL y los cambios llegan por un canal de eventos; la API sigue siendo la fuente de verdad.</p>
-            <p>Reloj: {clockMetrics ? 'offset estimado ' + Math.round(clockOffsetMs) + ' ms con ' + clockMetrics.samples + ' muestras y RTT de red ' + clockMetrics.rttMs + ' ms' : 'aún midiendo la conexión'}. Estas cifras no miden el retardo acústico; calibra cada salida en «Dispositivos de la sala».</p>
-          </details>
-          {selected.ownerUserId===account.user.id && <button type="button" className="button small" disabled={busy} onClick={rotateCode}>Generar nuevo código</button>}
-          {issuedCode && <div>
-            <p>Código privado (se muestra una sola vez):</p>
-            <code style={{overflowWrap:'anywhere'}}>{issuedCode}</code>
-            <button type="button" className="icon-button" aria-label="Copiar código" onClick={()=>{void navigator.clipboard.writeText(issuedCode).then(()=>setNotice('Código copiado.')).catch(()=>setError('No se pudo copiar. Selecciona el código manualmente.'));}}><Copy size={17}/></button>
-            <button type="button" className="button small" onClick={()=>{void shareRoomLink();}}>Compartir enlace privado</button>
-            <p>El enlace abre NÉBULA en Salas y rellena el código. La persona invitada necesita su propia cuenta.</p>
-          </div>}
-          {selected.ownerUserId===account.user.id && <div>
-            <label htmlFor="room-cloud-track">Música propia en Cloudflare R2</label>
-            <select id="room-cloud-track" value={selectedCloudId} disabled={loadingCloudItems} onChange={e=>{setSelectedCloudId(e.target.value);setRightsConfirmed(false);}}>
-              <option value="">Selecciona una canción</option>
-              {cloudItems.map(item=><option key={item.id} value={item.id}>{item.title} — {item.artist}</option>)}
-            </select>
-            <div className="room-track-assistance">
-              {!loadingCloudItems && cloudItems.length===0 && <p role="status">No tienes canciones cloud listas para compartir. Primero sube un archivo MP3 u otro audio permitido a tu nube privada.</p>}
-              <button type="button" className="button secondary small" onClick={onLibrary}>Ir a Biblioteca y subir música</button>
-              <button type="button" className="button secondary small" disabled={loadingCloudItems} onClick={()=>{void refreshCloudItems();}}>Actualizar canciones de mi nube</button>
-            </div>
-            <label style={{display:'flex',alignItems:'center',gap:8}}>
-              <input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>
-              Confirmo que tengo derechos para compartir este audio con los participantes.
-            </label>
-            <button type="button" className="button primary small" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={startSharedAudio}>Compartir y empezar</button>
-            <button type="button" className="button small" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={addToQueue}>Agregar a cola</button>
-            {selected.shareEnabled && <button type="button" className="button small" disabled={busy || !queue.length} onClick={nextFromQueue}>Siguiente de la cola</button>}
-            {selected.trackId && <>
-              <button type="button" className="button small" disabled={busy} onClick={()=>changePlayback(selected.playbackStatus==='playing'?'paused':'playing')}>{selected.playbackStatus==='playing'?'Pausar para todos':'Reanudar para todos'}</button>
-              {selected.shareEnabled && <button type="button" className="button small" disabled={busy} onClick={disableSharing}>Dejar de compartir</button>}
-            </>}
-          </div>}
-          <p className="disclosure">Para escuchar en grupo, el anfitrión primero sube una canción a Cloudflare R2, la selecciona aquí y confirma que puede compartirla. Cada participante debe iniciar sesión, unirse a la sala, activar su salida y pulsar Play. La sincronización lógica no garantiza precisión acústica ni sonido con pantalla bloqueada.</p>
-        </div>
-      </section>}
-      {selected && selectedId===selected.id && <section className="content-section">
-        <div className="section-heading"><h2>Escucha aquí</h2><span>{selected.trackId && selected.shareEnabled ? 'Audio disponible' : 'Pendiente de audio'}</span></div>
-        <RoomDevicesPanel room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>
-      </section>}
-      {selected && selectedId===selected.id && <section className="content-section">
-        <div className="section-heading"><h2>Participantes</h2><span>{members.length} en la sala</span></div>
-        <div className="track-list glass">
-          {members.map(member => <div className="track-row" key={member.userId}>
-            <span className="track-descriptor">
-              <strong>{member.userId === account.user?.id ? 'Tú' : member.email ?? 'Participante ' + member.userId.slice(0, 8)}</strong>
-              <small>{member.role === 'host' ? 'Anfitrión' : 'Oyente'}</small>
-            </span>
-            {selected.ownerUserId === account.user?.id && member.userId !== account.user?.id && <>
-              <button type="button" className="button small" disabled={busy} onClick={() => transferHost(member)}>Hacer anfitrión</button>
-              <button type="button" className="button secondary small" disabled={busy} onClick={() => removeMember(member)}>Expulsar</button>
-            </>}
-          </div>)}
-        </div>
-      </section>}
-      {selected && selectedId===selected.id && <section className="content-section">
-        <div className="section-heading"><h2>Cola compartida</h2></div>
-        <div className="track-list glass">
-          {!queue.length ? <p className="empty-note">La cola está vacía.</p> :
-            queue.map((item,index)=><div className="track-row" key={item.id}>
-              <span className="track-index">{index+1}</span>
-              <span className="track-descriptor"><strong>{item.title}</strong><small>{item.artist}</small></span>
-              {selected.ownerUserId===account.user?.id && <>
-                <button type="button" className="button small" aria-label={'Subir '+item.title} disabled={busy || queueBusy || index===0} onClick={()=>moveQueueItem(index,-1)}>↑</button>
-                <button type="button" className="button small" aria-label={'Bajar '+item.title} disabled={busy || queueBusy || index===queue.length-1} onClick={()=>moveQueueItem(index,1)}>↓</button>
-                <button type="button" className="icon-button" aria-label={'Quitar '+item.title} disabled={busy} onClick={()=>removeFromQueue(item.id)}><X size={17}/></button>
+
+          <aside className="room-workspace-side">
+            {isHost && <section className="room-panel room-invite" aria-labelledby="room-invite-title">
+              <div className="room-panel-head"><h3 id="room-invite-title">Invitar</h3><span className="room-panel-note">Acceso privado</span></div>
+              {issuedCode ? <>
+                <div className="room-invite-code"><code>{issuedCode}</code></div>
+                <div className="room-actions">
+                  <button type="button" className="button primary small" disabled={busy} onClick={()=>{void copyInviteLink();}}><Link2 size={15}/> Copiar enlace</button>
+                  <button type="button" className="button secondary small" onClick={()=>{void shareRoomLink(issuedCode);}}><Share2 size={15}/> Compartir</button>
+                  <button type="button" className="button secondary small" disabled={busy} onClick={()=>{void openQr();}}><QrCode size={15}/> QR</button>
+                  <button type="button" className="icon-button" aria-label="Copiar código" onClick={()=>{void copyInviteCode();}}><Copy size={16}/></button>
+                </div>
+                <p className="room-panel-note">El código se muestra solo ahora; guárdalo. Si generas otro, los enlaces anteriores dejan de funcionar.</p>
+                <details className="room-diagnostics">
+                  <summary>Generar un código nuevo</summary>
+                  <p>Invalida las invitaciones que ya compartiste.</p>
+                  <button type="button" className="button secondary small" disabled={busy} onClick={rotateCode}>Generar nuevo código</button>
+                </details>
+              </> : <>
+                <p className="room-panel-note">Comparte un enlace privado. Al crearlo se genera un código nuevo y los anteriores dejan de funcionar.</p>
+                <button type="button" className="button primary small" disabled={busy} onClick={()=>{void ensureInvite();}}><Link2 size={15}/> Crear enlace de invitación</button>
               </>}
-            </div>)}
+            </section>}
+
+            <section className="room-panel" aria-labelledby="room-members-title">
+              <div className="room-panel-head"><h3 id="room-members-title">Participantes</h3><span className="room-panel-note">{members.length} en la sala</span></div>
+              <ul className="room-member-list">
+                {members.map(member=><li key={member.userId}>
+                  <span className="room-member-name"><strong>{member.userId===account.user?.id?'Tú':member.email??'Participante'}</strong><small>{member.role==='host'?'Anfitrión':'Oyente'}</small></span>
+                  {isHost && member.userId!==account.user?.id && <span className="room-member-actions">
+                    <button type="button" className="button secondary small" disabled={busy} onClick={()=>transferHost(member)}>Hacer anfitrión</button>
+                    <button type="button" className="button secondary small" disabled={busy} onClick={()=>removeMember(member)}>Expulsar</button>
+                  </span>}
+                </li>)}
+              </ul>
+            </section>
+
+            <section className="room-devices-panel" id="room-devices" aria-label="Escucha aquí">
+              <RoomDevicesPanel room={selected} account={account} clockOffsetMs={clockOffsetMs} onActivate={onActivate}/>
+            </section>
+
+            <RoomRequestsPanel roomId={selected.id} hostId={selected.ownerUserId} account={account}/>
+
+            <details className="room-diagnostics room-panel">
+              <summary>Detalles técnicos</summary>
+              <p>El estado se guarda en PostgreSQL y los cambios llegan por un canal de eventos; la API sigue siendo la fuente de verdad.</p>
+              <p>Reloj: {clockMetrics ? 'offset estimado ' + Math.round(clockOffsetMs) + ' ms con ' + clockMetrics.samples + ' muestras y RTT de red ' + clockMetrics.rttMs + ' ms' : 'aún midiendo la conexión'}. Estas cifras no miden el retardo acústico; calibra cada salida en «Escucha aquí».</p>
+            </details>
+
+            <RoomAcousticQaPanel/>
+          </aside>
         </div>
-      </section>}
-      {selected && selectedId===selected.id && <RoomRequestsPanel roomId={selected.id} hostId={selected.ownerUserId} account={account}/>}
-      {selected && selectedId===selected.id && <RoomAcousticQaPanel/>}
+      </> : <>
+        {createJoinCards(false)}
+        <section className="content-section rooms-list-section">
+          <div className="section-heading"><div><h2>Mis salas</h2><p className="room-section-description">Tus sesiones y salas compartidas.</p></div>
+            <button type="button" className="icon-button glass-chip" disabled={loadingRooms} aria-label="Actualizar salas" onClick={()=>{void refresh();}}><RefreshCw size={18}/></button>
+          </div>
+          {loadingRooms&&!rooms.length ? <div className="rooms-list glass" role="status" aria-label="Cargando tus salas">
+            {[0,1,2].map(index=><div className="room-skeleton-row" key={index} aria-hidden="true">
+              <span className="skeleton"/><span className="room-skeleton-lines"><span className="skeleton"/><span className="skeleton"/></span>
+            </div>)}
+          </div> :
+            !rooms.length ? <div className="room-empty glass">
+              <span className="room-empty-icon"><Music2 size={27}/></span><h3>Aquí comienza tu próxima sesión</h3>
+              <p>Aún no participas en ninguna sala. Crea una, selecciona música de tu biblioteca e invita a tus amigos.</p>
+              <button type="button" className="button secondary small" onClick={()=>document.getElementById('room-name')?.focus()}>Crear mi primera sala</button>
+            </div> : <div className="rooms-list glass">{rooms.map(room=><div className={'room-entry '+(selectedId===room.id?'is-selected':'')} key={room.id}>
+              <button className="room-entry-main" type="button" aria-pressed={selectedId===room.id} onClick={()=>{setSelectedId(room.id);setIssuedCode('');}}>
+                <span className="room-entry-icon"><RadioTower size={20}/></span>
+                <span className="room-entry-detail"><strong>{room.name}</strong><small>{room.mode==='party'?'Party Sound · beta':'Escucha compartida'} · {room.participantCount} {room.participantCount===1?'participante':'participantes'}</small></span>
+                <span className="room-entry-state">{room.ownerUserId===account.user?.id?'Anfitrión':'Invitado'}</span>
+              </button>
+              <button className="icon-button" type="button" disabled={busy} aria-label={'Salir o cerrar '+room.name} onClick={()=>leaveOrClose(room)}><X size={17}/></button>
+            </div>)}</div>}
+        </section>
+      </>}
+
+      <ConfirmModal
+        isOpen={Boolean(confirmAction)}
+        title={confirmAction?.title ?? ''}
+        message={confirmAction?.message ?? ''}
+        confirmLabel={confirmAction?.confirmLabel}
+        onCancel={()=>setConfirmAction(null)}
+        onConfirm={()=>{const run=confirmAction?.run; setConfirmAction(null); run?.();}}
+      />
+      <RoomQRModal isOpen={inviteOpen} onClose={()=>setInviteOpen(false)} roomName={selected?.name ?? 'la sala'} inviteCode={issuedCode}/>
     </>}
   </section>;
 }
