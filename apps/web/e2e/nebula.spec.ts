@@ -79,7 +79,7 @@ test('local audio import survives reload in IndexedDB', async ({page}) => {
   pcm.writeUInt16LE(2,32); pcm.writeUInt16LE(16,34); pcm.write('data',36); pcm.writeUInt32LE(pcm.length-44,40);
   await page.getByLabel('Importar archivos de audio propios').setInputFiles({name:'mi-cancion.wav',mimeType:'audio/wav',buffer:pcm});
   await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'mi-cancion'}).first()).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('guardadas');
+  await expect(page.getByRole('status')).toContainText('1 canción guardada');
   await page.reload();
   await navigate(page,'Biblioteca');
   await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'mi-cancion'}).first()).toBeVisible();

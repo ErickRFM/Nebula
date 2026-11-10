@@ -613,7 +613,7 @@ export function useLocalAudio(): Player {
       const results=await Promise.allSettled(added.map(item=>saveSong(item.record)));
       const saved=results.filter(result=>result.status==='fulfilled').length;
       setNotice(saved===added.length
-        ? added.length+' canción(es) guardadas en este navegador con sus metadatos disponibles.'
+        ? (added.length===1 ? '1 canción guardada' : added.length+' canciones guardadas')+' en este navegador con sus metadatos disponibles.'
         : saved+' de '+added.length+' guardadas; las demás solo estarán disponibles hasta cerrar esta sesión.');
     })().catch(()=>{
       setNotice('No se pudieron procesar algunos archivos. Intenta de nuevo con un lote más pequeño.');

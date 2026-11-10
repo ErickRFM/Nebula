@@ -4,7 +4,7 @@
  */
 export function clearTransientPlaybackNotice(previous: string): string {
   const saving = previous.startsWith('Guardando tus canciones en este dispositivo');
-  const saved = previous.includes(' guardadas') &&
+  const saved = (previous.includes(' guardadas') || previous.includes(' guardada')) &&
     (previous.includes('en este navegador') || previous.includes('esta sesión'));
   return saving || saved ? previous : '';
 }

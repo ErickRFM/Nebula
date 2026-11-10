@@ -170,11 +170,11 @@ export function CloudLibrary({
           throw failure;
         }
       }
-      setMessage(uploaded+' canción(es) nuevas en tu nube; '+duplicates+' duplicado(s) omitidos.'+(artworkFailed?' '+artworkFailed+' portada(s) pendientes.':''));
+      setMessage((uploaded===1?'1 canción nueva':uploaded+' canciones nuevas')+' en tu nube; '+(duplicates===1?'1 duplicado omitido':duplicates+' duplicados omitidos')+'.'+(artworkFailed?(artworkFailed===1?' 1 portada pendiente.':artworkFailed+' portadas pendientes.'):''));
       return true;
     }catch(failure){
       setError(failure instanceof Error?failure.message:'Error al subir canciones.');
-      if(uploaded||duplicates)setMessage(uploaded+' canción(es) nuevas; '+duplicates+' duplicado(s) detectados antes del error.');
+      if(uploaded||duplicates)setMessage((uploaded===1?'1 canción nueva':uploaded+' canciones nuevas')+'; '+(duplicates===1?'1 duplicado detectado':duplicates+' duplicados detectados')+' antes del error.');
       return false;
     }finally{
       uploadController.current=null;

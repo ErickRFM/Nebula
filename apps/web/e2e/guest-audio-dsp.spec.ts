@@ -27,7 +27,7 @@ test('guest audio is saved after a reload without signing in, with persistent so
  await page.getByLabel('Importar archivos de audio propios').setInputFiles({
   name:'sin-cuenta.wav',mimeType:'audio/wav',buffer:pcm,
  });
- await expect(page.getByText('1 canción(es) guardadas',{exact:false})).toBeVisible();
+ await expect(page.getByText('1 canción guardada',{exact:false})).toBeVisible();
  await navigate(page,'Ajustes');
  const studio=page.getByRole('region',{name:'NÉBULA Audio Studio'});
  await expect(studio.getByRole('radio',{name:'Natural'})).toBeChecked();
