@@ -177,7 +177,7 @@ p{line-height:1.55}
  .nebula-shell{grid-template-columns:210px minmax(0,1fr)}
  .sidebar{padding:20px 12px}.brand{font-size:.95rem}
  .mini-player{left:244px}
- .hero-planet{right:-145px;opacity:.52}
+ .hero-planet{right:-180px;opacity:.32}
  .album-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
  .track-album{display:none}
 }
@@ -226,7 +226,8 @@ p{line-height:1.55}
  .player-actions{margin:23px 0}
  .toast{left:13px;right:13px;bottom:149px;max-width:none}
 }
-@media(max-width:390px){.hero{padding:23px 18px}.hero h1{font-size:1.83rem}.hero-planet{right:-145px}.stats-grid{grid-template-columns:1fr}.featured-cover{max-width:32%}.track-descriptor small{font-size:.65rem}}
+@media(max-width:390px){.hero{padding:23px 18px}.hero h1{font-size:1.83rem}.hero-planet{right:-145px}.featured-cover{max-width:32%}.track-descriptor small{font-size:.65rem}}
+@media(max-width:359px){.stats-grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{animation-duration:.01ms!important;transition-duration:.01ms!important}
 
@@ -1151,3 +1152,37 @@ html.nebula-high-contrast .eq-ab button[aria-pressed="true"]{background:#ffe59b;
 .room-diagnostics summary::marker{color:#b79bff}
 .room-diagnostics p{margin:6px 0 0;max-width:64ch}
 @media(max-width:560px){.room-sync-badges>span{font-size:.69rem;padding:5px 9px}}
+
+/* 2026-11-09 · Auditoría UI: reproductor enfocado, encabezados fluidos y táctil.
+   El Audio Studio del reproductor se colapsa para no alargar la pantalla ni
+   descentrar la portada cuando el panel crece. */
+.player-sound-tools{max-width:940px;margin:26px auto 4px;border:1px solid var(--edge);border-radius:18px;background:rgba(24,26,50,.65);overflow:hidden}
+.player-sound-tools>summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer;padding:16px 20px;min-height:64px}
+.player-sound-tools>summary::-webkit-details-marker{display:none}
+.player-sound-tools>summary>span{flex:1;min-width:0;display:grid;gap:3px}
+.player-sound-tools>summary strong{font-size:.93rem}
+.player-sound-tools>summary small{font-size:.76rem;color:var(--muted);line-height:1.45}
+.player-sound-tools .management-chevron{transition:transform .18s ease;color:#bca7e8}
+.player-sound-tools[open] .management-chevron{transform:rotate(90deg)}
+.player-sound-tools>summary:focus-visible{outline:2px solid var(--cyan);outline-offset:-3px;border-radius:16px}
+.player-sound-tools>.audio-studio{max-width:none;margin:0;border:0;border-top:1px solid var(--edge);border-radius:0;box-shadow:none}
+.heading-with-action{flex-wrap:wrap}
+.heading-with-action>div{flex:1 1 280px;min-width:0}
+.heading-with-action>.upload-control{flex:none}
+@media(max-width:760px){
+ .player-sound-tools{margin-top:18px}
+ .player-sound-tools>summary{padding:14px 15px;min-height:60px}
+}
+@media(pointer:coarse){.chip{min-height:44px}}
+.track-actions{display:inline-flex;align-items:center;gap:4px;flex:none}
+.skip-link{position:fixed;top:10px;left:10px;z-index:100;padding:11px 15px;border-radius:10px;background:#f4efff;color:#1d1235;font-weight:800;font-size:.82rem;text-decoration:none;transform:translateY(-160%);transition:transform .15s ease}
+.skip-link:focus{transform:none}
+.main-area:focus{outline:none}
+@media(max-width:720px){
+ .track-row .track-actions{margin-left:auto}
+}
+@media(max-width:560px){
+ .cloud-library .section-heading{flex-wrap:wrap;gap:8px}
+ .cloud-library .section-heading h2{flex:1 1 100%}
+}
+@media(prefers-reduced-motion:reduce){.player-sound-tools .management-chevron{transition:none}.skip-link{transition:none}}
