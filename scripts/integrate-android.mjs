@@ -53,7 +53,7 @@ public class MainActivity extends BridgeActivity {
 }
 `;
 writeFileSync(main, activity);
-for (const name of ['NebulaPartyPlugin.kt', 'NebulaPlaybackService.kt']) {
+for (const name of ['NebulaPartyPlugin.kt', 'NebulaPlaybackService.kt', 'NebulaAudioEffects.kt']) {
   cpSync(join(root, 'native/android', name), join(files.sourceDir, name));
 }
 const permissions = [
@@ -62,6 +62,7 @@ const permissions = [
   'android.permission.ACCESS_WIFI_STATE',
   'android.permission.FOREGROUND_SERVICE',
   'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
+  'android.permission.MODIFY_AUDIO_SETTINGS',
   'android.permission.POST_NOTIFICATIONS',
 ];
 let manifest = readFileSync(files.manifest, 'utf8');

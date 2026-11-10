@@ -11,6 +11,8 @@ coverage/
 !.env.example
 .DS_Store
 android/
+!native/android/
+!native/android/**
 ios/
 *.log
 *.apk

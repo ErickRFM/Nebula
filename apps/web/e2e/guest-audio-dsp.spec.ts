@@ -11,6 +11,10 @@ async function navigate(page:Page,label:string){
  }
 }
 
+async function openManualEq(studio:ReturnType<Page['getByRole']>){
+ await studio.locator('summary',{hasText:'Ecualización manual'}).click();
+}
+
 test('guest audio is saved after a reload without signing in, with persistent sound preferences',async({page})=>{
  await page.goto('/');
  await navigate(page,'Biblioteca');
@@ -25,21 +29,32 @@ test('guest audio is saved after a reload without signing in, with persistent so
  });
  await expect(page.getByText('1 canción(es) guardadas',{exact:false})).toBeVisible();
  await navigate(page,'Ajustes');
- await page.getByRole('radio',{name:'Claridad'}).check();
+ const studio=page.getByRole('region',{name:'NÉBULA Audio Studio'});
+ await expect(studio.getByRole('radio',{name:'Natural'})).toBeChecked();
+ const intensity=studio.getByRole('slider',{name:'Intensidad de inmersión'});
+ await expect(intensity).toHaveValue('60');
+ await openManualEq(studio);
+ await studio.getByRole('radio',{name:'Claridad'}).check();
  const faders=page.getByRole('group',{name:'Ajuste fino por banda'});
  const bassBand=faders.getByRole('slider',{name:'Banda 60 Hz'});
  await expect(bassBand).toHaveValue('-0.5');
  await bassBand.focus();
  await bassBand.press('ArrowRight');
  await expect(bassBand).toHaveValue('0');
- await expect(page.getByRole('radio',{name:'Personalizado'})).toBeChecked();
+ await expect(studio.getByRole('radio',{name:'Personalizado'})).toBeChecked();
+ await intensity.fill('80');
+ await studio.getByRole('slider',{name:'Graves armónicos'}).fill('70');
  const hum=page.getByRole('switch',{name:'Reducir zumbido'});
  await hum.click();
  await expect(hum).toHaveAttribute('aria-checked','true');
  await expect(page.getByRole('button',{name:'Proteger biblioteca'})).toBeVisible();
  await page.reload();
  await navigate(page,'Ajustes');
- await expect(page.getByRole('radio',{name:'Personalizado'})).toBeChecked();
+ const reloadedStudio=page.getByRole('region',{name:'NÉBULA Audio Studio'});
+ await expect(reloadedStudio.getByRole('slider',{name:'Intensidad de inmersión'})).toHaveValue('80');
+ await expect(reloadedStudio.getByRole('slider',{name:'Graves armónicos'})).toHaveValue('70');
+ await openManualEq(reloadedStudio);
+ await expect(reloadedStudio.getByRole('radio',{name:'Personalizado'})).toBeChecked();
  await expect(page.getByRole('group',{name:'Ajuste fino por banda'}).getByRole('slider',{name:'Banda 60 Hz'})).toHaveValue('0');
  await expect(page.getByRole('switch',{name:'Reducir zumbido'})).toHaveAttribute('aria-checked','true');
  await navigate(page,'Biblioteca');
@@ -54,6 +69,10 @@ test('a new guest can switch EQ presets without audio or login on mobile',async(
  await navigate(page,'Ajustes');
  const studio=page.getByRole('region',{name:'NÉBULA Audio Studio'});
  await expect(studio).toBeVisible();
+ await expect(studio.getByRole('radio',{name:'Natural'})).toBeChecked();
+ await studio.getByRole('radio',{name:'Cine'}).check();
+ await expect(studio.getByRole('radio',{name:'Cine'})).toBeChecked();
+ await openManualEq(studio);
  const preset=studio.getByRole('radio',{name:'Claridad'});
  await preset.check();
  await expect(preset).toBeChecked();
