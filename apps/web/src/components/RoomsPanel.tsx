@@ -452,7 +452,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
 
     {!account.user ? <div className="room-empty glass rooms-signed-out">
       <span className="room-empty-icon"><RadioTower size={27}/></span>
-      <h3>Escuchen juntos, cada quien en su dispositivo</h3>
+      <h2>Escuchen juntos, cada quien en su dispositivo</h2>
       <p>Las salas son espacios privados: el anfitrión comparte música autorizada desde su biblioteca y la reproducción se sincroniza para quienes están dentro.</p>
       <ul className="room-empty-points">
         <li><Users size={15}/> Acceso solo con cuenta e invitación privada</li>
@@ -496,7 +496,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
           </div>)}
         </div> :
           !rooms.length ? <div className="room-empty glass">
-            <span className="room-empty-icon"><Music2 size={27}/></span><h3>Aquí comienza tu próxima sesión</h3>
+            <span className="room-empty-icon"><Music2 size={27}/></span><h2>Aquí comienza tu próxima sesión</h2>
             <p>Aún no participas en ninguna sala. Crea una, selecciona música de tu biblioteca e invita a tus amigos.</p>
             <button type="button" className="button secondary small" onClick={()=>document.getElementById('room-name')?.focus()}>Crear mi primera sala</button>
           </div> : <div className="rooms-list glass">{rooms.map(room=><div className={'room-entry '+(selectedId===room.id?'is-selected':'')} key={room.id}>
