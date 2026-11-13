@@ -301,7 +301,8 @@ export function NebulaApp() {
       if(target==='inicio')next.searchParams.delete('vista');
       else next.searchParams.set('vista',target);
       if(next.href!==window.location.href)window.history.pushState({nebulaScreen:target},'',next);
-      window.scrollTo({top:0,behavior:'auto'});
+      // 'auto' hereda el scroll-behavior:smooth del html y animaría el salto al inicio de la vista.
+      window.scrollTo({top:0,behavior:'instant'});
     }
     setScreen(target);
     setMobileMoreOpen(false);
