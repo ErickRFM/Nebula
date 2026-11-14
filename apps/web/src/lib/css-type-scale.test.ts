@@ -58,18 +58,26 @@ describe('suelo de la escala tipográfica', () => {
     expect(bajas, 'clamp con mínimo bajo el suelo: ' + bajas.join(' | ')).toEqual([]);
   });
 
-  it('el logotipo relativo se resuelve sobre una marca que sigue siendo de 1rem o más', () => {
-    // `.brand small` es el único font-size en em del sistema: su tamaño real es
-    // .64em del padre, así que el suelo depende de que `.brand` no encoja.
-    const em = medidas.filter((m) => m.resuelto === 'em');
-    expect(em.length, 'se esperaba al menos un tamaño em (el logotipo)').toBeGreaterThan(0);
+  it('el logotipo `.brand small` conserva un mínimo de 11px pase lo que pase en el padre', () => {
+    // Es el único tamaño relativo del sistema: si `.brand` encoje en móvil, un
+    // `.64em` a secas volvería a 9.3px, así que el suelo tiene que estar dentro
+    // del propio clamp.
+    const regla = bloques.find((b) => b.selector.split(',').map((s) => s.trim()).includes('.brand small'));
+    expect(regla, 'no existe la regla de .brand small').toBeDefined();
+    const declaracion = /font-size\s*:\s*([^;]+)/.exec(regla!.body)?.[1].trim();
+    expect(declaracion, '.brand small sin font-size').toBeTruthy();
+    const clamp = /^clamp\(\s*([0-9.]+)(px|rem)/.exec(declaracion!);
+    if (clamp) {
+      expect(clamp[2] === 'rem' ? parseFloat(clamp[1]) * REM : parseFloat(clamp[1])).toBeGreaterThanOrEqual(SUELO_PX);
+      return;
+    }
+    const em = /([0-9.]+)em/.exec(declaracion!);
+    expect(em, `formato de tamaño no reconocido en .brand small: ${declaracion}`).toBeTruthy();
     const marca = bloques.find((b) => b.selector.split(',').map((s) => s.trim()).includes('.brand'));
     expect(marca, '.brand debe declarar su tamaño en rem').toBeDefined();
     const base = /font-size:\s*([0-9.]+)rem/.exec(marca!.body);
     expect(base, '.brand sin font-size en rem').not.toBeNull();
-    const basePx = parseFloat(base![1]) * REM;
-    const factores = [...css.matchAll(/font-size:\s*([0-9.]+)em/g)].map((m) => parseFloat(m[1]));
-    for (const f of factores) expect(f * basePx, `.brand small a ${f}em sobre ${basePx}px`).toBeGreaterThanOrEqual(SUELO_PX);
+    expect(parseFloat(em![1]) * parseFloat(base![1]) * REM).toBeGreaterThanOrEqual(SUELO_PX);
   });
 
   it('las etiquetas de fader y de banda conservan su suelo explícito', () => {

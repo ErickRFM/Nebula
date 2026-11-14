@@ -22,7 +22,7 @@ p{line-height:1.55}
 .glass{background:var(--glass);border:1px solid var(--edge);box-shadow:0 15px 44px rgba(2,3,12,.2),inset 0 1px 0 rgba(255,255,255,.055);-webkit-backdrop-filter:blur(23px);backdrop-filter:blur(23px)}
 .sidebar{border-radius:24px;padding:26px 18px;display:flex;flex-direction:column;gap:22px;height:calc(100vh - 36px);height:calc(100dvh - 36px);position:sticky;top:18px}
 .brand{display:flex;align-items:center;gap:10px;white-space:nowrap;font-weight:800;letter-spacing:.17em;font-size:1.08rem}
-.brand small{font-size:.64em;letter-spacing:.45em;vertical-align:middle;color:#b0a0d1}
+.brand small{font-size:clamp(11px,.64em,11.6px);letter-spacing:.45em;vertical-align:middle;color:#b0a0d1}
 .brand-mark{display:grid;place-items:center;width:39px;height:39px;border-radius:13px;background:linear-gradient(135deg,#ddd3ff,#ad8dec 55%,#6d63c8);color:#24183c;box-shadow:0 4px 20px #996def48}
 .sidebar-label,.eyebrow{font-size:.75rem;letter-spacing:.24em;font-weight:800;color:#c3a3fb;text-transform:uppercase}
 .sidebar-label{padding:0 12px;color:#a9a7c6}
