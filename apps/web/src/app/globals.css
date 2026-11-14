@@ -1021,10 +1021,11 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
     Android (Chrome 83 en el emulador API 30) ignora ambas en silencio. */
  .eq-master input[type=range],.eq-module input[type=range]{padding-top:14px;padding-bottom:14px}
  .eq-classic summary{display:flex;align-items:center;min-height:44px}
- .eq-node-hit{stroke:transparent;stroke-width:10px}
- /* Las dos líneas de la curva son decorativas y no tienen handlers, pero su área pintada se
-    lleva los píxeles del borde del nodo: medido en Android, a ±22px verticales el tap caía ahí. */
- .eq-curve>path{pointer-events:none}
+ .eq-node-hit{stroke:transparent;stroke-width:12px}
+ /* En la curva solo los nodos responden al toque: el área rellena, la línea, las rejillas y las
+    etiquetas no tienen handlers pero se llevan los píxeles del anillo exterior del nodo. Medido
+    en Android y Chromium: a ±22px verticales el tap caía en un <path>/<line> muerto. */
+ .eq-curve>path,.eq-curve>line,.eq-curve>text,.eq-grid-line,.eq-axis-label,.eq-active-label{pointer-events:none}
  .seek-range{padding-top:11px;padding-bottom:11px}
 }
 @media(max-width:760px){
