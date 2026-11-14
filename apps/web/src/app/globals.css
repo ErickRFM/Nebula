@@ -1022,6 +1022,9 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .eq-master input[type=range],.eq-module input[type=range]{padding-top:14px;padding-bottom:14px}
  .eq-classic summary{display:flex;align-items:center;min-height:44px}
  .eq-node-hit{stroke:transparent;stroke-width:10px}
+ /* Las dos líneas de la curva son decorativas y no tienen handlers, pero su área pintada se
+    lleva los píxeles del borde del nodo: medido en Android, a ±22px verticales el tap caía ahí. */
+ .eq-curve>path{pointer-events:none}
  .seek-range{padding-top:11px;padding-bottom:11px}
 }
 @media(max-width:760px){
