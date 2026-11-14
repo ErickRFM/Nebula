@@ -45,6 +45,10 @@ const navigation: { id: Screen; label: string; icon: LucideIcon }[] = [
 const primaryDestinations:Screen[]=['inicio','buscar','biblioteca','salas'];
 const collectionDestinations:Screen[]=['playlists','explorar'];
 const settingsDestinations:Screen[]=['cuenta','ajustes'];
+function viewTitle(target: Screen) {
+  const label = target === 'reproductor' ? 'Reproduciendo ahora' : navigation.find(item => item.id === target)?.label ?? 'NÉBULA Music';
+  return label + ' · NÉBULA Music';
+}
 function screenFromUrl():Screen {
   const value=new URL(window.location.href).searchParams.get('vista');
   return navigation.some(item=>item.id===value)?value as Screen:'inicio';
@@ -223,7 +227,9 @@ export function NebulaApp() {
   useEffect(() => {
     // Keep room invitation tokens in the hash; the selected view has a shareable URL.
     const restoreView = () => {
-      setScreen(roomInviteFromHash(window.location.hash)?'salas':screenFromUrl());
+      const target: Screen = roomInviteFromHash(window.location.hash) ? 'salas' : screenFromUrl();
+      setScreen(target);
+      document.title = viewTitle(target);
       setMobileMoreOpen(false);
     };
     restoreView();
@@ -295,10 +301,21 @@ export function NebulaApp() {
       if(target==='inicio')next.searchParams.delete('vista');
       else next.searchParams.set('vista',target);
       if(next.href!==window.location.href)window.history.pushState({nebulaScreen:target},'',next);
-      window.scrollTo({top:0,behavior:'auto'});
+      // 'auto' hereda el scroll-behavior:smooth del html y animaría el salto al inicio de la vista.
+      window.scrollTo({top:0,behavior:'instant'});
     }
     setScreen(target);
     setMobileMoreOpen(false);
+    document.title = viewTitle(target);
+    // El foco en el contenido es lo que anuncia el cambio de pantalla a un lector de pantalla,
+    // pero una vista que ya reclamó el foco para un control propio tiene prioridad.
+    requestAnimationFrame(() => {
+      const main = document.getElementById('nebula-main');
+      if (!main) return;
+      const active = document.activeElement;
+      if (active && active !== document.body && active !== main && main.contains(active)) return;
+      main.focus({ preventScroll: true });
+    });
   }
   const playbackActive = Boolean(player.current);
   return <div className="nebula-shell">

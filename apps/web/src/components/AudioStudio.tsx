@@ -110,7 +110,7 @@ export function AudioStudio({ player, compact = false }: { player: Player; compa
     <div className="audio-studio-heading">
       <div>
         <span className="audio-studio-eyebrow">NÉBULA AUDIO STUDIO · V4</span>
-        <h3>Tu música, con más cuerpo y detalle</h3>
+        <h2>Tu música, con más cuerpo y detalle</h2>
         <p>Nivelado, dinámica multibanda, graves armónicos y escena estéreo en tiempo real. Los archivos originales no se modifican.</p>
       </div>
       <span className={'audio-studio-status' + (effective ? ' is-enhanced' : '')}>
