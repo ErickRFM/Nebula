@@ -593,7 +593,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .music-empty{flex-wrap:wrap;padding:18px}
  .music-empty>button{margin-left:0;width:100%}
  .album-grid{gap:10px}
- .bottom-nav{gap:0;justify-content:space-between;padding-inline:6px;overflow-x:auto;scrollbar-width:none}
+ .bottom-nav{gap:0;justify-content:space-between;padding-left:6px;padding-right:6px;overflow-x:auto;scrollbar-width:none}
  .bottom-nav button{flex:1 0 54px;min-width:54px;min-height:50px}
  .mini-player{bottom:calc(73px + var(--sa-bottom));left:9px;right:9px}
  .mini-track{max-width:calc(100% - 135px)}.mini-track small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -771,7 +771,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
  .bottom-nav{overflow-x:visible;justify-content:space-around}
  .bottom-nav button{flex:1 1 25%;min-width:0;min-height:52px}
  .library-management>summary{padding:15px}
- .library-management-body{padding-inline:12px}
+ .library-management-body{padding-left:12px;padding-right:12px}
  .yt-track-more{flex:1 1 100%}
  .yt-track-more-actions{flex-direction:row;flex-wrap:wrap}
  .yt-track-more-actions>*{flex:1 1 140px}
@@ -862,7 +862,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 
 /* Navigation cohesion 2026-11-05: shared hierarchy in sidebar and mobile menu. */
 .sidebar .side-links{align-content:start;gap:4px}
-.sidebar .side-links>.sidebar-label{margin:14px 0 3px;padding-inline:12px;color:#a9a7c6;font-size:.63rem;letter-spacing:.15em}
+.sidebar .side-links>.sidebar-label{margin:14px 0 3px;padding-left:12px;padding-right:12px;color:#a9a7c6;font-size:.63rem;letter-spacing:.15em}
 .sidebar .side-links>.sidebar-label:first-child{margin-top:0}
 .sidebar .side-links .nav-item{min-height:44px}
 .sidebar .side-collection{min-width:0;margin:0 0 3px 12px;padding:2px 0 2px 10px;border-left:1px solid var(--edge);gap:2px}
@@ -885,7 +885,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
   .hero-actions>.upload-control{flex:1 1 150px}
   .hero-actions>.upload-control>.button{width:100%}
   .heading-with-action>.upload-control{flex:none}
-  .playlist-picker-create{margin-inline:12px;padding-inline:8px}
+  .playlist-picker-create{margin-left:12px;margin-right:12px;padding-left:8px;padding-right:8px}
   .playlist-picker-create-row{flex-wrap:wrap}
   .playlist-picker-create-row>input,.playlist-picker-create-row>.button{flex:1 1 100%}
 }

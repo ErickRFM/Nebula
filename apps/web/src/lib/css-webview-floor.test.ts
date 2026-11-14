@@ -14,13 +14,21 @@ const css = readFileSync(fileURLToPath(new URL('../app/globals.css', import.meta
 const blocks = [...css.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
   .map((match) => ({ selector: match[1].trim().replace(/\s+/g, ' '), body: match[2] }));
 
-const declarations = (body) => body.split(';').map((part) => part.trim()).filter(Boolean);
-const propertyOf = (declaration) => declaration.split(':')[0].trim().toLowerCase();
+const declarations = (body: string): string[] => body.split(';').map((part: string) => part.trim()).filter(Boolean);
+const propertyOf = (declaration: string): string => declaration.split(':')[0].trim().toLowerCase();
 
 describe('suelo de capacidades del WebView (Chrome 83)', () => {
-  const prohibidos = [[':is(', /:is\(/], [':where(', /:where\(/], ['inset:', /\binset:/], ['padding-block', /padding-block/], ['margin-block', /margin-block/]];
+  const prohibidos: [string, RegExp][] = [
+    [':is(', /:is\(/],
+    [':where(', /:where\(/],
+    ['inset:', /\binset:/],
+    ['padding-block', /\bpadding-block/],
+    ['margin-block', /\bmargin-block/],
+    ['padding-inline', /\bpadding-inline/],
+    ['margin-inline', /\bmargin-inline/],
+  ];
 
-  it.each(prohibidos)('no usa %s, que el WebView ignora sin avisar', (token, pattern) => {
+  it.each(prohibidos)('no usa %s, que el WebView ignora sin avisar', (token: string, pattern: RegExp) => {
     const hits = blocks
       .filter((block) => pattern.test(block.selector + '{' + block.body))
       .map((block) => block.selector);
@@ -34,7 +42,7 @@ describe('suelo de capacidades del WebView (Chrome 83)', () => {
       for (const declaration of propias) {
         if (!/[\d.(]d[vwi]h\b/.test(declaration)) continue;
         const property = propertyOf(declaration);
-        const tieneFallback = propias.some((otra) =>
+        const tieneFallback = propias.some((otra: string) =>
           propertyOf(otra) === property && !/d[vwi]h\b/.test(otra) && /vh\b/.test(otra));
         if (!tieneFallback) huérfanas.push(`${block.selector} { ${declaration} }`);
       }
