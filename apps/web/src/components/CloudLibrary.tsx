@@ -257,7 +257,7 @@ export function CloudLibrary({
   return <section className="content-section cloud-library">
     <div className="section-heading">
       <h2><Cloud size={21}/> Mi música en la nube</h2>
-      <span className="server-pill">{items.length}{nextCursor?'+':''} canciones · Cloudflare R2</span>
+      <span className="server-pill">{items.length}{nextCursor?'+':''} canciones privadas</span>
     </div>
     {!account.configured || !account.user ? <div className="disclosure">
       <CloudOff size={18}/> Inicia sesión en Cuenta para guardar y escuchar tus canciones desde cualquier dispositivo.
