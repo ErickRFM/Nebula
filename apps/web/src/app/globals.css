@@ -368,7 +368,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
  .player-art{max-width:440px;margin:auto}
  .player-detail{padding:0}
 }
-@media(pointer:coarse){
+@media(pointer:coarse),(hover:none){
  .icon-button{min-width:44px;min-height:44px}
  .nav-item{min-height:44px}
  .button.small,.text-action,select{min-height:44px}
@@ -422,7 +422,7 @@ html.reduce-motion *,html.reduce-motion *:before,html.reduce-motion *:after{anim
 .room-empty-points{list-style:none;margin:6px 0 14px;padding:0;display:grid;gap:8px;text-align:left;max-width:520px}
 .room-empty-points li{display:flex;align-items:center;gap:9px;color:#c9c4e2;font-size:.8rem}
 .room-empty-points svg{flex:none;color:#cbb1ff}
-.room-empty :is(h2,h3){font-size:1.05rem;margin:5px 0 0}.room-empty p{max-width:490px;color:#c0bbd9;font-size:.83rem;margin:0 0 5px}
+.room-empty h2,.room-empty h3{font-size:1.05rem;margin:5px 0 0}.room-empty p{max-width:490px;color:#c0bbd9;font-size:.83rem;margin:0 0 5px}
 .room-empty-icon{width:55px;height:55px}.rooms-list{border-radius:17px;overflow:hidden}
 .room-entry{display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid var(--edge)}
 .room-entry:last-child{border-bottom:0}.room-entry.is-selected,.room-entry:hover{background:rgba(184,153,250,.10)}
@@ -903,7 +903,7 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .audio-studio{margin:18px 0 22px;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(196,179,245,.20);border-radius:22px;background:linear-gradient(155deg,rgba(26,29,55,.98),rgba(18,23,45,.97));box-shadow:0 16px 36px rgba(0,0,0,.16);min-width:0;max-width:810px}
 .audio-studio-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .audio-studio-eyebrow{display:block;color:#bba2f4;font-size:.7rem;font-weight:800;letter-spacing:.17em;margin-bottom:6px}
-.audio-studio-heading :is(h2,h3){font-size:clamp(1.15rem,2vw,1.55rem);line-height:1.25;margin:0 0 6px}
+.audio-studio-heading h2,.audio-studio-heading h3{font-size:clamp(1.15rem,2vw,1.55rem);line-height:1.25;margin:0 0 6px}
 .audio-studio-heading p{color:#b9b6d0;margin:0;font-size:.82rem;max-width:500px}
 .audio-studio-status{font-size:.73rem;font-weight:750;line-height:1.4;color:#bac2d9;border:1px solid #ffffff26;background:#ffffff09;border-radius:999px;padding:7px 11px;white-space:nowrap}
 .audio-studio-status.is-enhanced{color:#b8f5df;border-color:#50bd9970;background:#295a503a}
@@ -1008,19 +1008,21 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .audio-studio-value{font-size:.75rem;font-weight:750;color:#d9ccff;white-space:nowrap}
 .audio-studio-disclosure{margin:14px 0 0;color:#a9b1ca;font-size:.72rem;line-height:1.5}
 .audio-studio-compact{margin:15px 0;padding:16px}
-.audio-studio-compact .audio-studio-heading :is(h2,h3){font-size:1.12rem}
+.audio-studio-compact .audio-studio-heading h2,.audio-studio-compact .audio-studio-heading h3{font-size:1.12rem}
 .audio-studio-compact .eq-graph{height:clamp(190px,30vw,250px)}
 .audio-studio-compact .eq-fader input[type=range]{height:92px}
 
-@media(pointer:coarse){
+@media(pointer:coarse),(hover:none){
  .eq-preset{padding:10px 13px}
  .eq-profile{padding:12px 13px}
  .eq-ab button,.eq-reset{min-height:44px}
- /* Deslizadores y divulgadores: el área táctil llega a 44px sin engordar la pista visible. */
- .eq-master input[type=range],.eq-module input[type=range]{padding-block:14px}
+ /* Deslizadores y divulgadores: el área táctil llega a 44px sin engordar la pista visible.
+    padding-top/bottom y stroke-width, no padding-block ni la propiedad CSS r: el WebView de
+    Android (Chrome 83 en el emulador API 30) ignora ambas en silencio. */
+ .eq-master input[type=range],.eq-module input[type=range]{padding-top:14px;padding-bottom:14px}
  .eq-classic summary{display:flex;align-items:center;min-height:44px}
- .eq-node-hit{r:22px}
- .seek-range{padding-block:11px}
+ .eq-node-hit{stroke:transparent;stroke-width:10px}
+ .seek-range{padding-top:11px;padding-bottom:11px}
 }
 @media(max-width:760px){
  .audio-studio{padding:14px;border-radius:18px}
@@ -1097,7 +1099,7 @@ html.nebula-high-contrast .eq-ab button[aria-pressed="true"]{background:#ffe59b;
 .bridge-queue-footer .disclosure{flex:1 1 200px;margin:0}
 .button.danger{background:rgba(255,120,150,.14);border:1px solid rgba(255,179,199,.45);color:#ffc2d2}
 .button.danger:hover{background:rgba(255,120,150,.24)}
-@media(pointer:coarse){.bridge-select{width:26px;height:26px;min-width:26px}}
+@media(pointer:coarse),(hover:none){.bridge-select{width:26px;height:26px;min-width:26px}}
 @media(max-width:760px){
  .bridge-queue{padding:11px}
  .bridge-queue-head{align-items:flex-start}
@@ -1181,7 +1183,7 @@ html.nebula-high-contrast .eq-ab button[aria-pressed="true"]{background:#ffe59b;
  .player-sound-tools{margin-top:18px}
  .player-sound-tools>summary{padding:14px 15px;min-height:60px}
 }
-@media(pointer:coarse){.chip{min-height:44px}}
+@media(pointer:coarse),(hover:none){.chip{min-height:44px}}
 .track-actions{display:inline-flex;align-items:center;gap:4px;flex:none}
 .skip-link{position:fixed;top:10px;left:10px;z-index:100;padding:11px 15px;border-radius:10px;background:#f4efff;color:#1d1235;font-weight:800;font-size:.82rem;text-decoration:none;transform:translateY(-160%);transition:transform .15s ease}
 .skip-link:focus{transform:none}
