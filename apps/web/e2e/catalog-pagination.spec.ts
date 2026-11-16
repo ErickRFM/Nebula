@@ -1,4 +1,4 @@
-import {test,expect,type Page} from './auth-test';
+import {test,expect,openSignInForm,type Page} from './auth-test';
 import {Pool} from 'pg';
 import {randomBytes,randomUUID,scryptSync} from 'node:crypto';
 
@@ -35,7 +35,7 @@ test('catalog paginates without duplicates and resets results on provider change
   await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
  }finally{await pool.end();}
  await page.goto('/');
- await page.getByRole('button',{name:'Mi cuenta'}).click();
+ await openSignInForm(page);
  await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
  await page.getByLabel('Contraseña').fill(password);
  await page.getByRole('button',{name:'Entrar'}).click();

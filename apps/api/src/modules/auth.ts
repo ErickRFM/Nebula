@@ -116,6 +116,25 @@ export function registerAuthRoutes(
     return signAccess(user, session.id);
   };
 
+  // Entrada sin formulario: cada visitante recibe una identidad propia y restringida, nunca
+  // una identidad compartida. El hash no es verificable, así que esta cuenta no puede
+  // iniciarse por correo y contraseña; solo existe a través de su cookie de refresh.
+  app.post('/v1/auth/guest', {
+    config: { rateLimit: { max: 12, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    if (!hasClientHeader(request)) return reply.code(400).send(fail('missing_client_header'));
+    const id = randomUUID();
+    const [user] = await db.insert(users).values({
+      id,
+      email: 'guest-' + id + '@nebula.invalid',
+      passwordHash: 'guest-account-disabled',
+      role: 'member',
+    }).returning({ id: users.id, email: users.email, role: users.role });
+    const accessToken = await issueSession(user, request, reply);
+    reply.header('Cache-Control', 'no-store');
+    return reply.code(201).send({ user, accessToken, expiresInSeconds: config.accessTtlSeconds });
+  });
+
   app.post('/v1/auth/register', { config: { rateLimit: { max: 8, timeWindow: '1 minute' } } }, async (request, reply) => {
     if (!config.allowPublicRegistration) return reply.code(403).send(fail('registration_closed'));
     const parsed = accountInput.safeParse(request.body);

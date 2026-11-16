@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './auth-test';
+import { test, expect, openSignInForm, type Page } from './auth-test';
 import { Pool } from 'pg';
 import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 
@@ -101,7 +101,7 @@ test('account login keeps a persistent private session', async ({page, request})
   expect(created.status()).toBe(201);
 
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await openSignInForm(page);
   await expect(page.getByRole('heading',{name:'Cuenta NÉBULA'})).toBeVisible();
   await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
   await page.getByLabel('Contraseña').fill(password);
@@ -143,7 +143,7 @@ test('private explorer saves a real provider reference, not an audio file',async
     await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
   }finally{await pool.end();}
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await openSignInForm(page);
   await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
   await page.getByLabel('Contraseña').fill(password);
   await page.getByRole('button',{name:'Entrar'}).click();
@@ -184,7 +184,7 @@ test('MusicBrainz lookup displays reviewed matches without importing audio',asyn
     await pool.query("INSERT INTO users (id,email,password_hash,role) VALUES ($1,$2,$3,'member')",[randomUUID(),email,hash]);
   }finally{await pool.end();}
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await openSignInForm(page);
   await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
   await page.getByLabel('Contraseña').fill(password);
   await page.getByRole('button',{name:'Entrar'}).click();
@@ -217,7 +217,7 @@ test('Buscar plays official YouTube search results without pasting links',async(
     })});
   });
   await page.goto('/');
-  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  await openSignInForm(page);
   await page.getByRole('textbox',{name:'Correo electrónico'}).fill(email);
   await page.getByLabel('Contraseña').fill(password);
   await page.getByRole('button',{name:'Entrar'}).click();
@@ -250,7 +250,7 @@ test('private rooms can be created, joined and closed across two accounts', asyn
 
   async function signIn(target: Page, email: string) {
     await target.goto('/');
-    await target.getByRole('button', { name: 'Mi cuenta' }).click();
+    await openSignInForm(target);
     await target.getByRole('textbox', { name: 'Correo electrónico' }).fill(email);
     await target.getByLabel('Contraseña').fill(password);
     await target.getByRole('button', { name: 'Entrar' }).click();
@@ -313,7 +313,7 @@ test('OWNER invites a MEMBER through the private account UI', async ({ page }) =
   } finally { await pool.end(); }
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Mi cuenta' }).click();
+  await openSignInForm(page);
   await page.getByRole('textbox', { name: 'Correo electrónico' }).fill(ownerEmail);
   await page.getByLabel('Contraseña').fill(password);
   await page.getByRole('button', { name: 'Entrar' }).click();

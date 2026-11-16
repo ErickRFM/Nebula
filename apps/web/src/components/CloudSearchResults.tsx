@@ -71,7 +71,7 @@ export function CloudSearchResults({query,account,onAccount,onPlay}:{
     <div className="section-heading"><div><h2><Cloud size={19}/> Tu música en la nube</h2><p className="search-section-note">Búsqueda privada con páginas de {PAGE_SIZE} pistas</p></div>
       {account.user&&<button type="button" className="icon-button glass-chip" aria-label="Actualizar música en la nube" disabled={loading||moreBusy} onClick={()=>setReload(v=>v+1)}><RefreshCw size={17}/></button>}
     </div>
-    {!account.user?<div className="search-start glass"><span>Inicia sesión para buscar las canciones de tu R2 privado.</span><button type="button" className="button secondary small" onClick={onAccount}>Mi cuenta</button></div>:
+    {!account.user?<div className="search-start glass"><span>{account.restoring ? 'Conectando con tu R2 privado…' : 'No se pudo conectar con tu R2 privado.'}</span><button type="button" className="button secondary small" onClick={onAccount}>Mi cuenta</button></div>:
       loading?<div className="search-start glass" role="status">Buscando en tu nube…</div>:
       items.length===0&&!error?<p className="empty-note glass">No encontramos pistas coincidentes en tu nube. Sube música desde Biblioteca.</p>:
       <div className="track-list glass">{items.map(item=><div className="track-row" key={item.id}>

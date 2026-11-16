@@ -24,6 +24,12 @@ type AuthResponse = { user: AccountUser; accessToken: string; expiresInSeconds: 
 const configuredBase=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'') ?? '';
 // Vercel serves /v1 through same-origin Functions; Capacitor requires an explicit remote URL.
 export const isAccountApiConfigured=Boolean(configuredBase) || process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API === 'true';
+// /v1/auth/guest firma el correo con este dominio reservado (RFC 2606), así que ninguna
+// invitación real puede coincidir: es lo que distingue la identidad de este dispositivo.
+export const GUEST_EMAIL_DOMAIN='@nebula.invalid';
+export function isGuestIdentity(user:AccountUser|null):boolean {
+  return user!==null && user.email.toLowerCase().endsWith(GUEST_EMAIL_DOMAIN);
+}
 
 function apiError(code:string,status:number):string {
   if(status===429) return 'Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.';
@@ -113,8 +119,22 @@ export function useAccount() {
       try {
         const data=await requestJson<{accessToken:string}>('/v1/auth/refresh',{method:'POST',body:'{}'});
         if(!cancelled && data.accessToken) {accessTokenRef.current=data.accessToken;setAccessToken(data.accessToken);}
-      } catch { /* no active session */ }
-      finally { if(!cancelled) setRestoring(false); }
+      } catch (cause) {
+        // Sin sesión previa no hay formulario: se aprovisiona una identidad invitada propia.
+        // Un fallo de red o un 5xx no debe crear cuentas, solo dejar la app en modo local.
+        if (cause instanceof ApiRequestError && cause.status === 401) {
+          try {
+            const guest = await requestJson<AuthResponse>('/v1/auth/guest', { method:'POST', body:'{}' });
+            if (!cancelled && guest.accessToken && guest.user?.id) {
+              accessTokenRef.current = guest.accessToken;
+              setAccessToken(guest.accessToken);
+              setUser(guest.user);
+            }
+          } catch (error) {
+            if (!cancelled) setError(error instanceof Error ? error.message : 'No se pudo conectar con NÉBULA Cloud.');
+          }
+        }
+      } finally { if(!cancelled) setRestoring(false); }
     })();
     return ()=>{cancelled=true;};
   },[]);
@@ -282,6 +302,7 @@ export function useAccount() {
 
   return {
     configured:isAccountApiConfigured,user,accessToken,busy,restoring,error,registrationOpen,
+    isGuest:isGuestIdentity(user),
     serverPlaylists,accountFavorites,toggleAccountFavorite,playlistsBusy,sessions,login,acceptInvite,logout,
     revokeSession,revokeOtherSessions,createServerPlaylist,removeServerPlaylist,addAccountPlaylistItem,getAccountPlaylistItems,cloudRequest,setError,
   };

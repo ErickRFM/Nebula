@@ -336,7 +336,7 @@ export function NebulaApp() {
         <div className="sidebar-label extra-label">PREFERENCIAS</div>
         {navigation.filter(item=>settingsDestinations.includes(item.id)).map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigate(item.id)} aria-current={screen===item.id?'page':undefined} className={'nav-item '+(screen===item.id?'selected':'')}><Icon size={19}/>{item.label}</button>;})}
       </nav>
-      <div className="sidebar-footer"><span className="status-dot"/> {account.configured ? (account.user ? 'Biblioteca conectada' : 'Inicia sesión para sincronizar') : 'Biblioteca local disponible'}</div>
+      <div className="sidebar-footer"><span className="status-dot"/> {account.configured ? (account.user ? 'Biblioteca conectada' : 'Conectando con NÉBULA Cloud') : 'Biblioteca local disponible'}</div>
     </aside>
     <div className="workspace">
       <header className="topbar glass">
@@ -394,7 +394,9 @@ export function NebulaApp() {
               <div className="chip-row search-genre-filter" aria-label="Filtrar la biblioteca">{genres.map(name=><button type="button" key={name} className={'chip '+(genre===name?'active':'')} aria-pressed={genre===name} onClick={()=>setGenre(name)}>{name}</button>)}</div>
               <div className="track-list glass">{filteredTracks.length?filteredTracks.map((track,i)=><TrackRow key={track.id} track={track} player={player} index={i}/>):<p className="empty-note">No hay coincidencias entre tus archivos locales. Consulta las fuentes en línea o importa música desde Biblioteca.</p>}</div>
             </section>
-            {!account.accessToken && <PublicAudiusPanel initialQuery={search} onPlay={player.playExternal}/>}
+            {/* La identidad invitada también escucha el catálogo público: el token de sesión
+                no debe quitar una fuente que nunca pidió credenciales. */}
+            {(!account.user || account.isGuest) && <PublicAudiusPanel initialQuery={search} onPlay={player.playExternal}/>}
             <CloudSearchResults query={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
             <section className="content-section search-online"><div className="section-heading"><div><h2>Música en línea</h2><p className="search-section-note">Resultados de los proveedores disponibles para tu cuenta</p></div></div>
               <ExplorePanel embedded initialQuery={search} account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>
@@ -469,7 +471,7 @@ export function NebulaApp() {
           <div className="disclosure">La biblioteca privada en la nube sigue requiriendo iniciar sesión y almacenamiento de cuenta configurado.</div>
         </>}
         {screen === 'cuenta' && <AccountPanel account={account} onOpenPlaylists={()=>navigate('playlists')}/>}
-        {screen === 'explorar' && <><ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>{!account.accessToken && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onDownloadYoutube={(url)=>setYoutubeDownloadUrl(url)} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
+        {screen === 'explorar' && <><ExplorePanel account={account} onAccount={()=>navigate('cuenta')} onPlay={player.playExternal}/>{(!account.user || account.isGuest) && <PublicAudiusPanel standalone onPlay={player.playExternal}/>}<PrivateBridgePanel standalone onPlay={player.playExternal} onImport={player.importFiles} incomingUrl={youtubeDownloadUrl}/><ExternalMediaBridges account={account} onImportMp3={player.importFiles} onOpenAudioTools={()=>{setAudioToolsOpen(true);navigate('biblioteca');}} onDownloadYoutube={(url)=>setYoutubeDownloadUrl(url)} onActivate={()=>{if(player.state==='playing')player.toggle();}}/></>}
         {screen === 'reproductor' && <FullPlayer player={player} onBack={()=>navigate(previousScreen)}/>}
       </main>
       {screen !== 'reproductor' && playbackActive && <MiniPlayer player={player} onExpand={()=>navigate('reproductor')}/>}
