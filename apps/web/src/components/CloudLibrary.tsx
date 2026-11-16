@@ -10,6 +10,7 @@ import { readAudioMetadata } from '../lib/audio-metadata';
 import { hashAudioFile } from '../lib/audio-hash';
 import {embeddedCoverFile, validatedCoverFile} from '../lib/cloud-artwork';
 import {PrivateCloudCover} from './PrivateCloudCover';
+import { useConfirm } from '../hooks/useConfirm';
 
 type CloudTrack = {
   id: string; title: string; artist: string; album?:string; genre?:string; mimeType: string;
@@ -30,6 +31,7 @@ export function CloudLibrary({
   account: AccountApi;
   onPlay: (track: Track) => void;
 }) {
+  const askConfirm = useConfirm();
   const [items, setItems] = useState<CloudTrack[]>([]);
   const [nextCursor,setNextCursor]=useState<string|null>(null);
   const [moreBusy,setMoreBusy]=useState(false);
@@ -170,11 +172,11 @@ export function CloudLibrary({
           throw failure;
         }
       }
-      setMessage(uploaded+' canción(es) nuevas en tu nube; '+duplicates+' duplicado(s) omitidos.'+(artworkFailed?' '+artworkFailed+' portada(s) pendientes.':''));
+      setMessage((uploaded===1?'1 canción nueva':uploaded+' canciones nuevas')+' en tu nube; '+(duplicates===1?'1 duplicado omitido':duplicates+' duplicados omitidos')+'.'+(artworkFailed?(artworkFailed===1?' 1 portada pendiente.':artworkFailed+' portadas pendientes.'):''));
       return true;
     }catch(failure){
       setError(failure instanceof Error?failure.message:'Error al subir canciones.');
-      if(uploaded||duplicates)setMessage(uploaded+' canción(es) nuevas; '+duplicates+' duplicado(s) detectados antes del error.');
+      if(uploaded||duplicates)setMessage((uploaded===1?'1 canción nueva':uploaded+' canciones nuevas')+'; '+(duplicates===1?'1 duplicado detectado':duplicates+' duplicados detectados')+' antes del error.');
       return false;
     }finally{
       uploadController.current=null;
@@ -243,7 +245,7 @@ export function CloudLibrary({
   }
 
   async function remove(item: CloudTrack) {
-    if (!window.confirm('¿Eliminar ' + item.title + ' de tu nube privada?')) return;
+    if (!await askConfirm({ title: '¿Eliminar ' + item.title + ' de tu nube privada?', message: 'Se borra el archivo guardado en tu cuenta y deja de estar disponible en otros dispositivos. Esta acción no se puede deshacer.', confirmLabel: 'Eliminar', variant: 'danger' })) return;
     setBusy(true); setError(''); setMessage('');
     try {
       await account.cloudRequest('/v1/library/cloud/' + encodeURIComponent(item.id), { method: 'DELETE' });
@@ -257,7 +259,7 @@ export function CloudLibrary({
   return <section className="content-section cloud-library">
     <div className="section-heading">
       <h2><Cloud size={21}/> Mi música en la nube</h2>
-      <span className="server-pill">{items.length}{nextCursor?'+':''} canciones · Cloudflare R2</span>
+      <span className="server-pill">{items.length}{nextCursor?'+':''} canciones privadas</span>
     </div>
     {!account.configured || !account.user ? <div className="disclosure">
       <CloudOff size={18}/> Inicia sesión en Cuenta para guardar y escuchar tus canciones desde cualquier dispositivo.

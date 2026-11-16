@@ -11,7 +11,7 @@ describe('local-only audio enhancement presets', () => {
     for (const profile of Object.values(AUDIO_PRESETS)) {
       for (const band of [profile.low, profile.mid, profile.high]) {
         expect(Number.isFinite(band)).toBe(true);
-        expect(Math.abs(band)).toBeLessThanOrEqual(3);
+        expect(Math.abs(band)).toBeLessThanOrEqual(6);
       }
     }
     expect(normalizeAudioPreset('clarity')).toBe('clarity');

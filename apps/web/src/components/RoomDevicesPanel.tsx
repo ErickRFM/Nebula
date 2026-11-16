@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AccountApi } from '../hooks/useAccount';
 import { RoomAudioPlayer, type SharedRoom } from './RoomAudioPlayer';
 import { NebulaParty, sanitizeNearbyServices, supportsNativeParty, type NearbyNebulaService } from '../lib/party-native';
+import { nuevoId } from '../lib/uuid';
 
 type PlaybackState = 'idle' | 'ready' | 'buffering' | 'playing' | 'error';
 type Device = {
@@ -24,12 +25,12 @@ function localReceiverId(userId: string): string {
   try {
     const current = localStorage.getItem(key);
     if (current && /^[0-9a-f-]{36}$/i.test(current)) return current;
-    const created = crypto.randomUUID();
+    const created = nuevoId();
     localStorage.setItem(key, created);
     return created;
   } catch {
     // Local storage can be disabled. The receiver remains session-scoped.
-    return crypto.randomUUID();
+    return nuevoId();
   }
 }
 

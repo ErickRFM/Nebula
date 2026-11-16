@@ -3,7 +3,11 @@ import {clearTransientPlaybackNotice} from './notice-lifecycle';
 
 describe('import feedback during media playback',()=>{
  it('does not erase successful IndexedDB persistence confirmation on play/playing',()=>{
-  const notice='1 canción(es) guardadas en este navegador con sus metadatos disponibles.';
+  const notice='3 canciones guardadas en este navegador con sus metadatos disponibles.';
+  expect(clearTransientPlaybackNotice(notice)).toBe(notice);
+ });
+ it('preserves the singular import confirmation',()=>{
+  const notice='1 canción guardada en este navegador con sus metadatos disponibles.';
   expect(clearTransientPlaybackNotice(notice)).toBe(notice);
  });
  it('preserves partial local imports to avoid a silent data-loss illusion',()=>{

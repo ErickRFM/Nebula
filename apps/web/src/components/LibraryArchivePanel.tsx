@@ -22,7 +22,7 @@ export function LibraryArchivePanel({onImport,localCount}:{
    const blob=await createMusicArchive(saved);
    if(!alive.current)return;
    downloadLocalAudioBlob(blob,'Nebula-Audios-'+new Date().toISOString().slice(0,10)+'.zip');
-   setStatus('ZIP creado con '+saved.length+' canción(es), en sus formatos originales. Guarda tu copia de seguridad.');
+   setStatus('ZIP creado con '+saved.length+(saved.length===1?' canción':' canciones')+', en sus formatos originales. Guarda tu copia de seguridad.');
   }catch(cause){if(alive.current)setError(cause instanceof Error?cause.message:'No se pudo crear el ZIP.');}
   finally{if(alive.current)setBusy(false);}
  }

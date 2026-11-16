@@ -79,7 +79,7 @@ test('local audio import survives reload in IndexedDB', async ({page}) => {
   pcm.writeUInt16LE(2,32); pcm.writeUInt16LE(16,34); pcm.write('data',36); pcm.writeUInt32LE(pcm.length-44,40);
   await page.getByLabel('Importar archivos de audio propios').setInputFiles({name:'mi-cancion.wav',mimeType:'audio/wav',buffer:pcm});
   await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'mi-cancion'}).first()).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('guardadas');
+  await expect(page.getByRole('status')).toContainText('1 canción guardada');
   await page.reload();
   await navigate(page,'Biblioteca');
   await expect(page.locator('.track-list .track-descriptor strong').filter({hasText:'mi-cancion'}).first()).toBeVisible();
@@ -266,7 +266,8 @@ test('private rooms can be created, joined and closed across two accounts', asyn
   const clock = await clockProbe;
   expect(clock.headers()['cache-control']).toContain('no-store');
   expect(clock.headers()['pragma']).toBe('no-cache');
-  const codeElement = page.locator('.room-hero code');
+  // El workspace de sala muestra el código en el panel «Invitar», no en el héroe antiguo.
+  const codeElement = page.locator('.room-invite-code code');
   await expect(codeElement).toBeVisible();
   const code = (await codeElement.textContent())?.trim() ?? '';
   expect(code.length).toBeGreaterThan(20);
@@ -282,10 +283,13 @@ test('private rooms can be created, joined and closed across two accounts', asyn
     await guest.getByLabel('Código privado').fill(code);
     await guest.getByRole('button', { name: 'Unirme' }).click();
     await expect(guest.getByText('Te uniste a la sala.')).toBeVisible();
-    await expect(guest.getByText('2 participante(s)', { exact: false }).first()).toBeVisible();
+    await expect(guest.getByText('2 personas', { exact: false }).first()).toBeVisible();
 
-    page.once('dialog', dialog => { void dialog.accept(); });
+    // El anfitrión confirma con el diálogo propio (alertdialog), no con window.confirm.
     await page.getByRole('button', { name: 'Salir o cerrar Sala E2E privada' }).click();
+    const confirmar = page.getByRole('alertdialog').getByRole('button', { name: 'Cerrar la sala' });
+    await expect(confirmar).toBeVisible();
+    await confirmar.click();
     await expect(page.getByText('Sala cerrada.')).toBeVisible();
     await expect(guest.getByText('La cola está vacía.')).toHaveCount(0, { timeout: 10000 });
   } finally {

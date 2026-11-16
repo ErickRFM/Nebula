@@ -12,6 +12,15 @@ export interface NebulaPartyPlugin {
   playAuthorizedAudio(options: { url: string }): Promise<void>;
   pauseAudio(): Promise<void>;
   stopAudio(): Promise<void>;
+  setEnhancement(options: {
+    enabled: boolean;
+    intensity: number;
+    bass: number;
+    width: number;
+    dynamics: number;
+    profile: string;
+    bands: number[];
+  }): Promise<void>;
   addListener(
     eventName: 'servicesChanged',
     listener: (event: NearbyServicesEvent) => void,
@@ -22,6 +31,20 @@ export const NebulaParty = registerPlugin<NebulaPartyPlugin>('NebulaParty');
 
 export function supportsNativeParty(): boolean {
   return Capacitor.isNativePlatform();
+}
+
+/**
+ * Mirrors the immersion settings onto the native ExoPlayer path (party/cloud
+ * audio). Local library playback stays on Web Audio, so this is a no-op on web.
+ */
+export function syncNativeEnhancement(
+  enabled: boolean,
+  settings: { intensity: number; bass: number; width: number; dynamics: number },
+  profile: string,
+  bands: readonly number[],
+): void {
+  if (!Capacitor.isNativePlatform()) return;
+  void NebulaParty.setEnhancement({ enabled, ...settings, profile, bands: [...bands] }).catch(() => {});
 }
 
 /** Never trust a LAN discovery label as an authentication credential. */

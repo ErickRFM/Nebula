@@ -199,6 +199,24 @@ class NebulaPartyPlugin : Plugin() {
         usePlayer(call) { player -> player.stop(); player.clearMediaItems() }
     }
 
+    /** Applies the JS immersion settings to the ExoPlayer audio session. */
+    @PluginMethod
+    fun setEnhancement(call: PluginCall) {
+        val rawBands = call.getArray("bands")
+        val bands = FloatArray(rawBands?.length() ?: 0) { index ->
+            rawBands?.optDouble(index, 0.0)?.toFloat() ?: 0f
+        }
+        NebulaAudioEffects.shared.apply(
+            enabled = call.getBoolean("enabled", false) == true,
+            intensity = call.getInt("intensity", 60) ?: 60,
+            bass = call.getInt("bass", 55) ?: 55,
+            width = call.getInt("width", 55) ?: 55,
+            dynamics = call.getInt("dynamics", 45) ?: 45,
+            bands = bands,
+        )
+        call.resolve()
+    }
+
     override fun handleOnDestroy() {
         stopDiscovery()
         stopBeaconInternal()

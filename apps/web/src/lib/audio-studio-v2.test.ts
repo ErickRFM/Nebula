@@ -44,10 +44,12 @@ class FakeNode {
   release = new FakeParam();
   knee = new FakeParam();
   type = '';
+  curve: Float32Array | null = null;
+  oversample = '';
   connections: FakeNode[] = [];
   disconnected = false;
   constructor(readonly kind: string) {}
-  connect(node: FakeNode) { this.connections.push(node); return node; }
+  connect(node: FakeNode, _output?: number, _input?: number) { this.connections.push(node); return node; }
   disconnect() { this.disconnected = true; }
 }
 class FakeAudioContext {
@@ -62,6 +64,9 @@ class FakeAudioContext {
   createGain() { return this.add('gain'); }
   createBiquadFilter() { return this.add('filter'); }
   createDynamicsCompressor() { return this.add('compressor'); }
+  createWaveShaper() { return this.add('waveshaper'); }
+  createChannelSplitter() { return this.add('splitter'); }
+  createChannelMerger() { return this.add('merger'); }
   createAnalyser() { return this.add('analyser'); }
   resume() { return Promise.resolve(); }
   close() { this.closed = true; return Promise.resolve(); }
@@ -76,17 +81,35 @@ describe('Web Audio graph', () => {
     const context = FakeAudioContext.instances[0];
     const source = context.nodes.find((node) => node.kind === 'source');
     const dry = source?.connections.find((node) => node.kind === 'gain');
+    const output = dry?.connections[0];
     const wet = context.nodes.find((node) => node.kind === 'gain' && node !== dry &&
-      node.connections.some((connection) => connection === dry?.connections[0]));
+      node.connections.includes(output as FakeNode));
     expect(dry?.gain.value).toBe(1);
     expect(wet?.gain.value).toBe(0);
     expect(enhancer.getAnalyser()).not.toBeNull();
+
     enhancer.setPreset('punch');
     expect(dry?.gain.value).toBe(0);
     expect(wet?.gain.value).toBe(1);
-    expect(context.nodes.find((node) => node.kind === 'compressor')?.ratio.value).toBe(2.6);
+    const compressors = context.nodes.filter((node) => node.kind === 'compressor');
+    // Three-band dynamics plus the final peak limiter.
+    expect(compressors).toHaveLength(4);
+    expect(compressors[0].ratio.value).toBeGreaterThan(1);
+    expect(compressors[1].ratio.value).toBe(compressors[0].ratio.value);
+    expect(compressors[2].ratio.value).toBe(compressors[0].ratio.value);
+    const thresholds = compressors.slice(0, 3).map((node) => node.threshold.value);
+    // Each band gets a slightly different knee point, 2 dB apart.
+    expect(thresholds[1] - thresholds[0]).toBeCloseTo(2);
+    expect(thresholds[2] - thresholds[1]).toBeCloseTo(2);
+    expect(compressors[3].ratio.value).toBe(20);
+    expect(compressors[3].threshold.value).toBe(-2);
+
     enhancer.setBands([2, -2, 0, 0, 1, 1, 0]);
-    expect(context.nodes.filter((node) => node.kind === 'filter' && node.gain.value !== 0)).toHaveLength(4);
+    const eqFilters = context.nodes.filter((node) => node.kind === 'filter' &&
+      (node.type === 'lowshelf' || node.type === 'peaking' || node.type === 'highshelf') &&
+      AUDIO_BANDS.some((band) => band.frequency === node.frequency.value));
+    expect(eqFilters.map((node) => node.gain.value)).toEqual([2, -2, 0, 0, 1, 1, 0]);
+
     enhancer.setHumFilter(true);
     expect(context.nodes.filter((node) => node.type === 'notch').map((node) => node.frequency.value)).toEqual([60, 120]);
     enhancer.setBypass(true);
@@ -99,6 +122,7 @@ describe('Web Audio graph', () => {
     enhancer.setHumFilter(false);
     expect(dry?.gain.value).toBe(1);
     expect(wet?.gain.value).toBe(0);
+    expect(enhancer.readMeter()).toEqual({ lufs: null, peakDb: null, correlation: null, levelerDb: 0 });
     enhancer.fadeIn();
     await enhancer.resume();
     enhancer.dispose();

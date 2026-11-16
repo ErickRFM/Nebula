@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Copy, Crown, Headphones, Link2, ListMusic, Music2, Pause, Play, Plus, QrCode, RadioTower, RefreshCw, Share2, SkipForward, Users, X } from 'lucide-react';
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
+import { useConfirm } from '../hooks/useConfirm';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomDevicesPanel } from './RoomDevicesPanel';
 import { RoomAcousticQaPanel } from './RoomAcousticQaPanel';
 import { RoomRequestsPanel } from './RoomRequestsPanel';
 import { RoomQRModal } from './RoomQRModal';
-import { ConfirmModal } from './ConfirmModal';
 import { useRoomEventStream } from '../lib/room-event-stream';
 import { buildRoomInviteLink, roomInviteFromHash } from '../lib/room-invite-link';
 import { reorderQueue, withRevisionRetry } from '../lib/room-actions';
@@ -29,6 +29,7 @@ type RoomMember = { userId: string; role: 'host' | 'listener'; email: string | n
 let lastKnownClockOffsetMs = 0;
 
 export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { account: AccountApi; onAccount: () => void; onLibrary: () => void; onActivate: () => void }) {
+  const askConfirm = useConfirm();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Room | null>(null);
@@ -53,7 +54,6 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; confirmLabel: string; run: () => void } | null>(null);
 
   useEffect(() => {
     const fillInvite = () => {
@@ -211,35 +211,25 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshSelected]);
 
-  function removeMember(member: RoomMember) {
+  async function removeMember(member: RoomMember) {
     if (!selected) return;
-    const roomId = selected.id;
-    setConfirmAction({
-      title: 'Expulsar participante',
-      message: 'La persona saldrá de la sala. Los enlaces de audio que ya recibió caducan como máximo en cinco minutos.',
-      confirmLabel: 'Expulsar',
-      run: () => { void action(async () => {
-        await account.cloudRequest('/v1/rooms/' + roomId + '/members/' + member.userId, { method: 'DELETE' });
-        await refreshMembers(); await refreshSelected();
-        setNotice('Participante expulsado.');
-      }); },
+    if (!await askConfirm({ title: '¿Expulsar a ' + (member.email || 'esta persona') + ' de la sala?', message: 'Deja de recibir el audio de la sala y no puede volver con el enlace anterior hasta que la inviten de nuevo.', confirmLabel: 'Expulsar', variant: 'danger' })) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/members/' + member.userId, { method: 'DELETE' });
+      await refreshMembers(); await refreshSelected();
+      setNotice('Participante expulsado. Los enlaces de audio ya emitidos caducan como máximo en cinco minutos.');
     });
   }
 
-  function transferHost(member: RoomMember) {
+  async function transferHost(member: RoomMember) {
     if (!selected) return;
-    const roomId = selected.id;
-    setConfirmAction({
-      title: 'Transferir la administración',
-      message: 'Esta persona pasará a ser anfitriona y tú quedarás como oyente en la sala.',
-      confirmLabel: 'Transferir',
-      run: () => { void action(async () => {
-        await account.cloudRequest('/v1/rooms/' + roomId + '/transfer-host', {
-          method: 'POST', body: JSON.stringify({ memberId: member.userId }),
-        });
-        await refreshSelected(); await refreshMembers();
-        setNotice('Anfitrión transferido. Ahora eres participante.');
-      }); },
+    if (!await askConfirm({ title: '¿Transferir la administración de la sala?', message: 'La otra persona decide quién entra y puede expulsarte. Tú quedas como participante.', confirmLabel: 'Transferir', variant: 'primary' })) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + selected.id + '/transfer-host', {
+        method: 'POST', body: JSON.stringify({ memberId: member.userId }),
+      });
+      await refreshSelected(); await refreshMembers();
+      setNotice('Anfitrión transferido. Ahora eres participante.');
     });
   }
 
@@ -438,18 +428,15 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     }
   }
 
-  function leaveOrClose(room: Room) {
+  async function leaveOrClose(room: Room) {
     const isHost = room.ownerUserId === account.user?.id;
-    setConfirmAction({
-      title: isHost ? 'Cerrar la sala' : 'Salir de la sala',
-      message: isHost ? 'La sala se cerrará para todos los participantes y la cola dejará de estar disponible.'
-        : 'Dejarás de escuchar esta sala. Puedes volver con una invitación del anfitrión.',
-      confirmLabel: isHost ? 'Cerrar sala' : 'Salir',
-      run: () => { void action(async () => {
-        await account.cloudRequest('/v1/rooms/' + room.id + (isHost ? '/close' : '/leave'), { method: 'POST', body: '{}' });
-        if (selectedId === room.id) { setSelectedId(null); setSelected(null); setIssuedCode(''); }
-        setNotice(isHost ? 'Sala cerrada.' : 'Saliste de la sala.');
-      }); },
+    if (!await askConfirm(isHost
+      ? { title: '¿Cerrar la sala para todos?', message: 'Nadie seguirá escuchando y el enlace de invitación deja de servir. La sala desaparece de la lista.', confirmLabel: 'Cerrar la sala', variant: 'danger' }
+      : { title: '¿Salir de la sala?', message: 'Dejas de recibir el audio. Puedes volver con el mismo enlace mientras la sala siga abierta.', confirmLabel: 'Salir', variant: 'danger' })) return;
+    void action(async () => {
+      await account.cloudRequest('/v1/rooms/' + room.id + (isHost ? '/close' : '/leave'), { method: 'POST', body: '{}' });
+      if (selectedId === room.id) { setSelectedId(null); setSelected(null); setIssuedCode(''); }
+      setNotice(isHost ? 'Sala cerrada.' : 'Saliste de la sala.');
     });
   }
 
@@ -539,7 +526,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
 
     {!account.user ? <div className="room-empty glass rooms-signed-out">
       <span className="room-empty-icon"><RadioTower size={27}/></span>
-      <h3>Escuchen juntos, cada quien en su dispositivo</h3>
+      <h2>Escuchen juntos, cada quien en su dispositivo</h2>
       <p>Las salas son espacios privados: el anfitrión comparte música autorizada desde su biblioteca y la reproducción se sincroniza para quienes están dentro.</p>
       <ul className="room-empty-points">
         <li><Users size={15}/> Acceso solo con cuenta e invitación privada</li>
@@ -585,7 +572,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
                     <span className="room-chip"><Users size={13}/> {selected.participantCount} {selected.participantCount===1?'persona':'personas'}</span>
                   </div>
                 </div>
-                <button type="button" className="button secondary small" disabled={busy} onClick={()=>leaveOrClose(selected)}>{isHost?'Cerrar sala':'Salir'}</button>
+                <button type="button" className="button secondary small" disabled={busy} aria-label={'Salir o cerrar '+selected.name} onClick={()=>leaveOrClose(selected)}>{isHost?'Cerrar sala':'Salir'}</button>
               </div>
 
               <div className="room-now-track">
@@ -619,7 +606,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
                 <option value="">{loadingCloudItems?'Cargando canciones…':'Selecciona una canción'}</option>
                 {cloudItems.map(item=><option key={item.id} value={item.id}>{item.title} — {item.artist}</option>)}
               </select>
-              {!loadingCloudItems && cloudItems.length===0 && <p className="room-panel-note" role="status">No tienes canciones cloud listas. Sube un MP3 o FLAC permitido a tu nube privada para compartirlo.</p>}
+              {!loadingCloudItems && cloudItems.length===0 && <p className="room-panel-note" role="status">No tienes canciones cloud listas para compartir. Sube un MP3 o FLAC permitido a tu nube privada.</p>}
               <label className="room-check">
                 <input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>
                 <span>Confirmo que tengo derechos para compartir este audio con los participantes.</span>
@@ -627,7 +614,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
               <div className="room-actions">
                 <button type="button" className="button primary" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={startSharedAudio}><Play size={16}/> Compartir y empezar</button>
                 <button type="button" className="button secondary" disabled={busy || !selectedCloudId || !rightsConfirmed} onClick={addToQueue}><ListMusic size={16}/> Agregar a la cola</button>
-                <button type="button" className="button text-action" onClick={onLibrary}>Ir a Biblioteca</button>
+                <button type="button" className="button text-action" onClick={onLibrary}>Ir a Biblioteca y subir música</button>
                 <button type="button" className="button text-action" disabled={loadingCloudItems} onClick={()=>{void refreshCloudItems();}}>Actualizar lista</button>
               </div>
             </section>}
@@ -737,14 +724,6 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
         </section>
       </>}
 
-      <ConfirmModal
-        isOpen={Boolean(confirmAction)}
-        title={confirmAction?.title ?? ''}
-        message={confirmAction?.message ?? ''}
-        confirmLabel={confirmAction?.confirmLabel}
-        onCancel={()=>setConfirmAction(null)}
-        onConfirm={()=>{const run=confirmAction?.run; setConfirmAction(null); run?.();}}
-      />
       <RoomQRModal isOpen={inviteOpen} onClose={()=>setInviteOpen(false)} roomName={selected?.name ?? 'la sala'} inviteCode={issuedCode}/>
     </>}
   </section>;

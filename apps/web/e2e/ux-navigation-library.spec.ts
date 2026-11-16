@@ -27,7 +27,10 @@ test('mobile navigation exposes four primary destinations without horizontal scr
  await expect(menu).toHaveCount(0);
  await expect(more).toBeFocused();
  await more.click();
- await page.locator('main').click({position:{x:10,y:10}});
+ // (10,10) cae bajo el .topbar sticky: si el contenido asíncrono desplaza la página, Playwright
+ // alinea main al borde superior y el header tapa el punto para siempre. Un y mayor a la altura
+ // de la barra se puede pulsar en cualquier posición de scroll sin cambiar qué se está probando.
+ await page.locator('main').click({position:{x:10,y:120}});
  await expect(menu).toHaveCount(0);
 });
 

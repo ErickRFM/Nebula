@@ -1,5 +1,6 @@
 package com.nebula.music
 
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -13,6 +14,12 @@ class NebulaPlaybackService : MediaSessionService() {
         super.onCreate()
         val exo = ExoPlayer.Builder(this).build()
         exo.setHandleAudioBecomingNoisy(true)
+        exo.addListener(object : Player.Listener {
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                NebulaAudioEffects.shared.attach(audioSessionId)
+            }
+        })
+        NebulaAudioEffects.shared.attach(exo.audioSessionId)
         player = exo
         session = MediaSession.Builder(this, exo).build()
     }
@@ -20,6 +27,7 @@ class NebulaPlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
     override fun onDestroy() {
+        NebulaAudioEffects.shared.attach(0)
         session?.release()
         session = null
         player?.release()

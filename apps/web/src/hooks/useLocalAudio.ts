@@ -5,10 +5,13 @@ import { artwork, demoTracks, type Track } from '../lib/catalog';
 import { deleteSavedSong, getSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack, type SavedSong } from '../lib/local-library';
 import {downloadLocalAudioBlob,exportedSongFilename} from '../lib/local-audio-download';
 import { readAudioMetadata } from '../lib/audio-metadata';
+import { nuevoId } from '../lib/uuid';
 import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
 import {clearTransientPlaybackNotice} from '../lib/notice-lifecycle';
 import {isPlayableExternalUrl} from '../lib/private-bridge';
-import { createAudioEnhancer, normalizeAudioPreset, normalizeAudioBands, presetAudioBands, AUDIO_PRESETS, type AudioEnhancer, type AudioPreset } from '../lib/audio-enhancer';
+import {syncNativeEnhancement} from '../lib/party-native';
+import { createAudioEnhancer, DEFAULT_PRESET, normalizeAudioPreset, normalizeAudioBands, presetAudioBands, presetModules, AUDIO_PRESETS, type AudioEnhancer, type AudioPreset } from '../lib/audio-enhancer';
+import { DEFAULT_MASTER_SETTINGS, normalizeMasterSettings, type AudioMasterSettings, type AudioMeter } from '../lib/audio-mastering';
 
 export type Player = {
   tracks: Track[];
@@ -26,14 +29,17 @@ export type Player = {
   loadingLibrary: boolean;
   audioPreset: AudioPreset;
   audioBands: number[];
+  audioMaster: AudioMasterSettings;
   humFilter: boolean;
   abBypass: boolean;
   storageDurability: 'unknown' | 'granted' | 'best-effort' | 'unavailable';
   setAudioPreset: (preset: AudioPreset) => void;
   setAudioBands: (bands: number[]) => void;
+  setAudioMaster: (patch: Partial<AudioMasterSettings>) => void;
   setHumFilter: (enabled: boolean) => void;
   setAbBypass: (enabled: boolean) => void;
   getAudioAnalyser: () => AnalyserNode | null;
+  getAudioMeter: () => AudioMeter | null;
   warmAudioAnalyser: () => void;
   requestStoragePersistence: () => Promise<void>;
   importFiles: (list: FileList | File[] | null) => void;
@@ -66,12 +72,14 @@ export function useLocalAudio(): Player {
   const [repeat, setRepeat] = useState<RepeatMode>('off');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
-  const [audioPreset, setAudioPresetState] = useState<AudioPreset>('off');
-  const [audioBands, setAudioBandsState] = useState<number[]>([...AUDIO_PRESETS.off.bands]);
+  const [audioPreset, setAudioPresetState] = useState<AudioPreset>(DEFAULT_PRESET);
+  const [audioBands, setAudioBandsState] = useState<number[]>([...AUDIO_PRESETS[DEFAULT_PRESET].bands]);
+  const [audioMaster, setAudioMasterState] = useState<AudioMasterSettings>({...DEFAULT_MASTER_SETTINGS});
   const [humFilter, setHumFilterState] = useState(false);
   const [abBypass, setAbBypassState] = useState(false);
   const [storageDurability, setStorageDurability] = useState<'unknown'|'granted'|'best-effort'|'unavailable'>('unknown');
-  const audioPresetRef=useRef<AudioPreset>('off');
+  const audioPresetRef=useRef<AudioPreset>(DEFAULT_PRESET);
+  const audioMasterRef=useRef<AudioMasterSettings>({...DEFAULT_MASTER_SETTINGS});
   const customBandsRef=useRef<number[]>([...AUDIO_PRESETS.balanced.bands]);
   const humFilterRef=useRef(false);
   const abBypassRef=useRef(false);
@@ -102,14 +110,22 @@ export function useLocalAudio(): Player {
         const parsed: unknown = JSON.parse(stored);
         if (Array.isArray(parsed)) setFavorites(parsed.filter((x): x is string => typeof x === 'string'));
       }
-      const persistedPreset=normalizeAudioPreset(localStorage.getItem('nebula:audio-preset:v1'));
+      const rawPreset=localStorage.getItem('nebula:audio-preset:v1');
+      const persistedPreset=rawPreset===null?DEFAULT_PRESET:normalizeAudioPreset(rawPreset);
       const persistedHum=localStorage.getItem('nebula:hum-filter:v1')==='true';
       const rawBands=localStorage.getItem('nebula:audio-bands:v2');
       const storedBands=normalizeAudioBands(rawBands ? JSON.parse(rawBands) as unknown : undefined);
+      const rawMaster=localStorage.getItem('nebula:audio-master:v1');
+      const persistedMaster=rawMaster===null
+        ? presetModules(persistedPreset,DEFAULT_MASTER_SETTINGS)
+        : normalizeMasterSettings(JSON.parse(rawMaster) as unknown);
       customBandsRef.current=storedBands;
+      audioMasterRef.current=persistedMaster;
+      setAudioMasterState(persistedMaster);
       setAudioPresetState(persistedPreset);audioPresetRef.current=persistedPreset;
       setAudioBandsState(presetAudioBands(persistedPreset,storedBands));
       setHumFilterState(persistedHum);humFilterRef.current=persistedHum;
+      syncNativeEnhancement(persistedPreset!=='off',persistedMaster,persistedPreset,presetAudioBands(persistedPreset,storedBands));
       const storedVolume = Number(localStorage.getItem('nebula:volume:v1'));
       if (Number.isFinite(storedVolume) && localStorage.getItem('nebula:volume:v1') !== null) {
         const nextVolume = Math.min(1, Math.max(0, storedVolume));
@@ -332,6 +348,12 @@ export function useLocalAudio(): Player {
       if(audioPresetRef.current==='custom')enhancer.setBands(customBandsRef.current);
       enhancer.setHumFilter(humFilterRef.current);
       enhancer.setBypass(abBypassRef.current);
+      enhancer.setIntensity(audioMasterRef.current.intensity);
+      enhancer.setModules({
+        bass:audioMasterRef.current.bass,
+        width:audioMasterRef.current.width,
+        dynamics:audioMasterRef.current.dynamics,
+      });
       return enhancer;
     }catch{
       if(notify)setNotice('Tu navegador no admite estos efectos de audio. El archivo original sigue disponible.');
@@ -341,18 +363,42 @@ export function useLocalAudio(): Player {
 
   const setAudioPreset=useCallback((preset:AudioPreset)=>{
     const next=normalizeAudioPreset(preset);
+    const nextMaster=presetModules(next,audioMasterRef.current);
     audioPresetRef.current=next;
+    audioMasterRef.current=nextMaster;
     setAudioPresetState(next);
+    setAudioMasterState(nextMaster);
     setAudioBandsState(presetAudioBands(next,customBandsRef.current));
     if(next==='off'&&abBypassRef.current){
       abBypassRef.current=false;setAbBypassState(false);
     }
-    try{localStorage.setItem('nebula:audio-preset:v1',next);}catch{}
+    try{
+      localStorage.setItem('nebula:audio-preset:v1',next);
+      localStorage.setItem('nebula:audio-master:v1',JSON.stringify(nextMaster));
+    }catch{}
     if(next!=='off'&&currentRef.current?.startsWith('local-'))ensureEnhancer();
-    enhancerRef.current?.setPreset(next);
-    if(next==='custom')enhancerRef.current?.setBands(customBandsRef.current);
-    enhancerRef.current?.setBypass(abBypassRef.current);
-    if(next!=='off')void enhancerRef.current?.resume().catch(()=>{});
+    const enhancer=enhancerRef.current;
+    enhancer?.setPreset(next);
+    if(next==='custom')enhancer?.setBands(customBandsRef.current);
+    enhancer?.setBypass(abBypassRef.current);
+    enhancer?.setIntensity(nextMaster.intensity);
+    enhancer?.setModules({bass:nextMaster.bass,width:nextMaster.width,dynamics:nextMaster.dynamics});
+    if(next!=='off')void enhancer?.resume().catch(()=>{});
+    syncNativeEnhancement(next!=='off',nextMaster,next,presetAudioBands(next,customBandsRef.current));
+  },[ensureEnhancer]);
+
+  const setAudioMaster=useCallback((patch:Partial<AudioMasterSettings>)=>{
+    const next=normalizeMasterSettings({...audioMasterRef.current,...patch});
+    audioMasterRef.current=next;
+    setAudioMasterState(next);
+    try{localStorage.setItem('nebula:audio-master:v1',JSON.stringify(next));}catch{}
+    const enabled=audioPresetRef.current!=='off';
+    if(enabled&&currentRef.current?.startsWith('local-'))ensureEnhancer(false);
+    const enhancer=enhancerRef.current;
+    enhancer?.setIntensity(next.intensity);
+    enhancer?.setModules({bass:next.bass,width:next.width,dynamics:next.dynamics});
+    if(enabled)void enhancer?.resume().catch(()=>{});
+    syncNativeEnhancement(enabled,next,audioPresetRef.current,presetAudioBands(audioPresetRef.current,customBandsRef.current));
   },[ensureEnhancer]);
 
   const setAudioBands=useCallback((bands:number[])=>{
@@ -370,6 +416,7 @@ export function useLocalAudio(): Player {
     enhancerRef.current?.setBands(normalized);
     enhancerRef.current?.setBypass(false);
     void enhancerRef.current?.resume().catch(()=>{});
+    syncNativeEnhancement(true,audioMasterRef.current,audioPresetRef.current,normalized);
   },[ensureEnhancer]);
 
   const setHumFilter=useCallback((enabled:boolean)=>{
@@ -393,6 +440,8 @@ export function useLocalAudio(): Player {
   },[ensureEnhancer]);
 
   const getAudioAnalyser=useCallback(()=>enhancerRef.current?.getAnalyser()??null,[]);
+
+  const getAudioMeter=useCallback(():AudioMeter|null=>enhancerRef.current?.readMeter()??null,[]);
 
   const warmAudioAnalyser=useCallback(()=>{
     if(!currentRef.current?.startsWith('local-'))return;
@@ -443,6 +492,8 @@ export function useLocalAudio(): Player {
       if(audioPresetRef.current==='custom')enhancer?.setBands(customBandsRef.current);
       enhancer?.setHumFilter(humFilterRef.current);
       enhancer?.setBypass(abBypassRef.current);
+      enhancer?.setIntensity(audioMasterRef.current.intensity);
+      enhancer?.setModules({bass:audioMasterRef.current.bass,width:audioMasterRef.current.width,dynamics:audioMasterRef.current.dynamics});
       enhancer?.fadeIn();
       void enhancer?.resume().catch(()=>{});
     }
@@ -545,7 +596,7 @@ export function useLocalAudio(): Player {
     void (async()=>{
       const added=await Promise.all(candidates.map(async(file,index):Promise<{track:Track;record:SavedSong}>=>{
         const tags=await readAudioMetadata(file);
-        const id='local-'+crypto.randomUUID();
+        const id='local-'+nuevoId();
         const url=URL.createObjectURL(file);
         urlsRef.current.set(id,url);
         const record:SavedSong={
@@ -563,7 +614,7 @@ export function useLocalAudio(): Player {
       const results=await Promise.allSettled(added.map(item=>saveSong(item.record)));
       const saved=results.filter(result=>result.status==='fulfilled').length;
       setNotice(saved===added.length
-        ? added.length+' canción(es) guardadas en este navegador con sus metadatos disponibles.'
+        ? (added.length===1 ? '1 canción guardada' : added.length+' canciones guardadas')+' en este navegador con sus metadatos disponibles.'
         : saved+' de '+added.length+' guardadas; las demás solo estarán disponibles hasta cerrar esta sesión.');
     })().catch(()=>{
       setNotice('No se pudieron procesar algunos archivos. Intenta de nuevo con un lote más pequeño.');
@@ -654,8 +705,8 @@ export function useLocalAudio(): Player {
 
   return {
     tracks, ownTracks, current, state, notice, setNotice, time, duration, volume, shuffle, repeat, favorites,
-    loadingLibrary, audioPreset, audioBands, humFilter, abBypass, storageDurability,
-    setAudioPreset, setAudioBands, setHumFilter, setAbBypass, getAudioAnalyser, warmAudioAnalyser, requestStoragePersistence,
+    loadingLibrary, audioPreset, audioBands, audioMaster, humFilter, abBypass, storageDurability,
+    setAudioPreset, setAudioBands, setAudioMaster, setHumFilter, setAbBypass, getAudioAnalyser, getAudioMeter, warmAudioAnalyser, requestStoragePersistence,
     importFiles, removeLocalTrack, downloadLocalTrack, selectTrack, playQueue, playExternal, toggle, next, previous, seek, setVolume,
     toggleShuffle: () => setShuffle((value)=>!value),
     cycleRepeat: () => setRepeat((value)=>value==='off' ? 'all' : value==='all' ? 'one' : 'off'),
