@@ -1,5 +1,7 @@
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
 import {describe,expect,it} from 'vitest';
-import {bridgeEntries,bridgeVideos,isPlayableExternalUrl,parseYouTubeUrl} from './private-bridge';
+import {MAX_PLAYLIST_TRACKS,bridgeEntries,bridgeVideos,isPlayableExternalUrl,parseBatchJob,parseYouTubeUrl,type BridgeBatchJob} from './private-bridge';
 describe('private bridge browser trust boundary',()=>{
  const id='abcdefghijkl';
  const ticket= 'a'.repeat(90)+'.'+'b'.repeat(43);
@@ -40,7 +42,43 @@ describe('private bridge browser trust boundary',()=>{
   expect(parsed.items.length).toBe(2);
   expect(parsed.items[0]).toEqual({id:valid,title:'Title',artist:'YouTube',durationSeconds:null,sourceUrl:'https://www.youtube.com/watch?v='+valid});
   expect(parsed.items[1].sourceUrl).toBe('https://www.youtube.com/watch?v=12345678901');
-  expect(bridgeEntries({items:Array.from({length:260},(_,index)=>({id:'i'+String(index).padStart(10,'0')}))}).items.length).toBe(200);
+  expect(bridgeEntries({items:Array.from({length:2100},(_,index)=>({id:'i'+String(index).padStart(10,'0')}))}).items.length).toBe(MAX_PLAYLIST_TRACKS);
   expect(bridgeEntries(null)).toEqual({items:[],truncated:false});
+ });
+ it('lists the same number of tracks the bridge process is allowed to enumerate',()=>{
+  const limits=readFileSync(fileURLToPath(new URL('../../../../tools/private-bridge/limits.mjs',import.meta.url)),'utf8');
+  const ceiling=Number(/export const MAX_PLAYLIST_TRACKS=(\d+)/.exec(limits)?.[1]);
+  expect(ceiling).toBe(MAX_PLAYLIST_TRACKS);
+ });
+});
+describe('long batch progress reported by the bridge',()=>{
+ const uuid='11111111-1111-4111-8111-111111111111';
+ const job={id:uuid,total:1000,completed:600,saved:590,failed:10,status:'running',
+  current:'abcdefghijk',errorItems:['abcdefghijk'],destination:'C:\\Users\\me\\Downloads\\Nebula',
+  note:'Los archivos se guardan en el equipo que ejecuta el puente.'};
+ it('accepts a coherent job and keeps the folder the bridge chose',()=>{
+  expect(parseBatchJob({job})).toEqual(job);
+ });
+ it('drops jobs that could not come from a real queue',()=>{
+  expect(parseBatchJob(null)).toBeNull();
+  expect(parseBatchJob({})).toBeNull();
+  expect(parseBatchJob({job:{...job,id:'../../etc/passwd'}})).toBeNull();
+  expect(parseBatchJob({job:{...job,status:'paused'}})).toBeNull();
+  expect(parseBatchJob({job:{...job,total:MAX_PLAYLIST_TRACKS+1,completed:0,saved:0,failed:0}})).toBeNull();
+  expect(parseBatchJob({job:{...job,saved:700}})).toBeNull();
+  expect(parseBatchJob({job:{...job,completed:-1}})).toBeNull();
+ });
+ it('ignores malformed ids in the current track and the error list',()=>{
+  const parsed=parseBatchJob({job:{...job,current:'../../x',errorItems:['abcdefghijk','bad','abcdefghij1',
+   ...Array.from({length:60},(_,index)=>String(index).padStart(11,'0'))]}}) as BridgeBatchJob;
+  expect(parsed.current).toBeNull();
+  expect(parsed.errorItems.slice(0,2)).toEqual(['abcdefghijk','abcdefghij1']);
+  expect(parsed.errorItems.length).toBe(30);
+ });
+ it('survives a bridge that omits the optional text fields',()=>{
+  const parsed=parseBatchJob({job:{...job,note:undefined,destination:undefined,errorItems:undefined,current:undefined}}) as BridgeBatchJob;
+  expect(parsed.note).toBe('');
+  expect(parsed.destination).toBe('');
+  expect(parsed.errorItems).toEqual([]);
  });
 });

@@ -1,15 +1,19 @@
 'use client';
 
 import {useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
-import {Download,Headphones,ShieldCheck,ExternalLink,Radio,Search,Square} from 'lucide-react';
+import {Download,FolderDown,Headphones,ShieldCheck,ExternalLink,Radio,Search,Square} from 'lucide-react';
 import {downloadLocalAudioBlob} from '../lib/local-audio-download';
+import {useConfirm} from '../hooks/useConfirm';
 import type {Track} from '../lib/catalog';
-import {BRIDGE_ENABLED,BRIDGE_URL,bridgeEntries,bridgeVideos,isPlayableExternalUrl,parseYouTubeUrl,type BridgeVideo} from '../lib/private-bridge';
+import {BRIDGE_ENABLED,BRIDGE_URL,MAX_PLAYLIST_TRACKS,bridgeEntries,bridgeVideos,isPlayableExternalUrl,parseBatchJob,parseYouTubeUrl,type BridgeBatchJob,type BridgeVideo} from '../lib/private-bridge';
 
 const STORAGE='nebula:private-bridge-session-token';
+const BATCH_STORAGE='nebula:bridge-batch-job';
 const BATCH_SIZE=10;
+const LIST_WINDOW=60;
 const MAX_MP3_BYTES=100*1024*1024;
 const TICKET=/^[A-Za-z0-9_-]{20,300}\.[A-Za-z0-9_-]{30,80}$/;
+const JOB_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 type EntryState='ready'|'working'|'done'|'failed';
 
 function mp3Filename(item:BridgeVideo){
@@ -34,21 +38,28 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
  const [directUrl,setDirectUrl]=useState('');
  const [savingToLibrary,setSavingToLibrary]=useState(true);
  const [savingFileCopy,setSavingFileCopy]=useState(true);
+ const [savingToDisk,setSavingToDisk]=useState(false);
  const [items,setItems]=useState<BridgeVideo[]>([]);
  const [selected,setSelected]=useState<string[]>([]);
  const [states,setStates]=useState<Record<string,EntryState>>({});
  const [truncated,setTruncated]=useState(false);
  const [resolving,setResolving]=useState(false);
  const [queue,setQueue]=useState(false);
+ const [batchJob,setBatchJob]=useState<BridgeBatchJob|null>(null);
+ const [visible,setVisible]=useState(LIST_WINDOW);
  const [progress,setProgress]=useState('');
  const [notice,setNotice]=useState('');
  const [refresh,setRefresh]=useState(0);
+ const askConfirm=useConfirm();
  const requestRef=useRef<AbortController|null>(null);
  const queueAbortRef=useRef<AbortController|null>(null);
+ const listUrlRef=useRef('');
  const cancelRef=useRef(false);
  const panelRef=useRef<HTMLElement|null>(null);
  const selectedSet=useMemo(()=>new Set(selected),[selected]);
  const doneCount=useMemo(()=>selected.filter(id=>states[id]==='done').length,[selected,states]);
+ const batchRunning=batchJob?.status==='running';
+ const busy=playing!==null||queue||batchRunning;
  useEffect(()=>{
   if(!incomingUrl)return;
   const target=parseYouTubeUrl(incomingUrl);
@@ -68,6 +79,37 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
    }).catch(()=>{if(!controller.signal.aborted)setOnline(false);});
   return()=>controller.abort();
  },[]);
+ // A long batch outlives the tab: the stored job id resumes progress tracking as soon
+ // as the bridge is paired again.
+ useEffect(()=>{
+  if(!BRIDGE_ENABLED||!token)return;
+  let stored='';
+  try{stored=sessionStorage.getItem(BATCH_STORAGE)||'';}catch{/* sessionStorage may be blocked. */}
+  if(!JOB_ID.test(stored))return;
+  let cancelled=false;
+  void fetch(BRIDGE_URL+'/batch/'+stored,{headers:{Authorization:'Bearer '+token},cache:'no-store',redirect:'error'})
+   .then(async r=>r.ok?r.json():null)
+   .then(data=>{
+    if(cancelled)return;
+    const job=parseBatchJob(data);
+    if(job){setBatchJob(job);return;}
+    try{sessionStorage.removeItem(BATCH_STORAGE);}catch{}
+   })
+   .catch(()=>{if(cancelled)return;try{sessionStorage.removeItem(BATCH_STORAGE);}catch{}});
+  return()=>{cancelled=true;};
+ },[token]);
+ useEffect(()=>{
+  const id=batchJob?.id;
+  if(!token||!id||batchJob?.status!=='running')return;
+  let cancelled=false;
+  const timer=window.setInterval(()=>{
+   void fetch(BRIDGE_URL+'/batch/'+id,{headers:{Authorization:'Bearer '+token},cache:'no-store',redirect:'error'})
+    .then(async r=>{if(!r.ok)throw Error('unavailable');return r.json() as Promise<unknown>;})
+    .then(data=>{if(cancelled)return;const job=parseBatchJob(data);if(job)setBatchJob(job);})
+    .catch(()=>{if(!cancelled)setNotice('El puente no respondió al seguimiento; la descarga puede seguir en tu equipo.');});
+  },1600);
+  return()=>{cancelled=true;window.clearInterval(timer);};
+ },[token,batchJob?.id,batchJob?.status]);
  useEffect(()=>{
   if(!BRIDGE_ENABLED||!token||!online||!engine||query.length<2||query.length>100){
    setItems([]);setLoading(false);return;
@@ -125,6 +167,8 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
    if(response.status===429)throw Error('Demasiadas peticiones al puente. Espera un momento.');
    if(!response.ok)throw Error('El puente no pudo leer la lista. Comprueba que yt-dlp funciona.');
    const parsed=bridgeEntries(await response.json());
+   listUrlRef.current=target.canonicalUrl;
+   setVisible(LIST_WINDOW);
    applyList(parsed.items,parsed.truncated,target.kind==='playlist'?'Playlist cargada.':'Video cargado.');
   }catch(e){
    if(!controller.signal.aborted)setNotice(e instanceof Error?e.message:'No se pudo leer el enlace.');
@@ -215,12 +259,45 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
    setNotice(e instanceof Error?e.message:'No se pudo generar el MP3.');
   }finally{if(requestRef.current===controller)requestRef.current=null;}
  }
+ async function startDiskBatch(pending:BridgeVideo[]){
+  if(!listUrlRef.current){setNotice('Vuelve a abrir el enlace: el puente ya no tiene esa lista en memoria.');return;}
+  const ids=pending.map(item=>item.id);
+  if(!await askConfirm({title:'¿Guardar '+ids.length+' MP3 en este equipo?',
+   message:'El puente convierte una canción cada vez y puede tardar mucho. Los archivos quedan en la carpeta del puente, no en la Biblioteca de NÉBULA.',
+   confirmLabel:'Empezar el lote',variant:'primary'}))return;
+  setNotice('');
+  try{
+   const response=await fetch(BRIDGE_URL+'/batch',{
+    method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({listUrl:listUrlRef.current,ids}),cache:'no-store',redirect:'error',
+   });
+   if(response.status===409)throw Error('El puente aún está procesando un lote anterior.');
+   if(response.status===410)throw Error('La lista caducó. Pulsa «Ver lista de pistas» otra vez.');
+   if(!response.ok)throw Error('El puente no pudo iniciar el lote.');
+   const job=parseBatchJob(await response.json());
+   if(!job)throw Error('El puente devolvió un progreso inválido.');
+   setBatchJob(job);
+   try{sessionStorage.setItem(BATCH_STORAGE,job.id);}catch{/* The job still runs inside the bridge. */}
+  }catch(e){setNotice(e instanceof Error?e.message:'No se pudo iniciar el lote.');}
+ }
+ async function cancelDiskBatch(){
+  if(!batchJob)return;
+  try{
+   const response=await fetch(BRIDGE_URL+'/batch/'+batchJob.id+'/cancel',{
+    method:'POST',headers:{Authorization:'Bearer '+token},cache:'no-store',redirect:'error',
+   });
+   if(!response.ok)throw Error('El puente no detuvo el lote.');
+   const job=parseBatchJob(await response.json());
+   if(job)setBatchJob(job);
+  }catch(e){setNotice(e instanceof Error?e.message:'No se pudo detener el lote.');}
+ }
  async function runQueue(){
-  if(queue)return;
+  if(queue||batchRunning)return;
   if(!downloadAllowed){setNotice('Confirma que tienes permiso para guardar este contenido.');return;}
-  if(!savingToLibrary&&!savingFileCopy){setNotice('Elige al menos un destino para el MP3.');return;}
+  if(!savingToLibrary&&!savingFileCopy&&!savingToDisk){setNotice('Elige al menos un destino para el MP3.');return;}
   const pending=items.filter(item=>selectedSet.has(item.id)&&states[item.id]!=='done');
   if(!pending.length){setNotice('Selecciona al menos una pista para descargar.');return;}
+  if(savingToDisk){await startDiskBatch(pending);return;}
   cancelRef.current=false;setQueue(true);setNotice('');
   const lots=Math.ceil(pending.length/BATCH_SIZE);
   let ok=0;let failed=0;let stopped=false;
@@ -253,14 +330,14 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
   setNotice('Descargas terminadas: '+ok+' listas, '+failed+' fallidas.'+(stopped?' Cola detenida.':''));
  }
  function stopQueue(){
+  if(batchRunning){void cancelDiskBatch();return;}
   cancelRef.current=true;
   queueAbortRef.current?.abort();
  }
  function searchNow(e:FormEvent<HTMLFormElement>){e.preventDefault();if(query.length>=2)setRefresh(i=>i+1);}
- const busy=playing!==null||queue;
  return <section ref={panelRef} className="content-section private-bridge" aria-label="Reproductor local privado">
   <div className="section-heading"><h2><Radio size={19}/> Reproducción privada local</h2></div>
-  <p className="page-description">Puente opcional de tu propio ordenador, sin clave de Google. Pega un enlace de YouTube para ver sus pistas, reproducirlas, marcarlas una a una o en lotes y descargarlas en MP3 con la mejor calidad que ofrezca la fuente.</p>
+  <p className="page-description">Puente opcional de tu propio ordenador, sin clave de Google. Pega un enlace de YouTube para ver hasta {MAX_PLAYLIST_TRACKS} pistas de una lista, reproducirlas, marcarlas una a una o en lotes y descargarlas en MP3 con la mejor calidad que ofrezca la fuente.</p>
   {!online?<p className="search-source-hint">No se detecta el puente en este dispositivo. Ejecuta <code>npm run bridge:dev</code> en tu ordenador y abre NÉBULA allí.</p>:
    !engine?<p className="search-source-hint" role="status">Puente detectado, pero el adaptador yt-dlp está deshabilitado. Actívalo solamente para contenidos a los que tengas derecho de acceso.</p>:
    !token?<form className="playlist-create glass" onSubmit={pair}>
@@ -270,7 +347,7 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
     <button type="submit" className="button primary small" disabled={inputToken.trim().length<32}>Conectar</button>
    </form>:
    <>
-    <div className="chip-row"><span className="chip active"><ShieldCheck size={14}/> Equipo local conectado</span><button type="button" className="chip" onClick={()=>{try{sessionStorage.removeItem(STORAGE);}catch{}setToken('');setItems([]);setSelected([]);setStates({});setTruncated(false);}}>Desvincular</button></div>
+    <div className="chip-row"><span className="chip active"><ShieldCheck size={14}/> Equipo local conectado</span><button type="button" className="chip" onClick={()=>{try{sessionStorage.removeItem(STORAGE);sessionStorage.removeItem(BATCH_STORAGE);}catch{}setToken('');setItems([]);setSelected([]);setStates({});setTruncated(false);setBatchJob(null);listUrlRef.current='';}}>Desvincular</button></div>
     {standalone&&<form className="explore-form glass" role="search" onSubmit={searchNow}><Search size={17}/><label htmlFor="bridge-search" className="sr-only">Buscar canción en puente privado</label><input id="bridge-search" value={typed} maxLength={100} onChange={e=>setTyped(e.target.value)} placeholder="Busca un título o artista"/>
      <button className="button primary small" disabled={query.length<2||loading}>Buscar</button></form>}
     <form className="playlist-create glass" onSubmit={resolveList}>
@@ -281,8 +358,10 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
     <label className="authorized-web-confirm"><input type="checkbox" checked={downloadAllowed} onChange={e=>setDownloadAllowed(e.target.checked)}/> Confirmo que tengo derecho a descargar y guardar este audio.</label>
     <fieldset className="bridge-destinations">
      <legend>Destino de cada MP3</legend>
-     <label><input type="checkbox" checked={savingToLibrary} onChange={e=>setSavingToLibrary(e.target.checked)}/> Guardar en mi Biblioteca automáticamente</label>
-     <label><input type="checkbox" checked={savingFileCopy} onChange={e=>setSavingFileCopy(e.target.checked)}/> Descargar también una copia de archivo</label>
+     <label><input type="checkbox" checked={savingToLibrary} disabled={savingToDisk} onChange={e=>setSavingToLibrary(e.target.checked)}/> Guardar en mi Biblioteca automáticamente</label>
+     <label><input type="checkbox" checked={savingFileCopy} disabled={savingToDisk} onChange={e=>setSavingFileCopy(e.target.checked)}/> Descargar también una copia de archivo</label>
+     <label><input type="checkbox" checked={savingToDisk} onChange={e=>{setSavingToDisk(e.target.checked);setSavingToLibrary(!e.target.checked);setSavingFileCopy(!e.target.checked);}}/> Guardar el lote en la carpeta del puente (hasta {MAX_PLAYLIST_TRACKS})</label>
+     {savingToDisk&&<p className="disclosure">Ideal para listas largas: el puente escribe los MP3 en su propio equipo, uno por uno, y la pestaña puede cerrarse. No los añade a la Biblioteca.</p>}
     </fieldset>
     <p className="disclosure">La descarga se realiza en tu propio equipo con yt-dlp y FFmpeg, sin enviar el MP3 a NÉBULA. No admite videos protegidos, privados ni fuentes bloqueadas.</p>
     {loading&&<p className="disclosure" role="status">Buscando pistas en tu puente privado…</p>}
@@ -295,8 +374,8 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
        <button type="button" className="chip" disabled={queue} onClick={selectNextBatch}>+{BATCH_SIZE} siguientes</button>
       </div>
      </div>
-     {truncated&&<p className="search-source-hint">La lista es larga: el puente muestra las primeras {items.length} pistas. Vuelve a abrir el enlace para revisar el resto.</p>}
-     <div className="track-list">{items.map(item=>{
+     {truncated&&<p className="search-source-hint">El enlace trae más pistas de las {MAX_PLAYLIST_TRACKS} que el puente llega a listar. Abre el enlace original para revisar el resto.</p>}
+     <div className="track-list">{items.slice(0,visible).map(item=>{
        const state=states[item.id]??'ready';
        return <div className={'track-row bridge-track'+(selectedSet.has(item.id)?' picked':'')} key={item.id}>
         <input className="bridge-select" type="checkbox" checked={selectedSet.has(item.id)} disabled={queue} aria-label={'Seleccionar '+item.title} onChange={()=>toggleSelected(item.id)}/>
@@ -304,14 +383,21 @@ export function PrivateBridgePanel({initialQuery='',standalone=false,onPlay,onIm
         <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={'Abrir fuente de '+item.title}><ExternalLink size={15}/></a>
         <span className="bridge-track-actions">
          <button className="button secondary small" type="button" disabled={busy} aria-label={'Escuchar '+item.title} onClick={()=>{void play(item);}}><Headphones size={16}/>{playing===item.id?'Preparando…':'Escuchar'}</button>
-         <button className="button primary small" type="button" disabled={!downloadAllowed||busy} aria-label={'Descargar MP3 de '+item.title} onClick={()=>{void downloadOne(item);}}><Download size={16}/>{state==='working'?'Convirtiendo…':'MP3'}</button>
+         <button className="button primary small" type="button" disabled={!downloadAllowed||busy||savingToDisk} aria-label={'Descargar MP3 de '+item.title} onClick={()=>{void downloadOne(item);}}><Download size={16}/>{state==='working'?'Convirtiendo…':'MP3'}</button>
         </span>
         <span className={'bridge-state '+state}>{state==='done'?'Lista':state==='failed'?'Fallida':state==='working'?'Trabajando':'Pendiente'}</span>
        </div>;
       })}</div>
+     {items.length>visible&&<button type="button" className="chip" onClick={()=>setVisible(current=>current+LIST_WINDOW)}>Mostrar {Math.min(LIST_WINDOW,items.length-visible)} más ({items.length-visible} por mostrar)</button>}
+     {batchJob&&<div className="bridge-batch" role="status" aria-live="polite">
+      <div className="bridge-batch-head"><strong>{batchJob.status==='running'?'Guardando en el equipo del puente…':batchJob.status==='completed'?'Lote completado':batchJob.status==='cancelled'?'Lote detenido':'Lote interrumpido'}</strong><span>{batchJob.completed} / {batchJob.total}</span></div>
+      <progress max={Math.max(batchJob.total,1)} value={batchJob.completed} aria-label="Progreso del lote en el puente"/>
+      <p>{batchJob.saved} convertidas · {batchJob.failed} con error · Carpeta: {batchJob.destination}</p>
+      {!!batchJob.errorItems.length&&<p className="disclosure">Sin convertir: {batchJob.errorItems.slice(0,6).join(', ')}{batchJob.errorItems.length>6?' y más…':'.'}</p>}
+     </div>}
      <div className="bridge-queue-footer">
-      <button className="button primary" type="button" disabled={!downloadAllowed||queue||selected.length===0} onClick={()=>{void runQueue();}}><Download size={16}/> Poner en cola {selected.length} descargas MP3</button>
-      {queue&&<button className="button danger small" type="button" onClick={stopQueue}><Square size={15}/> Detener cola</button>}
+      <button className="button primary" type="button" disabled={!downloadAllowed||busy||selected.length===0} onClick={()=>{void runQueue();}}>{savingToDisk?<><FolderDown size={16}/> Guardar {selected.length} MP3 en este equipo</>:<><Download size={16}/> Poner en cola {selected.length} descargas MP3</>}</button>
+      {(queue||batchRunning)&&<button className="button danger small" type="button" onClick={stopQueue}><Square size={15}/> {batchRunning?'Detener lote':'Detener cola'}</button>}
       {progress&&<p className="disclosure" role="status">{progress}</p>}
      </div>
     </div>}

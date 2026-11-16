@@ -1,6 +1,7 @@
 import {randomBytes} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {createBridgeServer,normalizeOrigins} from './bridge-core.mjs';
+import {DEFAULT_DOWNLOAD_DIR} from './playlist-batch.mjs';
 import {createYtdlpRunner} from './yt-dlp-runner.mjs';
 
 const token=process.env.NEBULA_BRIDGE_TOKEN||randomBytes(32).toString('hex');
@@ -26,4 +27,5 @@ const address=await app.listen();
 console.log('NÉBULA bridge listening only on http://127.0.0.1:'+address.port);
 console.log('Paste this private pairing token into NÉBULA (never commit/share it): '+token);
 console.log(runner.enabled?'YT-DLP enabled. No YouTube account cookies or DRM bypass configured.':'YT-DLP disabled: set NEBULA_ENABLE_YTDLP=true only if you are authorized to access/stream the source.');
+if(runner.enabled)console.log('Playlist batches write MP3 files to '+(process.env.NEBULA_DOWNLOAD_DIR||DEFAULT_DOWNLOAD_DIR));
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await app.close();process.exit(0);});

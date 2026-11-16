@@ -1,8 +1,9 @@
 import {VIDEO_ID} from './bridge-core.mjs';
+import {MAX_PLAYLIST_TRACKS} from './limits.mjs';
 
 const HOSTS=new Set(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtu.be']);
 const PLAYLIST_ID=/^[A-Za-z0-9_-]{3,80}$/;
-export const MAX_RESOLVE_ENTRIES=200;
+export const MAX_RESOLVE_ENTRIES=MAX_PLAYLIST_TRACKS;
 
 // The URL handed to yt-dlp must never look like an option and must stay on an allowlisted host.
 export function sanitizeYouTubeUrl(value){

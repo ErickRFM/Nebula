@@ -7,7 +7,12 @@
  */
 export const BRIDGE_URL='http://127.0.0.1:4177';
 export const BRIDGE_ENABLED=process.env.NEXT_PUBLIC_ENABLE_PRIVATE_BRIDGE!=='false';
+// Debe coincidir con MAX_PLAYLIST_TRACKS de tools/private-bridge/limits.mjs; lo fija
+// private-bridge.test.ts, que importa el módulo del puente directamente.
+export const MAX_PLAYLIST_TRACKS=1000;
 const TICKET=/^[A-Za-z0-9_-]{20,300}\.[A-Za-z0-9_-]{30,80}$/;
+const JOB_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const JOB_STATUS=['running','completed','cancelled','error'] as const;
 export function isPlayableExternalUrl(value:unknown,bridgeEnabled=BRIDGE_ENABLED):value is string {
  if(typeof value!=='string'||value.length>2048)return false;
  try{
@@ -43,7 +48,7 @@ export function bridgeEntries(payload:unknown):{items:BridgeVideo[];truncated:bo
  const data=payload&&typeof payload==='object'?payload as {items?:unknown;truncated?:unknown}:null;
  const items=Array.isArray(data?.items)?data.items:[];
  return {
-  items:items.slice(0,200).flatMap((raw):BridgeVideo[]=>{
+  items:items.slice(0,MAX_PLAYLIST_TRACKS).flatMap((raw):BridgeVideo[]=>{
    const item=raw&&typeof raw==='object'?raw as Record<string,unknown>:null;
    if(!item||typeof item.id!=='string'||!VIDEO_RE.test(item.id))return [];
    const sec=item.durationSeconds;
@@ -72,4 +77,29 @@ export function bridgeVideos(payload:unknown):BridgeVideo[]{
     sourceUrl:'https://www.youtube.com/watch?v='+item.id,
   }];
  });
+}
+export type BridgeBatchStatus=(typeof JOB_STATUS)[number];
+export type BridgeBatchJob={id:string;total:number;completed:number;saved:number;failed:number;
+ status:BridgeBatchStatus;current:string|null;errorItems:string[];destination:string;note:string};
+// El lote lo reporta el proceso local: cualquier respuesta malformada se ignora en lugar de
+// mostrar un progreso inventado o un camino de archivos controlado por el servidor.
+export function parseBatchJob(payload:unknown):BridgeBatchJob|null{
+ const job=(payload&&typeof payload==='object'?payload as {job?:unknown}:null)?.job;
+ if(!job||typeof job!=='object')return null;
+ const value=job as Record<string,unknown>;
+ if(typeof value.id!=='string'||!JOB_ID.test(value.id))return null;
+ const total=value.total;
+ if(typeof total!=='number'||!Number.isInteger(total)||total<1||total>MAX_PLAYLIST_TRACKS)return null;
+ if(!JOB_STATUS.includes(value.status as BridgeBatchStatus))return null;
+ const count=(item:unknown)=>typeof item==='number'&&Number.isInteger(item)&&item>=0&&item<=total?item:null;
+ const completed=count(value.completed);
+ const saved=count(value.saved);
+ const failed=count(value.failed);
+ if(completed===null||saved===null||failed===null||saved+failed>completed)return null;
+ const errors=Array.isArray(value.errorItems)?value.errorItems.filter((id):id is string=>typeof id==='string'&&/^[A-Za-z0-9_-]{11}$/.test(id)).slice(0,30):[];
+ const current=typeof value.current==='string'&&/^[A-Za-z0-9_-]{11}$/.test(value.current)?value.current:null;
+ const destination=typeof value.destination==='string'?value.destination.slice(0,300):'';
+ return {id:value.id,total,completed,saved,failed,status:value.status as BridgeBatchStatus,
+  current,errorItems:errors,destination,
+  note:typeof value.note==='string'?value.note.slice(0,200):''};
 }

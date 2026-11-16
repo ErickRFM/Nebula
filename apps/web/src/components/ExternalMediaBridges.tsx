@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import type {AccountApi} from '../hooks/useAccount';
 import {parseExternalEmbed,type ExternalEmbed} from '../lib/external-embeds';
+import {parseYouTubeUrl} from '../lib/private-bridge';
 import {YouTubePlaylistBrowser} from './YouTubePlaylistBrowser';
 type Video={videoId:string;title:string;artist:string;thumbnail:string|null;sourceUrl:string};
 const base=process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/,'')??'';
@@ -19,6 +20,7 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,onOpenAudio
  const playerRef=useRef<HTMLDivElement>(null);
  const incomingParsed=embedded?parseExternalEmbed(initialQuery??''):null;
  const incomingLink=incomingParsed?.provider==='deezer'?null:incomingParsed;
+ const ytTarget=active?.provider==='youtube'?parseYouTubeUrl(active.sourceUrl):null;
  useEffect(()=>{
    if(!active)return;
    // The official player must remain visible; never autoplay it while hidden.
@@ -111,7 +113,7 @@ export function ExternalMediaBridges({account,onActivate,onImportMp3,onOpenAudio
        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen/>}
      {active.collection&&<div className="search-source-hint" role="status"><strong>{active.collection.kind==='mix'?'Mix / radio dinámica de YouTube':'Playlist de YouTube'}</strong><p>{active.collection.kind==='mix'?'La radio RD es dinámica: aquí suena el video inicial. El enlace original conserva la mezcla para seguir en YouTube. No es una lista fija.':'Playlist incrustada con los controles oficiales. La disponibilidad de cada video depende de YouTube.'}</p></div>}
      <div className="official-player-footer"><p>Reproduce desde los controles de {active.provider==='youtube'?'YouTube':active.provider==='spotify'?'Spotify':'SoundCloud'}. El mini-reproductor de NÉBULA controla únicamente audio compatible.</p>
-       {active.provider==='youtube'&&(()=>{try{const url=new URL(active.sourceUrl);return /^[A-Za-z0-9_-]{11}$/.test(url.searchParams.get('v')||'');}catch{return false;}})()&&<button type="button" className="button primary small" onClick={()=>onDownloadYoutube(active.sourceUrl)}>Descargar MP3 (puente local)</button>}
+       {ytTarget&&<button type="button" className="button primary small" onClick={()=>onDownloadYoutube(active.sourceUrl)}>{ytTarget.kind==='playlist'?'Ver todas las pistas en el puente local':'Descargar MP3 (puente local)'}</button>}
        <button type="button" className="button secondary small" onClick={onOpenAudioTools}>Importar o convertir audio propio</button>
        {active.provider!=='youtube'&&<a className="button secondary small" href={active.sourceUrl} target="_blank" rel="noopener noreferrer">Abrir en la plataforma original</a>}</div>
    </div>}
