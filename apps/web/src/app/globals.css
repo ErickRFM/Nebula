@@ -948,12 +948,15 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .eq-profile{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;column-gap:10px;padding:11px 12px;border:1px solid #ffffff1f;border-radius:14px;background:#181e38;cursor:pointer;transition:background .16s ease,border-color .16s ease,transform .16s ease}
 .eq-profile input{position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 .eq-profile:not(.is-selected):hover{background:#222a4d;border-color:#ffffff33}
-.eq-profile.is-selected{border-color:rgba(201,166,255,.75);background:linear-gradient(135deg,rgba(201,166,255,.24),rgba(119,214,222,.14))}
+/* La capa final opaca es obligatoria: el degradado solo es translúcido y las orbes
+   ambientales se cuelan por debajo, bajando el hint de 4.6 a 2.6 en el teléfono. */
+.eq-profile.is-selected{border-color:rgba(201,166,255,.75);background:linear-gradient(135deg,rgba(201,166,255,.24),rgba(119,214,222,.14)),#181e38}
 .eq-profile:focus-within{outline:2px solid var(--cyan);outline-offset:2px}
 .eq-profile-icon{grid-row:1/3;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:rgba(201,166,255,.16);color:#d9c6ff}
 .eq-profile.is-selected .eq-profile-icon{background:rgba(119,214,222,.22);color:#bdf3fa}
 .eq-profile-name{font-size:.82rem;font-weight:750;color:#efeafb;line-height:1.2}
 .eq-profile-hint{font-size:.75rem;color:#a3a1c1;line-height:1.25}
+.eq-profile.is-selected .eq-profile-hint{color:#e8e4fb}
 
 .eq-master{margin-top:10px;padding:13px 14px;border:1px solid #ffffff14;border-radius:15px;background:#10172b;transition:opacity .16s ease}
 .eq-master.is-disabled,.eq-module.is-disabled{opacity:.45}
@@ -971,14 +974,14 @@ html.nebula-high-contrast .button.secondary{background:#272335;border-color:#fff
 .eq-module-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:.74rem;font-weight:700;color:#e4dff6}
 .eq-module-head strong{font-size:.78rem;font-variant-numeric:tabular-nums;color:#c8f2f7}
 .eq-module input[type=range]{margin-top:7px}
-.eq-module-hint{font-size:.7rem;line-height:1.35;color:#8f8fae}
+.eq-module-hint{font-size:.7rem;line-height:1.35;color:var(--muted)}
 
 .eq-meters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
 .eq-meter{display:grid;gap:3px;padding:10px 11px;border:1px solid #ffffff12;border-radius:13px;background:#0f1628}
 .eq-meter-label{font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#9d9bbd}
 .eq-meter-value{font-size:1.05rem;font-weight:800;line-height:1.15;color:#efeafb;font-variant-numeric:tabular-nums}
 .eq-meter-value small{margin-left:3px;font-size:.7rem;font-weight:600;color:#9d9bbd}
-.eq-meter-note{font-size:.75rem;line-height:1.35;color:#8f8fae}
+.eq-meter-note{font-size:.75rem;line-height:1.35;color:var(--muted)}
 .eq-meter-bar{position:relative;height:5px;margin:3px 0;border-radius:999px;background:#ffffff1a;overflow:hidden}
 .eq-meter-bar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#77d6de,#c9a6ff);transition:width .22s ease}
 .eq-meter-bar.is-correlation span{position:absolute;top:0;left:50%;width:8px;margin-left:-4px;transition:left .22s ease}
@@ -1208,7 +1211,14 @@ html.nebula-high-contrast .eq-ab button[aria-pressed="true"]{background:#ffe59b;
  .player-sound-tools{margin-top:18px}
  .player-sound-tools>summary{padding:14px 15px;min-height:60px}
 }
-@media(pointer:coarse),(hover:none){.chip{min-height:44px}}
+@media(pointer:coarse),(hover:none){
+ .chip{min-height:44px}
+ /* 44px de pulgar sin cambiar el dibujo: la fila de playlist mide 39px y el interruptor 27px
+    en el WebView de Android (Chrome 83). El pseudo hereda el hit-testing sin estirar la píldora. */
+ .playlist-entry-main{min-height:44px}
+ .toggle{position:relative}
+ .toggle::after{content:"";position:absolute;top:50%;left:0;width:100%;height:44px;transform:translateY(-50%)}
+}
 .track-actions{display:inline-flex;align-items:center;gap:4px;flex:none}
 .skip-link{position:fixed;top:10px;left:10px;z-index:100;padding:11px 15px;border-radius:10px;background:#f4efff;color:#1d1235;font-weight:800;font-size:.82rem;text-decoration:none;transform:translateY(-160%);transition:transform .15s ease}
 .skip-link:focus{transform:none}

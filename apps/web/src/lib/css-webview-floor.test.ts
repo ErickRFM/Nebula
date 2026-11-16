@@ -17,6 +17,24 @@ const blocks = [...css.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
 const declarations = (body: string): string[] => body.split(';').map((part: string) => part.trim()).filter(Boolean);
 const propertyOf = (declaration: string): string => declaration.split(':')[0].trim().toLowerCase();
 
+// Cuerpos de los @media que preguntan por pantalla táctil, pareando llaves anidadas.
+function bloquesTáctiles(): string[] {
+  const cuerpos: string[] = [];
+  const cabeceras = /@media([^{]*)\{/g;
+  let cabecera: RegExpExecArray | null;
+  while ((cabecera = cabeceras.exec(css)) !== null) {
+    if (!/pointer:\s*coarse/.test(cabecera[1]) || !/hover:\s*none/.test(cabecera[1])) continue;
+    let fondo = cabeceras.lastIndex, profundidad = 1;
+    while (fondo < css.length && profundidad > 0) {
+      if (css[fondo] === '{') profundidad++;
+      else if (css[fondo] === '}') profundidad--;
+      fondo++;
+    }
+    cuerpos.push(css.slice(cabeceras.lastIndex, fondo - 1));
+  }
+  return cuerpos;
+}
+
 describe('suelo de capacidades del WebView (Chrome 83)', () => {
   const prohibidos: [string, RegExp][] = [
     [':is(', /:is\(/],
@@ -64,6 +82,20 @@ describe('suelo de capacidades del WebView (Chrome 83)', () => {
       expect(bloques.length, `no existe ninguna regla para ${source}`).toBeGreaterThan(0);
       const conÁrea = bloques.some((block) => /padding-top|padding-bottom|min-height|stroke-width/.test(block.body));
       expect(conÁrea, `${source} nunca declara área táctil útil (padding-top/bottom, min-height o stroke-width)`).toBe(true);
+    }
+  });
+
+  /*
+   * Medido con el dedo en el emulador (Chrome 83, 393x751): la fila de una playlist
+   * creaba un objetivo de 39.1px y cada interruptor de ajuste de 27px. Ambos siguen
+   * su diseño en escritorio, así que el arreglo vive dentro de la consulta táctil.
+   */
+  it('los controles medidos por debajo de 44px recuperan área dentro de la consulta táctil', () => {
+    const táctil = bloquesTáctiles();
+    expect(táctil.length, 'no hay ningún @media con pointer:coarse y hover:none').toBeGreaterThan(0);
+    const cuerpo = táctil.join('\n');
+    for (const [selector, px] of [['\\.playlist-entry-main', 'min-height:\\s*44px'], ['\\.toggle::after', 'height:\\s*44px'], ['\\.chip', 'min-height:\\s*44px']]) {
+      expect(cuerpo, `${selector} no declara 44px dentro de la consulta táctil`).toMatch(new RegExp(selector + '\\s*\\{[^}]*' + px));
     }
   });
 
