@@ -6,7 +6,7 @@ import {
   Compass, Disc3, Download, Heart, Home, Library, ListMusic,
   MonitorSpeaker, MoreHorizontal, Music2, Pause, Play, Plus,
   Repeat, Repeat1, Search, Settings2, Shuffle, SkipBack, SkipForward,
-  SlidersHorizontal, Sparkles, Users, Volume2, Waves, X, Trash2, ListPlus,
+  SlidersHorizontal, Sparkles, Users, Volume2, Waves, WifiOff, X, Trash2, ListPlus,
   type LucideIcon,
 } from 'lucide-react';
 import { formatTime } from '@nebula/player-core';
@@ -16,6 +16,8 @@ import { useLocalAudio } from '../hooks/useLocalAudio';
 import { AudioStudio } from './AudioStudio';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useAccount } from '../hooks/useAccount';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useConfirm } from '../hooks/useConfirm';
 import { AccountPanel } from './AccountPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { PublicAudiusPanel } from './PublicAudiusPanel';
@@ -163,6 +165,8 @@ export function NebulaApp() {
   const [highContrast, setHighContrast] = useState(false);
   const player = useLocalAudio();
   const playlistStore = usePlaylists();
+  const online = useNetworkStatus();
+  const askConfirm = useConfirm();
   const account = useAccount();
   const [playlistTitle, setPlaylistTitle] = useState('');
   const [cloudPlaylistTitle, setCloudPlaylistTitle] = useState('');
@@ -209,8 +213,8 @@ export function NebulaApp() {
     if(pendingPlaylistTrack && !dialog.open) dialog.showModal();
     if(!pendingPlaylistTrack && dialog.open) dialog.close();
   },[pendingPlaylistTrack]);
-  function deleteFromLibrary(trackId: string) {
-    if (!window.confirm('¿Eliminar esta canción guardada de este navegador?')) return;
+  async function deleteFromLibrary(trackId: string) {
+    if (!await askConfirm({ title: '¿Eliminar esta canción guardada?', message: 'Se quita del almacenamiento de este navegador. Puedes volver a guardarla desde tu nube privada o desde el puente local.', confirmLabel: 'Eliminar', variant: 'danger' })) return;
     void player.removeLocalTrack(trackId).then((deleted)=>{if(deleted) playlistStore.removeFromAll(trackId);});
   }
   function createPlaylist() {
@@ -427,7 +431,7 @@ export function NebulaApp() {
             <div className="personal-playlists">{playlistStore.playlists.map((list)=><div className={'playlist-entry glass ' + (activePlaylist===list.id?'chosen':'')} key={list.id}>
               <button type="button" className="playlist-entry-main" aria-pressed={activePlaylist===list.id} onClick={()=>setActivePlaylist(list.id)}><ListMusic size={19}/><strong>{list.title}</strong><small>{list.trackIds.length===1?'1 canción':list.trackIds.length+' canciones'}</small></button>
               <button type="button" className="icon-button" title="Reproducir lista" aria-label={'Reproducir '+list.title} disabled={!list.trackIds.some(id=>player.tracks.find(track=>track.id===id)?.audioUrl)} onClick={()=>player.playQueue(list.trackIds.map((id)=>player.tracks.find((track)=>track.id===id)).filter((track):track is Track=>Boolean(track)))}><Play size={17}/></button>
-              <button type="button" className="icon-button" title="Eliminar lista" aria-label={'Eliminar '+list.title} onClick={()=>{if(window.confirm('¿Eliminar playlist '+list.title+'?')){playlistStore.remove(list.id);if(activePlaylist===list.id)setActivePlaylist(null);}}}><Trash2 size={17}/></button>
+              <button type="button" className="icon-button" title="Eliminar lista" aria-label={'Eliminar '+list.title} onClick={async ()=>{if(await askConfirm({ title: '¿Eliminar la lista '+list.title+'?', message: 'Se borra de las listas guardadas en este navegador. Las canciones que contiene no se eliminan de tu biblioteca.', confirmLabel: 'Eliminar lista', variant: 'danger' })){playlistStore.remove(list.id);if(activePlaylist===list.id)setActivePlaylist(null);}}}><Trash2 size={17}/></button>
             </div>)}</div>}
           </section>
           {currentPlaylist && <section className="content-section"><SectionHeader title={'Canciones · '+currentPlaylist.title}/><div className="track-list glass">
@@ -445,7 +449,7 @@ export function NebulaApp() {
             {account.playlistsBusy && <p role="status" className="disclosure">Actualizando playlists de cuenta…</p>}
             <div className="personal-playlists">{account.serverPlaylists.map((list)=><div className="playlist-entry glass" key={list.id}>
               <button type="button" className="playlist-entry-main" aria-expanded={selectedAccountPlaylistId===list.id} onClick={()=>setSelectedAccountPlaylistId(current=>current===list.id?null:list.id)}><ListMusic size={19}/><strong>{list.name}</strong><small>En tu cuenta · {selectedAccountPlaylistId===list.id?'Ocultar':'Ver canciones'}</small></button>
-              <button type="button" className="icon-button" disabled={account.playlistsBusy} title="Eliminar playlist de cuenta" aria-label={'Eliminar de mi cuenta '+list.name} onClick={()=>{if(window.confirm('¿Eliminar playlist de cuenta '+list.name+'?'))void account.removeServerPlaylist(list.id);}}><Trash2 size={17}/></button>
+              <button type="button" className="icon-button" disabled={account.playlistsBusy} title="Eliminar playlist de cuenta" aria-label={'Eliminar de mi cuenta '+list.name} onClick={async ()=>{if(await askConfirm({ title: '¿Eliminar '+list.name+' de tu cuenta?', message: 'Se quita de las listas sincronizadas en tu cuenta. Este dispositivo dejará de verla al volver a iniciar sesión.', confirmLabel: 'Eliminar', variant: 'danger' })) void account.removeServerPlaylist(list.id);}}><Trash2 size={17}/></button>
             </div>)}</div>
             {!account.playlistsBusy && account.serverPlaylists.length===0 && <p className="empty-note">Todavía no tienes playlists guardadas en tu cuenta.</p>}
             {selectedAccountPlaylistId && account.serverPlaylists.some(list=>list.id===selectedAccountPlaylistId) && <AccountPlaylistTracks account={account} playlistId={selectedAccountPlaylistId} onPlay={player.playExternal}/>}
@@ -500,6 +504,7 @@ export function NebulaApp() {
         </div>
       </form>
     </dialog>
+    {!online && <div className="offline-note glass" role="status"><WifiOff size={18} aria-hidden="true"/><span>Sin conexión: la biblioteca y el audio guardados en este dispositivo siguen disponibles.</span></div>}
     {player.notice && <div className="toast glass" role="status"><span>{player.notice}</span><button type="button" onClick={()=>player.setNotice('')} className="icon-button" aria-label="Cerrar aviso"><X size={18}/></button></div>}
   </div>;
 }

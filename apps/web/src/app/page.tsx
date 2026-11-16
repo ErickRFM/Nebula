@@ -1,2 +1,6 @@
 import { NebulaApp } from '../components/NebulaApp';
-export default function HomePage() { return <NebulaApp />; }
+import { ConfirmProvider } from '../hooks/useConfirm';
+
+export default function HomePage() {
+  return <ConfirmProvider><NebulaApp /></ConfirmProvider>;
+}

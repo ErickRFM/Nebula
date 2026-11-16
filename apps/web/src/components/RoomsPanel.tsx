@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Copy, Headphones, Music2, Plus, RadioTower, RefreshCw, Users, X } from 'lucide-react';
 import { ApiRequestError, type AccountApi } from '../hooks/useAccount';
+import { useConfirm } from '../hooks/useConfirm';
 import { clockSample, estimateClockOffset, expectedPositionMs, type ClockSample } from '@nebula/room-sync';
 import { RoomDevicesPanel } from './RoomDevicesPanel';
 import { RoomAcousticQaPanel } from './RoomAcousticQaPanel';
@@ -27,6 +28,7 @@ type RoomMember = { userId: string; role: 'host' | 'listener'; email: string | n
 let lastKnownClockOffsetMs = 0;
 
 export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { account: AccountApi; onAccount: () => void; onLibrary: () => void; onActivate: () => void }) {
+  const askConfirm = useConfirm();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Room | null>(null);
@@ -202,8 +204,9 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     return () => window.clearInterval(timer);
   }, [selectedId, account.user?.id, refreshSelected]);
 
-  function removeMember(member: RoomMember) {
-    if (!selected || !window.confirm('¿Expulsar a esta persona de la sala?')) return;
+  async function removeMember(member: RoomMember) {
+    if (!selected) return;
+    if (!await askConfirm({ title: '¿Expulsar a ' + (member.email || 'esta persona') + ' de la sala?', message: 'Deja de recibir el audio de la sala y no puede volver con el enlace anterior hasta que la inviten de nuevo.', confirmLabel: 'Expulsar', variant: 'danger' })) return;
     void action(async () => {
       await account.cloudRequest('/v1/rooms/' + selected.id + '/members/' + member.userId, { method: 'DELETE' });
       await refreshMembers(); await refreshSelected();
@@ -211,8 +214,9 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     });
   }
 
-  function transferHost(member: RoomMember) {
-    if (!selected || !window.confirm('¿Transferir la administración de esta sala? Dejarás de ser anfitrión.')) return;
+  async function transferHost(member: RoomMember) {
+    if (!selected) return;
+    if (!await askConfirm({ title: '¿Transferir la administración de la sala?', message: 'La otra persona decide quién entra y puede expulsarte. Tú quedas como participante.', confirmLabel: 'Transferir', variant: 'primary' })) return;
     void action(async () => {
       await account.cloudRequest('/v1/rooms/' + selected.id + '/transfer-host', {
         method: 'POST', body: JSON.stringify({ memberId: member.userId }),
@@ -418,9 +422,11 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
     }
   }
 
-  function leaveOrClose(room: Room) {
+  async function leaveOrClose(room: Room) {
     const isHost = room.ownerUserId === account.user?.id;
-    if (!window.confirm(isHost ? '¿Cerrar la sala para todos?' : '¿Salir de la sala?')) return;
+    if (!await askConfirm(isHost
+      ? { title: '¿Cerrar la sala para todos?', message: 'Nadie seguirá escuchando y el enlace de invitación deja de servir. La sala desaparece de la lista.', confirmLabel: 'Cerrar la sala', variant: 'danger' }
+      : { title: '¿Salir de la sala?', message: 'Dejas de recibir el audio. Puedes volver con el mismo enlace mientras la sala siga abierta.', confirmLabel: 'Salir', variant: 'danger' })) return;
     void action(async () => {
       await account.cloudRequest('/v1/rooms/' + room.id + (isHost ? '/close' : '/leave'), { method: 'POST', body: '{}' });
       if (selectedId === room.id) { setSelectedId(null); setSelected(null); setIssuedCode(''); }
