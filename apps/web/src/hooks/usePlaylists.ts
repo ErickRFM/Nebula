@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { nuevoId } from '../lib/uuid';
 
 export type LocalPlaylist = { id: string; title: string; trackIds: string[]; createdAt: number };
 const STORAGE_KEY = 'nebula:playlists:v1';
@@ -37,7 +38,7 @@ export function usePlaylists() {
     create: (title: string) => {
       const clean = title.trim().slice(0, 80);
       if (!clean) return null;
-      const id = crypto.randomUUID();
+      const id = nuevoId();
       setPlaylists((all) => [{id, title:clean, trackIds:[], createdAt:Date.now()}, ...all]);
       return id;
     },

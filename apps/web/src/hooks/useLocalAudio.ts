@@ -5,6 +5,7 @@ import { artwork, demoTracks, type Track } from '../lib/catalog';
 import { deleteSavedSong, getSavedSong, loadSavedSongs, MAX_AUDIO_BYTES, saveSong, songToTrack, type SavedSong } from '../lib/local-library';
 import {downloadLocalAudioBlob,exportedSongFilename} from '../lib/local-audio-download';
 import { readAudioMetadata } from '../lib/audio-metadata';
+import { nuevoId } from '../lib/uuid';
 import {readCheckpoint,saveCheckpoint} from '../lib/playback-checkpoint';
 import {clearTransientPlaybackNotice} from '../lib/notice-lifecycle';
 import {isPlayableExternalUrl} from '../lib/private-bridge';
@@ -595,7 +596,7 @@ export function useLocalAudio(): Player {
     void (async()=>{
       const added=await Promise.all(candidates.map(async(file,index):Promise<{track:Track;record:SavedSong}>=>{
         const tags=await readAudioMetadata(file);
-        const id='local-'+crypto.randomUUID();
+        const id='local-'+nuevoId();
         const url=URL.createObjectURL(file);
         urlsRef.current.set(id,url);
         const record:SavedSong={
