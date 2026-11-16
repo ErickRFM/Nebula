@@ -76,3 +76,24 @@ test('the guest identity keeps an explicit way to use a real account',async({pag
   await expect(page.getByText(email)).toBeVisible();
   await expect(door).toHaveCount(0);
 });
+
+/**
+ * El token del invitado no puede cerrar el catálogo público: esa fuente nunca pidió credenciales
+ * y es lo que hace útil la primera visita. Con la puerta en accessToken, la región desaparecía.
+ */
+test('the guest keeps listening to the public Audius catalogue',async({page})=>{
+  test.skip(!process.env.NEXT_PUBLIC_API_URL,'Needs API');
+  await page.route('https://api.audius.co/v1/tracks/search?**',route=>route.fulfill({
+    status:200,contentType:'application/json',
+    body:JSON.stringify({data:[{id:'Track_Fixture',title:'Demo Audius Pública',
+      user:{name:'Artista Audius'},permalink:'/artist/song',is_stream_gated:false,is_streamable:true,duration:132}]}),
+  }));
+  const issued=page.waitForResponse(response=>response.url().endsWith('/v1/auth/guest')&&response.status()===201);
+  await page.goto('/');
+  await issued;
+  const desktop=page.getByRole('navigation',{name:'Navegación principal'}).getByRole('button',{name:'Buscar',exact:true});
+  if(await desktop.isVisible()) await desktop.click();
+  else await page.getByRole('navigation',{name:'Navegación móvil'}).getByRole('button',{name:'Buscar',exact:true}).click();
+  await page.getByRole('textbox',{name:'Buscar canciones, artistas o álbumes'}).fill('electrónica');
+  await expect(page.getByRole('region',{name:'Catálogo público de Audius'}).getByText('Demo Audius Pública')).toBeVisible();
+});

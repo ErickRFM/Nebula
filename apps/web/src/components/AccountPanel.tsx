@@ -146,7 +146,7 @@ export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOp
       <button type="button" className="account-switch" onClick={()=>{
         setMode(mode==='invite'?'login':'invite');account.setError('');
       }}>{mode==='invite'?'Volver a iniciar sesión':'Tengo un código de invitación'}</button>
-      {account.user && <button type="button" className="account-switch" onClick={()=>{account.setError('');setShowSignIn(false);}}>
+      {account.user && <button type="button" className="button secondary small" onClick={()=>{account.setError('');setShowSignIn(false);}}>
         Seguir con mi sesión de invitado
       </button>}
     </div>}
