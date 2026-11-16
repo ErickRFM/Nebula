@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Info, Trash2, X } from 'lucide-react';
 
 export interface ConfirmModalProps {
@@ -16,6 +15,10 @@ export interface ConfirmModalProps {
   onCancel: () => void;
 }
 
+/*
+ * El WebView del APK es Chrome 83 y este diálogo se abre encima de todo: sin
+ * regla propia el foco se escapa al reproductor y el tap fuera no cierra nada.
+ */
 export function ConfirmModal({
   isOpen,
   title,
@@ -29,7 +32,6 @@ export function ConfirmModal({
   const containerRef = useFocusTrap();
   const cancelBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  // Focus cancel button on open and esc handling
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => cancelBtnRef.current?.focus(), 50);
@@ -52,68 +54,53 @@ export function ConfirmModal({
     variant === 'danger' ? Trash2 : variant === 'info' ? Info : AlertTriangle;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        className="modal-backdrop"
-        onClick={onCancel}
-        role="presentation"
-        aria-hidden={!isOpen}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
+    <div className="confirm-backdrop" onClick={onCancel} role="presentation">
+      <div
+        className="confirm-dialog glass"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        aria-describedby="modal-desc"
+        onClick={(e) => e.stopPropagation()}
+        ref={containerRef}
       >
-        <motion.div
-          className="modal-dialog glass"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="modal-title"
-          aria-describedby="modal-desc"
-          onClick={e => e.stopPropagation()}
-          ref={containerRef}
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ duration: 0.2 }}
+        <button
+          type="button"
+          className="confirm-close icon-button"
+          aria-label="Cerrar ventana"
+          onClick={onCancel}
         >
+          <X size={18} />
+        </button>
+
+        <div className="confirm-header">
+          <div className={`confirm-icon confirm-${variant}`} aria-hidden="true">
+            <IconComponent size={24} />
+          </div>
+          <div>
+            <h3 id="modal-title">{title}</h3>
+            <p id="modal-desc">{message}</p>
+          </div>
+        </div>
+
+        <div className="confirm-actions">
           <button
+            ref={cancelBtnRef}
             type="button"
-            className="modal-close icon-button"
-            aria-label="Cerrar ventana"
+            className="button secondary"
             onClick={onCancel}
           >
-            <X size={18} />
+            {cancelLabel}
           </button>
-
-          <div className="modal-header">
-            <div className={`modal-icon-badge modal-${variant}`}>
-              <IconComponent size={24} />
-            </div>
-            <div>
-              <h3 id="modal-title">{title}</h3>
-              <p id="modal-desc">{message}</p>
-            </div>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              ref={cancelBtnRef}
-              type="button"
-              className="button secondary"
-              onClick={onCancel}
-            >
-              {cancelLabel}
-            </button>
-            <button
-              type="button"
-              className={`button ${variant === 'danger' ? 'danger-button' : 'primary'}`}
-              onClick={onConfirm}
-            >
-              {confirmLabel}
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          <button
+            type="button"
+            className={`button ${variant === 'danger' ? 'danger' : 'primary'}`}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

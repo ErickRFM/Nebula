@@ -284,8 +284,11 @@ test('private rooms can be created, joined and closed across two accounts', asyn
     await expect(guest.getByText('Te uniste a la sala.')).toBeVisible();
     await expect(guest.getByText('2 participante(s)', { exact: false }).first()).toBeVisible();
 
-    page.once('dialog', dialog => { void dialog.accept(); });
+    // El anfitrión confirma con el diálogo propio (alertdialog), no con window.confirm.
     await page.getByRole('button', { name: 'Salir o cerrar Sala E2E privada' }).click();
+    const confirmar = page.getByRole('alertdialog').getByRole('button', { name: 'Cerrar la sala' });
+    await expect(confirmar).toBeVisible();
+    await confirmar.click();
     await expect(page.getByText('Sala cerrada.')).toBeVisible();
     await expect(guest.getByText('La cola está vacía.')).toHaveCount(0, { timeout: 10000 });
   } finally {

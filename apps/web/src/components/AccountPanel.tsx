@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { CircleUserRound, Cloud, CloudOff, Copy, LockKeyhole, LogOut, Monitor, Plus, ShieldCheck, Trash2, UserPlus, ArrowRight } from 'lucide-react';
 import type { AccountApi } from '../hooks/useAccount';
+import { useConfirm } from '../hooks/useConfirm';
 
 function describeDevice(userAgent:string|null):string {
   if(!userAgent) return 'Dispositivo desconocido';
@@ -16,6 +17,7 @@ function formatDate(value:string):string {
 }
 
 export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOpenPlaylists:()=>void}) {
+  const askConfirm = useConfirm();
   const [mode,setMode]=useState<'login'|'register'|'invite'>('login');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
@@ -96,7 +98,7 @@ export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOp
         <div className="section-heading"><h2>Dispositivos y sesiones</h2><button type="button" className="button secondary small" disabled={account.busy} onClick={()=>void account.revokeOtherSessions()}><ShieldCheck size={16}/> Cerrar las demás</button></div>
         <div className="personal-playlists account-remote-list">{account.sessions.length===0 ? <p className="empty-note">No hay sesiones activas registradas.</p> : account.sessions.map((item)=><div className="playlist-entry glass" key={item.id}>
           <Monitor size={21}/><div className="account-user-label"><strong>{describeDevice(item.userAgent)}{item.current?' · Este dispositivo':''}</strong><small>Iniciada {formatDate(item.createdAt)} · Último uso {formatDate(item.lastUsedAt)}</small></div>
-          {item.current ? <span className="server-pill">Actual</span> : <button type="button" className="icon-button" aria-label="Cerrar esta sesión" onClick={()=>{if(window.confirm('¿Cerrar esta sesión remota?')) void account.revokeSession(item.id);}}><Trash2 size={17}/></button>}
+          {item.current ? <span className="server-pill">Actual</span> : <button type="button" className="icon-button" aria-label="Cerrar esta sesión" onClick={async ()=>{if(await askConfirm({ title: '¿Cerrar esta sesión?', message: 'Ese dispositivo quedará fuera de tu cuenta y tendrá que volver a iniciar sesión para escuchar. Tu biblioteca no se modifica.', confirmLabel: 'Cerrar sesión', variant: 'danger' })) void account.revokeSession(item.id);}}><Trash2 size={17}/></button>}
         </div>)}</div>
       </section>
       <section className="content-section account-library-entry">
