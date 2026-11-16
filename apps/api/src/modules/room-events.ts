@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { createGuards } from './auth.js';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
-type Snapshot = { revision: number; participantCount: number };
+type Snapshot = { revision: number; participantCount: number; queueFingerprint: string };
 
 /**
  * Authenticated low-latency room event stream.
@@ -31,7 +31,9 @@ export function registerRoomEventRoutes(app: FastifyInstance, pool: Pool): void 
     const fetchSnapshot = async (): Promise<Snapshot | null> => {
       const result = await pool.query<Snapshot>(`
         SELECT r.revision::int AS revision,
-          (SELECT count(*)::int FROM room_members m2 WHERE m2.room_id=r.id) AS "participantCount"
+          (SELECT count(*)::int FROM room_members m2 WHERE m2.room_id=r.id) AS "participantCount",
+          (SELECT md5(coalesce(string_agg(q.id::text, ',' ORDER BY q.position), ''))
+            FROM room_queue_items q WHERE q.room_id=r.id) AS "queueFingerprint"
         FROM rooms r
         JOIN room_members m ON m.room_id=r.id AND m.user_id=$2
         JOIN sessions s ON s.id=$3 AND s.user_id=$2
@@ -73,7 +75,9 @@ export function registerRoomEventRoutes(app: FastifyInstance, pool: Pool): void 
       if (!out.destroyed && !out.writableEnded) out.end();
     };
     const publish = (snapshot: Snapshot) => {
-      const fingerprint = snapshot.revision + ':' + snapshot.participantCount;
+      // The queue keeps its own version (it does not bump the room revision),
+      // so its hash joins the fingerprint to notify queue-only changes.
+      const fingerprint = snapshot.revision + ':' + snapshot.participantCount + ':' + snapshot.queueFingerprint;
       if (fingerprint === previous) return;
       previous = fingerprint;
       const frame = 'event: room\ndata: ' + JSON.stringify(snapshot) + '\n\n';

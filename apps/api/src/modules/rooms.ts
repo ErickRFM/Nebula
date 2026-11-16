@@ -251,7 +251,7 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
       JOIN cloud_tracks c ON c.id=q.track_id
       JOIN rooms r ON r.id=q.room_id AND r.status='active'
       JOIN room_members m ON m.room_id=r.id AND m.user_id=$2
-      WHERE q.room_id=$1 ORDER BY q.position ASC LIMIT 200
+      WHERE q.room_id=$1 AND c.status='ready' ORDER BY q.position ASC LIMIT 200
     `, [params.data.id, request.principal!.userId]);
     return { items: result.rows };
   });

@@ -28,7 +28,7 @@ export function RoomRequestsPanel({roomId,hostId,account}:{roomId:string;hostId:
   finally{setBusy(false);}
  }
  const mine=account.user?.id;
- return <section className="content-section">
+ return <section className="content-section room-requests">
   <div className="section-heading"><h2>DJ colaborativo</h2><span>{items.length} propuestas</span></div>
   <div className="room-card glass">
    <p>Propón una canción. El anfitrión decidirá qué archivo autorizado reproducir; las sugerencias no comparten bibliotecas privadas.</p>
