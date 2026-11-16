@@ -396,7 +396,7 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
         method: 'POST', body: JSON.stringify({ name: name.trim(), mode }),
       });
       setSelectedId(result.room.id); setIssuedCode(result.inviteCode); setName('');
-      setNotice('Sala creada. Comparte el código con personas que tengan una cuenta NÉBULA.');
+      setNotice('Sala creada. Comparte el código: quien se una entra con su propia identidad desde su dispositivo.');
     });
   }
 
@@ -529,11 +529,11 @@ export function RoomsPanel({ account, onAccount, onLibrary, onActivate }: { acco
       <h2>Escuchen juntos, cada quien en su dispositivo</h2>
       <p>Las salas son espacios privados: el anfitrión comparte música autorizada desde su biblioteca y la reproducción se sincroniza para quienes están dentro.</p>
       <ul className="room-empty-points">
-        <li><Users size={15}/> Acceso solo con cuenta e invitación privada</li>
+        <li><Users size={15}/> Acceso solo con invitación privada</li>
         <li><Headphones size={15}/> Audio autorizado, sin retransmitir ni eludir DRM</li>
         <li><RadioTower size={15}/> Reloj compartido para escuchar en sincronía</li>
       </ul>
-      <button type="button" className="button primary small" onClick={onAccount}>Iniciar sesión para crear una sala</button>
+      <button type="button" className="button primary small" onClick={onAccount}>Abrir Cuenta</button>
     </div> : <>
       {error && <div className="room-alert glass" role="alert">
         <AlertCircle size={17} aria-hidden="true"/>

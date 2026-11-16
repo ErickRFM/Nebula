@@ -113,8 +113,22 @@ export function useAccount() {
       try {
         const data=await requestJson<{accessToken:string}>('/v1/auth/refresh',{method:'POST',body:'{}'});
         if(!cancelled && data.accessToken) {accessTokenRef.current=data.accessToken;setAccessToken(data.accessToken);}
-      } catch { /* no active session */ }
-      finally { if(!cancelled) setRestoring(false); }
+      } catch (cause) {
+        // Sin sesión previa no hay formulario: se aprovisiona una identidad invitada propia.
+        // Un fallo de red o un 5xx no debe crear cuentas, solo dejar la app en modo local.
+        if (cause instanceof ApiRequestError && cause.status === 401) {
+          try {
+            const guest = await requestJson<AuthResponse>('/v1/auth/guest', { method:'POST', body:'{}' });
+            if (!cancelled && guest.accessToken && guest.user?.id) {
+              accessTokenRef.current = guest.accessToken;
+              setAccessToken(guest.accessToken);
+              setUser(guest.user);
+            }
+          } catch (error) {
+            if (!cancelled) setError(error instanceof Error ? error.message : 'No se pudo conectar con NÉBULA Cloud.');
+          }
+        }
+      } finally { if(!cancelled) setRestoring(false); }
     })();
     return ()=>{cancelled=true;};
   },[]);

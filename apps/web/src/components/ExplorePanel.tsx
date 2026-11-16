@@ -86,7 +86,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
   async function searchRemote(q:string,nextPage=1) {
     searchAbort.current?.abort();
     if(q.length<2){setTracks([]);setSearched(false);setBusy(false);setSearchPage(0);setHasMore(false);setActiveQuery('');return;}
-    if(!account.accessToken || !apiConfigured){setTracks([]);setBusy(false);setHasMore(false);setSearchPage(0);setNotice('Inicia sesión en tu cuenta para explorar el catálogo.');return;}
+    if(!account.accessToken || !apiConfigured){setTracks([]);setBusy(false);setHasMore(false);setSearchPage(0);setNotice('Conectando con los catálogos de NÉBULA…');return;}
     const controller=new AbortController();
     searchAbort.current=controller;
     setBusy(true);setNotice('');setFailed([]);setSearched(true);
@@ -96,7 +96,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
       const response=await fetch(apiBase+'/v1/discovery/search?'+params.toString(),{
         headers:{Authorization:'Bearer '+account.accessToken},cache:'no-store',signal:controller.signal,
       });
-      if(!response.ok) throw new Error(response.status===401?'La sesión caducó; vuelve a iniciar sesión.':'No fue posible consultar los proveedores.');
+      if(!response.ok) throw new Error(response.status===401?'La conexión con NÉBULA caducó; actualiza la página.':'No fue posible consultar los proveedores.');
       const json=await response.json();
       if(controller.signal.aborted) return;
       const incoming:RemoteTrack[]=Array.isArray(json.items)?json.items:[];
@@ -184,7 +184,7 @@ export function ExplorePanel({account,onAccount,onPlay,initialQuery,embedded=fal
     {!embedded && <h1 className="page-title">Explora nuevas frecuencias</h1>}
     {!embedded && <p className="page-description">Busca canciones reales, escucha desde sus proveedores y guarda referencias privadas, sin descargar ni replicar archivos.</p>}
     {!apiConfigured || !account.user ? <div className="explore-gate glass">
-      <WifiOff size={25}/><div><strong>Exploración privada</strong><p>Necesitas la API configurada y una sesión iniciada para acceder a los catálogos.</p></div>
+      <WifiOff size={25}/><div><strong>Exploración privada</strong><p>{account.restoring ? 'Conectando con los catálogos…' : 'Hace falta la API de NÉBULA disponible para acceder a los catálogos.'}</p></div>
       <button className="button primary small" type="button" onClick={onAccount}>Ir a Cuenta</button>
     </div> : <>
       {!embedded && <form onSubmit={(event)=>{event.preventDefault();void searchRemote(query.trim());}} className="explore-form glass">

@@ -113,7 +113,7 @@ export function CloudLibrary({
 
   async function uploadFiles(files:File[], controller=new AbortController()):Promise<boolean> {
     if (!files.length) return false;
-    if (!account.user) { setError('Inicia sesión para subir canciones a la nube.'); return false; }
+    if (!account.user) { setError(account.restoring ? 'Conectando con tu nube privada… inténtalo en un momento.' : 'No se pudo conectar con NÉBULA Cloud. Intenta de nuevo.'); return false; }
     if(files.length>MAX_BATCH_FILES){setError('Seleccionaste '+files.length+' archivos. El máximo por lote es '+MAX_BATCH_FILES+' para evitar límites del servidor. Divide la carpeta en varios lotes; no se omitirá ninguna canción silenciosamente.');return false;}
     uploadController.current=controller;
     setBusy(true);setError('');setMessage('');setUploadProgress(0);
@@ -262,7 +262,7 @@ export function CloudLibrary({
       <span className="server-pill">{items.length}{nextCursor?'+':''} canciones privadas</span>
     </div>
     {!account.configured || !account.user ? <div className="disclosure">
-      <CloudOff size={18}/> Inicia sesión en Cuenta para guardar y escuchar tus canciones desde cualquier dispositivo.
+      <CloudOff size={18}/> {account.restoring ? 'Conectando con tu nube privada…' : 'Sin conexión con NÉBULA Cloud. Desde Cuenta puedes iniciar sesión o registrarte para usar tu propio almacenamiento.'}
     </div> : <>
       <div className="cloud-actions glass">
         <div>

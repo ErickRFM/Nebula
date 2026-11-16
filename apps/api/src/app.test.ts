@@ -108,6 +108,29 @@ describe.skipIf(!url)('private accounts API backed by PostgreSQL', () => {
     expect(invalid.statusCode).toBe(401);
   });
 
+  it('provisions a distinct, non-signable guest identity per device', async () => {
+    const first = await app.inject({ method: 'POST', url: '/v1/auth/guest', headers: { 'x-nebula-client': 'web', 'x-forwarded-for': '198.51.100.81' }, payload: {} });
+    const second = await app.inject({ method: 'POST', url: '/v1/auth/guest', headers: { 'x-nebula-client': 'web', 'x-forwarded-for': '198.51.100.82' }, payload: {} });
+    expect(first.statusCode).toBe(201);
+    expect(second.statusCode).toBe(201);
+    expect(first.json().user.id).not.toBe(second.json().user.id);
+    expect(first.json().user.role).toBe('member');
+    expect(first.json().accessToken).toBeTruthy();
+    const headers = { authorization: 'Bearer ' + first.json().accessToken };
+    expect((await app.inject({ method: 'GET', url: '/v1/me', headers })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/v1/admin/invites', headers, payload: {} })).statusCode).toBe(403);
+    // La identidad invitada no tiene credenciales: la contraseña sentinela no es verificable.
+    const attemptedLogin = await app.inject({
+      method: 'POST', url: '/v1/auth/login',
+      payload: { email: first.json().user.email, password: 'guest-account-disabled' },
+    });
+    expect(attemptedLogin.statusCode).toBe(401);
+    const guestCookie = cookieValue(first, 'nebula_refresh');
+    expect(guestCookie).toBeTruthy();
+    const resumed = await app.inject({ method: 'POST', url: '/v1/auth/refresh', headers: { cookie: 'nebula_refresh=' + guestCookie, 'x-nebula-client': 'web' }, payload: {} });
+    expect(resumed.statusCode).toBe(200);
+  });
+
   it('enforces ownership on playlist list, rename and delete', async () => {
     const a = await register('owner');
     const b = await register('viewer');
