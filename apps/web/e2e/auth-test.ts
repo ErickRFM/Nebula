@@ -1,4 +1,4 @@
-import {test as base,expect} from '@playwright/test';
+import {test as base,expect,type Page} from '@playwright/test';
 import {createHash} from 'node:crypto';
 export type {Page} from '@playwright/test';
 
@@ -17,3 +17,15 @@ export const test=base.extend({
  },
 });
 export {expect};
+
+/**
+ * La entrada sin formulario deja la pantalla de Cuenta con una identidad de invitado, así que
+ * el formulario de credenciales ya no es el primer estado: hay que pedirlo. Si la sesión activa
+ * es real (recarga o reload tras Salir) la puerta no está y se usa el formulario directo.
+ */
+export async function openSignInForm(page:Page):Promise<void> {
+  await page.getByRole('button',{name:'Mi cuenta'}).click();
+  const guestDoor=page.getByRole('button',{name:'Iniciar sesión con mi cuenta'});
+  if(await guestDoor.isVisible()) await guestDoor.click();
+  await expect(page.getByRole('textbox',{name:'Correo electrónico'})).toBeVisible();
+}

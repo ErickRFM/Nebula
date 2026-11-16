@@ -19,6 +19,9 @@ function formatDate(value:string):string {
 export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOpenPlaylists:()=>void}) {
   const askConfirm = useConfirm();
   const [mode,setMode]=useState<'login'|'register'|'invite'>('login');
+  // El visitante entra sin formulario, así que la tarjeta de credenciales necesita una puerta
+  // propia: sin este estado, quien ya tiene invitado no podría nunca usar su cuenta real.
+  const [showSignIn,setShowSignIn]=useState(false);
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [inviteToken,setInviteToken]=useState('');
@@ -33,7 +36,7 @@ export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOp
     const success=mode==='invite'
       ? await account.acceptInvite(inviteToken,email,password)
       : await account.login(mode,email,password);
-    if(success) {setPassword('');setInviteToken('');}
+    if(success) {setPassword('');setInviteToken('');setShowSignIn(false);}
   }
   async function createInvite(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,16 +66,27 @@ export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOp
       <Cloud size={29} color="#d3aaff"/>
       <h2>Comprobando sesión…</h2>
       <p className="disclosure">Recuperando tu sesión segura desde la cookie de refresco.</p>
-    </div> : account.user ? <>
+    </div> : account.user && !showSignIn ? <>
       <div className="account-session glass">
         <div className="account-user-icon"><CircleUserRound size={28}/></div>
         <div className="account-user-label">
-          <strong>Sesión activa {account.user.role==='owner' && <span className="server-pill"><ShieldCheck size={14}/> Propietario</span>}</strong>
+          <strong>Sesión activa {account.user.role==='owner' && <span className="server-pill"><ShieldCheck size={14}/> Propietario</span>}{account.isGuest && <span className="server-pill">Invitado</span>}</strong>
           <span>{account.user.email}</span>
-          <small>Tu sesión se conserva de forma segura; puedes cerrarla o revocar dispositivos cuando quieras.</small>
+          <small>{account.isGuest ? 'NÉBULA te dio esta identidad para que escuches sin registro; tu música queda en este dispositivo.' : 'Tu sesión se conserva de forma segura; puedes cerrarla o revocar dispositivos cuando quieras.'}</small>
         </div>
         <button type="button" className="button secondary" onClick={()=>void account.logout()}><LogOut size={17}/> Salir</button>
       </div>
+      {account.isGuest && <section className="content-section">
+        <div className="section-heading"><h2>¿Ya tienes cuenta de NÉBULA?</h2></div>
+        <div className="settings-panel glass account-cloud-summary">
+          <LockKeyhole size={22} aria-hidden="true"/>
+          <div>
+            <strong>Inicia sesión para recuperar tu biblioteca sincronizada</strong>
+            <p>Tus listas y favoritos de invitado no se mueven solos: al entrar con tu correo vuelves a ver lo que subiste a tu nube. Si cierras sesión, NÉBULA te da otra identidad invitada.</p>
+          </div>
+          <button type="button" className="button secondary" onClick={()=>{account.setError('');setShowSignIn(true);}}>Iniciar sesión con mi cuenta</button>
+        </div>
+      </section>}
       {account.user.role==='owner' && <section className="content-section">
         <div className="section-heading"><h2>Invitar personas a NÉBULA</h2><span className="server-pill"><UserPlus size={16}/> Solo propietario</span></div>
         <form className="playlist-create glass" onSubmit={(event)=>void createInvite(event)}>
@@ -132,6 +146,9 @@ export function AccountPanel({account,onOpenPlaylists}: {account:AccountApi;onOp
       <button type="button" className="account-switch" onClick={()=>{
         setMode(mode==='invite'?'login':'invite');account.setError('');
       }}>{mode==='invite'?'Volver a iniciar sesión':'Tengo un código de invitación'}</button>
+      {account.user && <button type="button" className="account-switch" onClick={()=>{account.setError('');setShowSignIn(false);}}>
+        Seguir con mi sesión de invitado
+      </button>}
     </div>}
     {account.error && <p className="account-error" role="alert">{account.error}</p>}
   </section>;
