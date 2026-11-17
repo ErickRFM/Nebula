@@ -1,9 +1,10 @@
 import {spawn} from 'node:child_process';
+import {join} from 'node:path';
 import {PassThrough} from 'node:stream';
 import {normalizeVideos,VIDEO_ID} from './bridge-core.mjs';
 import {normalizeEntries,sanitizeYouTubeUrl,MAX_RESOLVE_ENTRIES as MAX_PLAYLIST_PREVIEW} from './url-policy.mjs';
 
-function runJson(executable,args,timeoutMs=18000){
+function runJson(executable,args,timeoutMs=18000,maxBytes=1_000_000){
  return new Promise((resolve,reject)=>{
   const child=spawn(executable,args,{shell:false,windowsHide:true,stdio:['ignore','pipe','pipe']});
   let stdout='';let stderr='';let closed=false;
@@ -15,7 +16,7 @@ function runJson(executable,args,timeoutMs=18000){
   child.once('error',e=>finish(e));
   child.stdout.on('data',chunk=>{
    stdout+=chunk.toString('utf8');
-   if(stdout.length>1_000_000){child.kill();finish(Error('response_too_large'));}
+   if(stdout.length>maxBytes){child.kill();finish(Error('response_too_large'));}
   });
   child.stderr.on('data',chunk=>{if(stderr.length<4096)stderr+=chunk.toString('utf8');});
   child.once('close',code=>{
@@ -41,9 +42,41 @@ export function createYtdlpRunner({enabled=false,ytdlp='yt-dlp',ffmpeg='ffmpeg'}
    if(!safe)throw Error('invalid_url');
    const payload=await runJson(ytdlp,[
     '--ignore-config','--no-warnings','--no-progress','--flat-playlist','--dump-single-json',
-    '--playlist-items','1-'+MAX_PLAYLIST_PREVIEW,safe,
-   ],30000);
+    '--socket-timeout','12','--playlist-items','1-'+MAX_PLAYLIST_PREVIEW,safe,
+   ],120_000,9_000_000);
    return normalizeEntries(payload);
+  },
+  // El lote largo escribe en disco desde el propio equipo: así 1.000 pistas no pasan
+  // por la memoria del navegador ni dependen de que la pestaña siga abierta.
+  downloadOne(id,{directory,signal}={}){
+   if(!enabled)throw Error('bridge_disabled');
+   if(!VIDEO_ID.test(id)||typeof directory!=='string')throw Error('invalid_batch_item');
+   if(signal?.aborted)return Promise.reject(Error('cancelled'));
+   return new Promise((resolvePromise,reject)=>{
+    let settled=false;
+    const child=spawn(ytdlp,[
+     '--ignore-config','--no-playlist','--no-warnings','--no-progress',
+     '--socket-timeout','12','--retries','2','--fragment-retries','2',
+     '--extract-audio','--audio-format','mp3','--audio-quality','0',
+     '--ffmpeg-location',ffmpeg,'--no-overwrites',
+     '--download-archive',join(directory,'.nebula-download-archive.txt'),
+     '--paths',directory,'--output','%(title).140B [%(id)s].%(ext)s',
+     'https://www.youtube.com/watch?v='+id,
+    ],{shell:false,windowsHide:true,stdio:['ignore','ignore','pipe']});
+    const timer=setTimeout(()=>{child.kill();finish(Error('download_timeout'));},15*60_000);
+    function finish(error){
+     if(settled)return;
+     settled=true;clearTimeout(timer);
+     signal?.removeEventListener('abort',cancel);
+     error?reject(error):resolvePromise({id});
+    }
+    function cancel(){child.kill();finish(Error('cancelled'));}
+    signal?.addEventListener('abort',cancel,{once:true});
+    child.stderr?.resume();
+    child.once('error',finish);
+    child.once('close',code=>finish(code===0?null:Error('yt_dlp_exit_'+code)));
+    if(signal?.aborted)cancel();
+   });
   },
   stream(id){
    if(!enabled)throw Error('bridge_disabled');

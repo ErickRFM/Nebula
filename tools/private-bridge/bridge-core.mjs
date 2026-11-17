@@ -1,9 +1,12 @@
 import {createServer} from 'node:http';
 import {createHmac, randomBytes, timingSafeEqual} from 'node:crypto';
+import {createPlaylistBatchManager} from './playlist-batch.mjs';
 
 export const VIDEO_ID=/^[A-Za-z0-9_-]{11}$/;
 const DEFAULT_ORIGINS=['http://localhost:3000','http://127.0.0.1:3000'];
 const LIMIT=3_000;
+const BATCH_LIMIT=24_000;
+const BATCH_ROUTE=/^\/batch\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\/cancel)?$/;
 
 export function normalizeOrigins(value){
  if(!value)return DEFAULT_ORIGINS;
@@ -57,19 +60,20 @@ function validToken(value,secret){
  const expected=Buffer.from(secret);
  return given.length===expected.length&&timingSafeEqual(given,expected);
 }
-async function readJson(req){
+async function readJson(req,limit=LIMIT){
  let size=0;const chunks=[];
  for await (const chunk of req){
-  size+=chunk.length;if(size>LIMIT)throw Error('payload_too_large');
+  size+=chunk.length;if(size>limit)throw Error('payload_too_large');
   chunks.push(chunk);
  }
  try {return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
  catch {throw Error('invalid_json');}
 }
-export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',origins=DEFAULT_ORIGINS,clock=Date.now,logger=()=>{}}){
+export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',origins=DEFAULT_ORIGINS,clock=Date.now,logger=()=>{},downloadDir=process.env.NEBULA_DOWNLOAD_DIR}){
  if(typeof secret!=='string'||secret.length<32)throw Error('Bridge token must have at least 32 characters');
  if(!runner||typeof runner.search!=='function'||typeof runner.stream!=='function')throw Error('runner required');
  let active=0;const searchHits=[];
+ const batches=createPlaylistBatchManager({runner,downloadDir,clock});
  const server=createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
@@ -121,13 +125,39 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
    if(searchHits.length>=10){reply(res,429,{error:'resolve_rate_limited'});return;}
    searchHits.push(now);
    try{
-    const resolved=await runner.resolve(url.searchParams.get('url'));
-    reply(res,200,{items:Array.isArray(resolved?.items)?resolved.items:[],truncated:resolved?.truncated===true});
+    const submitted=url.searchParams.get('url');
+    const resolved=await runner.resolve(submitted);
+    const items=Array.isArray(resolved?.items)?resolved.items:[];
+    batches.remember(submitted,items);
+    reply(res,200,{items,truncated:resolved?.truncated===true});
    }catch(e){
     if(e?.message==='invalid_url')reply(res,400,{error:'invalid_url'});
     else{logger('resolve_failed',e?.message);reply(res,502,{error:'resolve_unavailable'});}
    }
    return;
+  }
+  if(req.method==='POST'&&url.pathname==='/batch'){
+   if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
+   if(runner.enabled===false){reply(res,503,{error:'bridge_disabled'});return;}
+   let body;
+   try{body=await readJson(req,BATCH_LIMIT);}
+   catch{reply(res,400,{error:'invalid_batch_payload'});return;}
+   try{reply(res,202,{job:batches.start(body?.listUrl,body?.ids)});}
+   catch(e){
+    const reason=e?.message;
+    if(reason==='batch_busy')reply(res,409,{error:'batch_busy'});
+    else if(reason==='preview_expired')reply(res,410,{error:'playlist_preview_expired'});
+    else if(reason==='batch_unavailable')reply(res,503,{error:'batch_unavailable'});
+    else reply(res,400,{error:'invalid_batch_selection'});
+   }
+   return;
+  }
+  const batch=BATCH_ROUTE.exec(url.pathname);
+  if(batch&&!url.searchParams.size&&(batch[2]?req.method==='POST':req.method==='GET')){
+   if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
+   const job=batch[2]?batches.cancel(batch[1]):batches.status(batch[1]);
+   if(!job){reply(res,404,{error:'batch_not_found'});return;}
+   reply(res,200,{job});return;
   }
   if(req.method==='POST'&&url.pathname==='/ticket'){
    if(!validToken(req.headers.authorization,secret)){reply(res,401,{error:'unauthorized'});return;}
@@ -181,5 +211,5 @@ export function createBridgeServer({secret,runner,port=4177,host='127.0.0.1',ori
  return {server,listen:()=>new Promise((resolve,reject)=>{
   server.once('error',reject);
   server.listen(port,host,()=>{server.off('error',reject);resolve(server.address());});
- }),close:()=>new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()))};
+ }),close:()=>{batches.shutdown();return new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}};
 }

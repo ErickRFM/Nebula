@@ -38,3 +38,41 @@ Sustituye **tu-preview-de-nebula.vercel.app** por el origen exacto que muestra l
 
 - `node --test tools/private-bridge/*.test.mjs`
 - `npm run test:e2e` (incluye `apps/web/e2e/bridge-mp3-download.spec.ts`, usando una respuesta MP3 simulada sin descargar archivos de terceros).
+
+## Listas largas: hasta 1.000 pistas
+
+En **Buscar** (o **Explorar**) → *Reproducción privada local*, pega un enlace fijo
+`https://www.youtube.com/playlist?list=PL…` y pulsa **Ver lista de pistas**. Un solo
+endpoint, `/resolve`, enumera la lista con `yt-dlp --flat-playlist` y devuelve hasta
+**1.000** pistas. El techo vive en `tools/private-bridge/limits.mjs`;
+`apps/web/src/lib/private-bridge.ts` lo repite y `private-bridge.test.ts` comprueba que
+los dos números sigan siendo el mismo.
+
+Hay dos destinos para esa misma lista y un solo camino de reproducción (`/ticket` +
+`/stream`):
+
+- **Cola del navegador** (por defecto): la pestaña pide cada MP3, lo añade a la Biblioteca
+  en lotes de 10 y puede guardar una copia de archivo.
+- **Carpeta del puente**: activa *Guardar el lote en la carpeta del puente (hasta 1000)*.
+  `POST /batch` lanza una cola que convierte **una canción cada vez** y escribe en
+  `%USERPROFILE%\Downloads\Nebula` (`NEBULA_DOWNLOAD_DIR` si lo cambias antes de abrir el
+  puente). La pestaña puede cerrarse: el lote sigue en el puente y el seguimiento se
+  recupera al volver. Cerrar el puente aborta la pista en curso; lo ya convertido queda
+  en disco. `.nebula-download-archive.txt` evita repetir canciones ya descargadas.
+
+La vista previa que autoriza el lote caduca a los 20 minutos. Si el puente responde
+`playlist_preview_expired`, vuelve a pulsar **Ver lista de pistas** y reintenta.
+
+Reglas del lote: una sola cola activa (`batch_busy`), solo se aceptan IDs que el puente
+listó para ese mismo enlace, el cuerpo del `POST` cabe en 24 KB (≈1.000 IDs) y ninguna
+ruta acepta comandos ni rutas escritos por el navegador. Con 1.000 pistas el tiempo y el
+espacio dependen del equipo; las que fallen se cuentan y no bloquean las siguientes.
+Los archivos del lote **no** se suben a la nube: para oírlos en Salas, súbelos desde
+Biblioteca → Mi música en la nube en lotes de 20.
+
+### Pruebas
+
+- `node --test tools/private-bridge/playlist-batch.test.mjs` (límite, orden, progreso,
+  cancelación, caducidad de la vista previa y puente sin descargador).
+- `apps/web/e2e/playlist-long-batch.spec.ts` (1.000 pistas simuladas, ventana de 60 filas,
+  confirmación y seguimiento del lote, sin contactar YouTube).
